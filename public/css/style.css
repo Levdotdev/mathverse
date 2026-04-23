@@ -1,0 +1,273 @@
+:root {
+    --neon-cyan: #00f2ff;
+    --neon-purple: #bc13fe;
+    --neon-pink: #ff00de;
+    --deep-space: #050505;
+    --neon-white: white;
+}
+
+* {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Rajdhani', sans-serif;
+    background-color: var(--deep-space);
+    min-height: 100vh;
+    overflow: hidden;
+    margin: 0;
+    perspective: 1000px;
+}
+
+/* --- BACKGROUNDS --- */
+.stars-container {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
+    z-index: -5;
+}
+
+.digital-rain {
+    position: fixed; inset: 0;
+    background: url('https://www.transparenttextures.com/patterns/stardust.png');
+    opacity: 0.15; z-index: -4;
+    animation: drift 60s linear infinite;
+}
+
+@keyframes drift { from { background-position: 0 0; } to { background-position: 500px 1000px; } }
+
+.cyber-grid {
+    position: fixed; bottom: -30%; left: -50%; width: 200%; height: 200%;
+    background-image: linear-gradient(var(--neon-cyan) 1px, transparent 1px), linear-gradient(90deg, var(--neon-cyan) 1px, transparent 1px);
+    background-size: 45px 45px;
+    transform: rotateX(65deg);
+    opacity: 0.12;
+    mask-image: linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0));
+    z-index: -3;
+}
+
+/* --- TEXT STYLES --- */
+.glitch-title {
+    text-shadow: 2px 0 var(--neon-pink), -2px 0 var(--neon-cyan);
+    animation: glitch 3s infinite alternate;
+}
+
+@keyframes glitch {
+    0% { text-shadow: 2px 0 var(--neon-pink), -2px 0 var(--neon-cyan); }
+    50% { text-shadow: -3px 0 var(--neon-purple), 3px 0 var(--neon-cyan); transform: skew(0.5deg); }
+    100% { text-shadow: 1px 0 var(--neon-pink), -1px 0 var(--neon-cyan); }
+}
+
+.input-label {
+    display: block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--neon-cyan);
+    margin-bottom: 6px;
+    margin-left: 4px;
+}
+
+/* --- UI COMPONENTS --- */
+.portal-frame {
+    background: rgba(10, 10, 15, 0.94);
+    backdrop-filter: blur(25px);
+    border: 1px solid rgba(0, 242, 255, 0.25);
+    box-shadow: 0 0 50px rgba(0,0,0,0.9);
+    clip-path: polygon(0 25px, 25px 0, calc(100% - 25px) 0, 100% 25px, 100% calc(100% - 25px), calc(100% - 25px) 100%, 25px 100%, 0 calc(100% - 25px));
+    transition: filter 0.5s ease;
+}
+
+.corner {
+    position: absolute; width: 12px; height: 12px;
+    border: 2px solid var(--neon-cyan); opacity: 0.8;
+}
+
+.input-icon {
+    position: absolute; left: 14px; top: 50%;
+    transform: translateY(-50%);
+    color: #475569; font-size: 14px; z-index: 10;
+}
+
+.input-mobile-ultra {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 14px 12px 42px;
+    border-radius: 8px;
+    width: 100%; color: white;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.input-mobile-ultra::placeholder { color: #334155; }
+.input-mobile-ultra:focus { border-color: var(--neon-cyan); outline: none; box-shadow: 0 0 15px rgba(0, 242, 255, 0.1); }
+
+.role-card {
+    padding: 12px; border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 8px; text-align: center; color: #475569;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-mobile-ultra {
+    background: linear-gradient(135deg, var(--neon-white), var(--neon-cyan), var(--neon-cyan));
+    color: #000; font-family: 'Orbitron', sans-serif;
+    font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 15px 0; clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+    width: 100%; cursor: pointer; border: none;
+    transition: filter 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s;
+}
+
+/* --- PARTICLES & BLUR --- */
+.particle {
+    position: absolute; pointer-events: none; opacity: 0;
+    font-weight: 900; animation: floatUpAnim 10s linear infinite, glowPulse 2s ease-in-out infinite alternate;
+    filter: drop-shadow(0 0 10px currentColor); z-index: -1;
+}
+
+@keyframes floatUpAnim {
+    from { transform: translateY(110vh) rotate(0deg) scale(0.8); opacity: 0; }
+    20% { opacity: 0.8; }
+    80% { opacity: 0.8; }
+    to { transform: translateY(-10vh) rotate(180deg) scale(1.2); opacity: 0; }
+}
+
+@keyframes glowPulse { from { filter: drop-shadow(0 0 5px currentColor); } to { filter: drop-shadow(0 0 15px currentColor); } }
+
+.blur-bg { filter: blur(15px) brightness(0.3); pointer-events: none; transition: filter 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+
+.module { display: none; }
+.module-active { display: block; animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* Sidebar Nav Links */
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    color: #94a3b8;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+.nav-link.active {
+    color: #00f2ff;
+    background: rgba(0, 242, 255, 0.08);
+    border-color: rgba(0, 242, 255, 0.2);
+}
+
+/* MODAL OVERLAY - HEAVY BLUR */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* BUTTONS */
+.btn-rect-primary {
+    background: #00f2ff;
+    color: #000;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding: 14px;
+    border-radius: 4px;
+    width: 100%;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-rect-primary:hover {
+    background: #fff;
+    box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+    transform: translateY(-2px);
+}
+
+.btn-rect-secondary {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-rect-danger {
+    background: #dc2626;
+    color: #fff;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    padding: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* INPUT WITH ICON INSIDE */
+.input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.input-mobile-ultra {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 14px 12px 42px; /* Fixed space for icon */
+    border-radius: 4px;
+    width: 100%;
+    color: white;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.input-mobile-ultra:focus {
+    border-color: #00f2ff;
+    outline: none;
+    box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
+}
+
+/* --- NEW GLOBAL SECTION/MODAL ANIMATION --- */
+@keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.96) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-fade-in {
+    animation: fadeInScale 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* --- BACKGROUND FX --- */
+.particle {
+    position: absolute; pointer-events: none; opacity: 0;
+    font-weight: 900; animation: floatUpAnim 10s linear infinite;
+    filter: drop-shadow(0 0 10px currentColor); z-index: -1;
+}
+@keyframes floatUpAnim {
+    from { transform: translateY(110vh) rotate(0deg); opacity: 0; }
+    15% { opacity: 0.7; }
+    85% { opacity: 0.7; }
+    to { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+}
