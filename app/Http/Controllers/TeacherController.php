@@ -15,6 +15,10 @@ class TeacherController extends Controller
         $user    = session('supabase_user');
         $token   = session('supabase_token');
 
+        if (!$user || !$token) {
+            return redirect('/')->with('error', 'Please log in first.');
+        }
+
         // Dashboard metrics
         $allStudents = $this->supabase->adminSelect('profiles', 'id', ['role' => 'student']);
         $studentCount = count($allStudents);

@@ -101,7 +101,7 @@
                             </div>
                         </label>
                         <label class="cursor-pointer">
-                            <input type="radio" name="role" value="teacher" class="hidden peer">
+                            <input type="radio" name="role" value="pending_teacher" class="hidden peer">
                             <div class="role-card peer-checked:border-purple-500 peer-checked:bg-purple-500/10">
                                 <i class="fas fa-chalkboard-teacher mb-1 text-sm block"></i>
                                 <span class="text-[9px] font-bold uppercase">Teacher</span>

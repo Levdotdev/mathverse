@@ -62,28 +62,13 @@ class AuthController extends Controller
             'role'       => 'required|in:student,teacher',
         ]);
 
-        $authResult = $this->supabase->signUp($request->email, $request->password);
+        $authResult = $this->supabase->signUp($request->email, $request->password, $request->role, $request->first_name, $request->last_name);
 
         if (isset($authResult['error'])) {
             return back()->with('error', $authResult['msg'] ?? 'Registration failed.');
         }
 
         $userId = $authResult['user']['id'] ?? null;
-        if (!$userId) {
-            return back()->with('error', 'Could not create account.');
-        }
-
-        // Insert profile row
-        $this->supabase->insert('profiles', [
-            'id'          => $userId,
-            'email'       => $request->email,
-            'username'    => $request->first_name,
-            'last_name'   => $request->last_name,
-            'role'        => $request->role === 'teacher' ? 'pending_teacher' : 'student',
-            'grade_level' => 1,
-            'level'       => 1,
-            'trophies'    => 0,
-        ]);
 
         return redirect('/')->with('success', 'Registered! Please verify your email then log in.');
     }

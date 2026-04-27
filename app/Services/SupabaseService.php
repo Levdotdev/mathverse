@@ -32,7 +32,7 @@ class SupabaseService
         return $response->json();
     }
 
-    public function signUp(string $email, string $password): array
+    public function signUp(string $email, string $password, string $role, string $first_name, string $last_name): array
     {
         $response = Http::withHeaders([
             'apikey'       => $this->anonKey,
@@ -40,6 +40,11 @@ class SupabaseService
         ])->post("{$this->url}/auth/v1/signup", [
             'email'    => $email,
             'password' => $password,
+            'data' => [
+                'role'       => $role,
+                'first_name' => $first_name,
+                'last_name'  => $last_name,
+            ],
         ]);
 
         return $response->json();
@@ -131,7 +136,7 @@ class SupabaseService
     public function adminSelect(string $table, string $query = '*', array $filters = []): array
     {
         $request = Http::withHeaders([
-            'apikey'        => $this->anonKey,
+            'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
         ])->withQueryParameters(['select' => $query]);
 
