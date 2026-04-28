@@ -87,7 +87,6 @@
         <form method="POST" action="/student/join-class" class="flex w-full md:w-auto gap-2">
             @csrf
             <div class="relative w-full md:w-48">
-                <i class="fas fa-key input-icon"></i>
                 <input type="text" name="join_code" placeholder="Join Code"
                        class="input-mobile-ultra font-mono uppercase !pl-4 tracking-widest">
             </div>
@@ -152,7 +151,7 @@
                         <tr class="border-b border-white/5 {{ $isMe ? 'bg-cyan-400/5' : '' }}">
                             <td class="py-4 font-mono {{ $isMe ? 'text-cyan-400' : '' }}">#{{ $i + 1 }}</td>
                             <td class="py-4 {{ $isMe ? 'font-bold' : '' }}">
-                                {{ $p['last_name'] ?? 'Unknown' }}, {{ $p['username'] ?? 'Unknown' }}
+                                {{ $p['last_name'] ?? 'Unknown' }}, {{ $p['first_name'] ?? 'Unknown' }}
                                 {{ $isMe ? '(You)' : '' }}
                             </td>
                             <td class="py-4">Level {{ $p['level'] ?? 1 }}</td>
@@ -190,7 +189,7 @@
                     <div class="relative">
                         <i class="fas fa-graduation-cap input-icon"></i>
                         <select name="grade_level" class="input-mobile-ultra bg-slate-900 text-white">
-                            @for($g = 1; $g <= 12; $g++)
+                            @for($g = 1; $g <= 6; $g++)
                                 <option value="{{ $g }}" {{ ($profile['grade_level'] ?? 1) == $g ? 'selected' : '' }}>
                                     Grade {{ $g }}
                                 </option>
@@ -202,7 +201,7 @@
                     <label class="input-label">First Name</label>
                     <div class="relative">
                         <i class="fas fa-user input-icon"></i>
-                        <input type="text" name="first_name" value="{{ $profile['username'] ?? '' }}"
+                        <input type="text" name="first_name" value="{{ $profile['first_name'] ?? '' }}"
                                class="input-mobile-ultra">
                     </div>
                 </div>
@@ -283,31 +282,24 @@
         </button>
     </div>
 </div>
+
+<div id="logoutModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-xs text-center shadow-[0_0_100px_rgba(0,0,0,1)]">
+        <i class="fas fa-sign-out-alt text-4xl text-cyan-400 mb-6"></i>
+        <h3 class="font-orbitron font-bold text-white mb-2 uppercase">Are you sure you want to log out?</h3>
+        <p class="text-xs text-slate-500 uppercase mb-8">You will need to log in again to access your account.</p>
+        <div class="space-y-3">
+            <form id="logoutForm" method="POST" action="/logout" class="mt-10">
+                @csrf
+                <button onclick="handleLogout()" class="btn-rect-primary !py-3">Confirm Logout</button>
+            </form>
+            <button onclick="closeModal('logoutModal')" class="w-full text-[10px] font-bold text-slate-500 uppercase">Cancel</button>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
-<script>
-async function openRosterModal(classId, className) {
-    document.getElementById('roster-modal-title').innerText = className + ' - Classmates';
-    const tbody = document.getElementById('roster-tbody');
-    tbody.innerHTML = '<tr><td colspan="2" class="text-center py-8 text-slate-500"><i class="fas fa-circle-notch fa-spin text-2xl"></i></td></tr>';
-    openModal('viewClassRosterModal');
-
-    const res  = await fetch(`/student/class-roster/${classId}`);
-    const data = await res.json();
-
-    if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="2" class="text-center py-6 text-slate-500 text-xs uppercase">No classmates found.</td></tr>';
-        return;
-    }
-    tbody.innerHTML = data.map(m => `
-        <tr class="border-b border-white/5 hover:bg-white/5">
-            <td class="py-4 font-bold"><i class="fas fa-user-graduate text-slate-500 mr-2"></i>
-                ${m.last_name ?? 'Unknown'}, ${m.username ?? 'Unknown'}
-            </td>
-            <td class="py-4 text-cyan-400 font-mono text-right">Level ${m.level ?? 1}</td>
-        </tr>
-    `).join('');
-}
-</script>
+<script src="{{ asset('js/student.js') }}"></script>
 @endpush

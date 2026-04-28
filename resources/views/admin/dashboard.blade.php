@@ -293,67 +293,23 @@
     </div>
 </div>
 
+<div id="logoutModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/30 shadow-[0_0_60px_rgba(255,0,0,0.2)]">
+        <i class="fas fa-power-off text-4xl text-red-500 mb-4 animate-pulse"></i>
+        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Are you sure you want to logout?</h3>
+        <p class="text-[10px] text-slate-500 mb-8 uppercase tracking-widest">Ending Root Session</p>
+        <div class="space-y-3">
+            <form id="logoutForm" method="POST" action="/logout" class="mt-10">
+                @csrf
+                <button onclick="handleLogout()" class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button>
+            </form>
+            <button onclick="closeModal('logoutModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
-<script>
-// Search filter
-document.getElementById('admin-search')?.addEventListener('input', function () {
-    const term = this.value.toLowerCase();
-    document.querySelectorAll('.user-row').forEach(row => {
-        row.style.display = row.innerText.toLowerCase().includes(term) ? '' : 'none';
-    });
-});
-
-// Edit user
-let editingUserId = null;
-
-function openEditModal(id, name, role) {
-    editingUserId = id;
-    document.getElementById('edit-u-name').value = name;
-    document.getElementById('edit-u-role').value = role;
-    openModal('editUserModal');
-}
-
-async function saveEditUser() {
-    const name = document.getElementById('edit-u-name').value;
-    const role = document.getElementById('edit-u-role').value;
-
-    await fetch(`/admin/user/${editingUserId}`, {
-        method:  'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify({ username: name, role: role })
-    });
-
-    showToast('User updated. Reloading...');
-    closeModal('editUserModal');
-    setTimeout(() => location.reload(), 1000);
-}
-
-// Delete user
-let deletingUserId = null;
-
-function confirmDelete(id) {
-    deletingUserId = id;
-    openModal('deleteUserModal');
-}
-
-async function executeDelete() {
-    await fetch(`/admin/user/${deletingUserId}`, {
-        method:  'DELETE',
-        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
-    });
-
-    showToast('User purged. Reloading...');
-    closeModal('deleteUserModal');
-    setTimeout(() => location.reload(), 1000);
-}
-
-// Auto-open section from query string
-const urlSection = new URLSearchParams(window.location.search).get('section');
-if (urlSection) showSection(urlSection);
-</script>
+<script src="{{ asset('js/admin.js') }}"></script>
 @endpush

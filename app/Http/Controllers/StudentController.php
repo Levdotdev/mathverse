@@ -17,7 +17,7 @@ class StudentController extends Controller
 
         // Global leaderboard
         $leaderboard = $this->supabase->adminSelect(
-            'profiles', 'id,username,last_name,trophies,level',
+            'profiles', 'id,first_name,last_name,trophies,level',
             ['role' => 'student']
         );
         usort($leaderboard, fn($a, $b) => ($b['trophies'] ?? 0) - ($a['trophies'] ?? 0));
@@ -102,14 +102,14 @@ class StudentController extends Controller
 
         // Update profile fields
         $this->supabase->update('profiles', [
-            'username'    => $request->first_name,
+            'first_name'    => $request->first_name,
             'last_name'   => $request->last_name,
             'grade_level' => (int) $request->grade_level,
         ], ['id' => $user['id']], $token);
 
         // Update session so name shows immediately
         $updated = session('supabase_user');
-        $updated['username']    = $request->first_name;
+        $updated['first_name']    = $request->first_name;
         $updated['last_name']   = $request->last_name;
         $updated['grade_level'] = $request->grade_level;
         session(['supabase_user' => $updated]);

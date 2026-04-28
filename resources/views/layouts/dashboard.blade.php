@@ -20,13 +20,9 @@
         @yield('sidebar-nav')
     </nav>
 
-    {{-- Logout button uses a POST form (more secure than a link) --}}
-    <form method="POST" action="/logout" class="mt-10">
-        @csrf
-        <button type="submit" class="btn-rect-secondary w-full @yield('logout-btn-class', '')">
-            <i class="fas fa-power-off mr-2"></i> Log Out
-        </button>
-    </form>
+    <button type="button" onclick="openModal('logoutModal')" class="btn-rect-secondary w-full">
+        <i class="fas fa-power-off mr-2"></i> Log Out
+    </button>
 </aside>
 
 <main class="flex-1 p-4 md:p-8 overflow-y-auto z-20 relative">

@@ -271,3 +271,36 @@ body {
     85% { opacity: 0.7; }
     to { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
 }
+
+/* Hide browser's native password reveal button */
+
+/* Chrome, Edge, Safari */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none;
+}
+
+/* Edge specific */
+input::-ms-reveal,
+input::-ms-clear {
+    display: none;
+}
+
+/* Chrome */
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-strong-password-auto-fill-button {
+    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* Suppress autofill highlight color bleeding into your dark inputs */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.85) inset !important;
+    -webkit-text-fill-color: white !important;
+    caret-color: white;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
