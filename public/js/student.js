@@ -21,3 +21,8 @@ async function openRosterModal(classId, className) {
         </tr>
     `).join('');
 }
+
+function openLeaveModal(classId) {
+    document.getElementById('leave-class-id').value = classId;
+    openModal('deleteUserModal');
+}

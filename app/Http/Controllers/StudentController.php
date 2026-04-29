@@ -49,7 +49,6 @@ class StudentController extends Controller
 
     public function joinClass(Request $request)
     {
-        $request->validate(['join_code' => 'required|string']);
         $user  = session('supabase_user');
         $token = session('supabase_token');
 
@@ -115,7 +114,7 @@ class StudentController extends Controller
         session(['supabase_user' => $updated]);
 
         // Handle password change
-        if ($request->filled('new_password')) {
+        if ($request->filled('new_password') || $request->filled('new_password_confirmation')) {
             if (!$request->filled('current_password')) {
                 return back()->with('error', 'Current password is required.');
             }

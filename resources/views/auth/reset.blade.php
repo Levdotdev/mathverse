@@ -51,7 +51,7 @@
                         <label class="input-label">Confirm New Password</label>
                         <div class="relative">
                             <i class="fas fa-shield-alt input-icon"></i>
-                            <input type="password" id="rcPass" name="confirm_password"
+                            <input type="password" id="rcPass" name="password_confirmation"
                                    placeholder="Re-type password" required class="input-mobile-ultra pr-12">
                             <button type="button" onclick="tglPass('rcPass','rcIco')"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
@@ -76,5 +76,12 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/auth.js') }}"></script>
+<script>
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+
+    const token = params.get('access_token');
+
+    document.getElementById('token').value = token;
+</script>
 @endpush

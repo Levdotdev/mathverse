@@ -122,12 +122,14 @@
                                 class="flex-1 sm:flex-none btn-rect-secondary !py-2 !px-4 text-[10px] !border-purple-500/30 hover:!bg-purple-500/10 hover:!text-purple-400">
                             <i class="fas fa-edit sm:mr-1"></i><span class="sm:hidden"> Edit</span>
                         </button>
-                        <form method="POST" action="/teacher/quiz/{{ $q['id'] }}" onsubmit="return confirm('Delete this quiz?')" class="flex-1 sm:flex-none">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="w-full btn-rect-secondary !py-2 !px-4 text-[10px] !border-red-500/30 hover:!bg-red-500/10 hover:!text-red-500">
-                                <i class="fas fa-trash-alt sm:mr-1"></i><span class="sm:hidden"> Delete</span>
-                            </button>
-                        </form>
+                        <button type="button"
+                            onclick="openDeleteQuizModal('{{ $q['id'] }}')"
+                            class="w-full btn-rect-secondary !py-2 !px-4 text-[10px] !border-red-500/30 hover:!bg-red-500/10 hover:!text-red-500">
+
+                            <i class="fas fa-trash-alt sm:mr-1"></i>
+                            <span class="sm:hidden"> Delete</span>
+
+                        </button>
                     </div>
                 </div>
             @empty
@@ -230,13 +232,13 @@
                         <div class="w-12 h-12 bg-yellow-500/10 rounded flex items-center justify-center text-yellow-400 text-xl mb-4 group-hover:scale-110 transition-transform">
                             <i class="fas fa-chalkboard"></i>
                         </div>
-                        <form method="POST" action="/teacher/class/{{ $c['id'] }}"
-                              onsubmit="return confirm('Disband this class?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="text-slate-500 hover:text-red-500 transition-colors">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </form>
+                        <button type="button"
+                            onclick="openDeleteClassModal('{{ $c['id'] }}')"
+                            class="text-slate-500 hover:text-red-500 transition-colors">
+
+                            <i class="fas fa-trash-alt"></i>
+
+                        </button>
                     </div>
                     <h3 class="font-bold text-lg mb-1">{{ $c['class_name'] }}</h3>
                 </div>
@@ -312,7 +314,7 @@
                     <div class="relative">
                         <i class="fas fa-user input-icon"></i>
                         <input type="text" name="first_name" value="{{ $user['username'] ?? '' }}"
-                               class="input-mobile-ultra">
+                               class="input-mobile-ultra" required>
                     </div>
                 </div>
                 <div class="form-group">
@@ -320,11 +322,11 @@
                     <div class="relative">
                         <i class="fas fa-id-card input-icon"></i>
                         <input type="text" name="last_name" value="{{ $user['last_name'] ?? '' }}"
-                               class="input-mobile-ultra">
+                               class="input-mobile-ultra" required>
                     </div>
                 </div>
                 <div class="form-group sm:col-span-2 border-t border-white/10 pt-4 mt-2">
-                    <label class="input-label text-orange-400">Current Password (required for changes)</label>
+                    <label class="input-label text-orange-400">Current Password (only if you wish to change password)</label>
                     <div class="relative">
                         <i class="fas fa-unlock-alt input-icon"></i>
                         <input type="password" id="t-curr-pass" name="current_password"
@@ -470,6 +472,100 @@
                 <i class="fas fa-play mr-2"></i> Start Quiz Sequence
             </button>
             <button onclick="closeLobbyModal()" class="btn-rect-secondary flex-1 sm:flex-none sm:w-1/3">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="deleteQuizModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">
+        <i class="fas fa-trash-alt text-4xl text-red-600 mb-4"></i>
+
+        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">
+            Delete Quiz?
+        </h3>
+
+        <p class="text-[10px] text-slate-500 mb-8 uppercase">
+            This removes your quiz data permanently.
+        </p>
+
+        <div class="flex flex-col gap-2">
+
+            <form id="deleteQuizForm" method="POST">
+                @csrf
+                @method('DELETE')
+
+                <button type="submit"
+                    class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">
+                    Delete Quiz
+                </button>
+            </form>
+
+            <button onclick="closeModal('deleteQuizModal')"
+                class="text-[10px] font-bold mt-4 uppercase text-slate-500">
+                Cancel
+            </button>
+
+        </div>
+    </div>
+</div>
+
+<div id="deleteClassModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">
+        <i class="fas fa-trash-alt text-4xl text-red-600 mb-4"></i>
+
+        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">
+            Disband Class?
+        </h3>
+
+        <p class="text-[10px] text-slate-500 mb-8 uppercase">
+            This permanently removes the class and its data.
+        </p>
+
+        <div class="flex flex-col gap-2">
+
+            <form id="deleteClassForm" method="POST">
+                @csrf
+                @method('DELETE')
+
+                <button type="submit"
+                    class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">
+                    Disband Class
+                </button>
+            </form>
+
+            <button onclick="closeModal('deleteClassModal')"
+                class="text-[10px] font-bold mt-4 uppercase text-slate-500">
+                Cancel
+            </button>
+
+        </div>
+    </div>
+</div>
+
+<div id="removeStudentModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">
+        <i class="fas fa-user-minus text-4xl text-red-600 mb-4"></i>
+
+        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">
+            Remove Student?
+        </h3>
+
+        <p class="text-[10px] text-slate-500 mb-8 uppercase">
+            This removes the student from the class.
+        </p>
+
+        <div class="flex flex-col gap-2">
+
+            <button id="confirmRemoveStudentBtn"
+                class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">
+                Remove Student
+            </button>
+
+            <button onclick="closeModal('removeStudentModal')"
+                class="text-[10px] font-bold mt-4 uppercase text-slate-500">
+                Cancel
+            </button>
+
         </div>
     </div>
 </div>

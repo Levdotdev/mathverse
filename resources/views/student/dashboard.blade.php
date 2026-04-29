@@ -88,7 +88,7 @@
             @csrf
             <div class="relative w-full md:w-48">
                 <input type="text" name="join_code" placeholder="Join Code"
-                       class="input-mobile-ultra font-mono uppercase !pl-4 tracking-widest">
+                       class="input-mobile-ultra font-mono uppercase !pl-4 tracking-widest" required>
             </div>
             <button type="submit" class="btn-rect-primary !bg-green-500 !text-black !w-auto px-6">Join</button>
         </form>
@@ -112,13 +112,7 @@
                             class="text-cyan-400 text-[10px] font-bold uppercase border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 rounded">
                         <i class="fas fa-users mr-1"></i> Roster
                     </button>
-                    <form method="POST" action="/student/leave-class" onsubmit="return confirm('Leave this class?')">
-                        @csrf
-                        <input type="hidden" name="class_id" value="{{ $class['id'] }}">
-                        <button type="submit" class="text-red-500 text-[10px] font-bold uppercase border border-red-500/30 bg-red-500/10 px-3 py-2 rounded">
-                            Leave
-                        </button>
-                    </form>
+                    <button type="button" onclick="openLeaveModal('{{ $class['id'] }}')" class="text-red-500 text-[10px] font-bold uppercase border border-red-500/30 bg-red-500/10 px-3 py-2 rounded">Leave</button>
                 </div>
             </div>
         @empty
@@ -202,7 +196,7 @@
                     <div class="relative">
                         <i class="fas fa-user input-icon"></i>
                         <input type="text" name="first_name" value="{{ $profile['first_name'] ?? '' }}"
-                               class="input-mobile-ultra">
+                               class="input-mobile-ultra" required>
                     </div>
                 </div>
                 <div class="form-group">
@@ -210,11 +204,11 @@
                     <div class="relative">
                         <i class="fas fa-id-card input-icon"></i>
                         <input type="text" name="last_name" value="{{ $profile['last_name'] ?? '' }}"
-                               class="input-mobile-ultra">
+                               class="input-mobile-ultra" required>
                     </div>
                 </div>
                 <div class="form-group sm:col-span-2 border-t border-white/10 pt-4 mt-2">
-                    <label class="input-label text-orange-400">Current Password (required for changes)</label>
+                    <label class="input-label text-orange-400">Current Password (only if you wish to change password)</label>
                     <div class="relative">
                         <i class="fas fa-unlock-alt input-icon"></i>
                         <input type="password" id="s-curr-pass" name="current_password"
@@ -280,6 +274,24 @@
         <button onclick="closeModal('viewClassRosterModal')" class="btn-rect-secondary mt-6 w-full text-xs">
             Close Panel
         </button>
+    </div>
+</div>
+
+<div id="deleteUserModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">
+        <i class="fas fa-user-minus text-4xl text-red-600 mb-4"></i>
+        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Leave Class?</h3>
+        <p class="text-[10px] text-slate-500 mb-8 uppercase">This removes your class data permanently.</p>
+        <div class="flex flex-col gap-2">
+            <form method="POST" action="/student/leave-class">
+                @csrf
+                <input type="hidden" id="leave-class-id" name="class_id">
+                <button type="submit"
+                    class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Leave Class</button>
+            </form>
+            <button onclick="closeModal('deleteUserModal')"
+                    class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        </div>
     </div>
 </div>
 

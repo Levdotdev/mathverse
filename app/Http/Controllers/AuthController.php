@@ -20,10 +20,6 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required',
-        ]);
 
         $result = $this->supabase->signIn($request->email, $request->password);
 
@@ -54,16 +50,7 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
-        $request->validate([
-            'first_name'        => 'required|string',
-            'last_name'         => 'required|string',
-            'email'             => 'required|email',
-            'password'          => 'required|min:6|confirmed',
-            'confirm_password'  => 'required|min:6|confirmed',
-            'role'              => 'required|in:student,pending_teacher',
-        ]);
-
-        if ($request->password !== $request->confirm_password) {
+        if ($request->password !== $request->password_confirmation) {
             return back()->with('error', 'Passwords do not match.');
         }
 
@@ -80,7 +67,6 @@ class AuthController extends Controller
 
     public function forgotPassword(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
         $this->supabase->resetPassword($request->email);
         return back()->with('success', 'Recovery link sent.');
     }
@@ -103,7 +89,7 @@ class AuthController extends Controller
     public function updatePassword(Request $request)
     {
 
-        if ($request->password !== $request->confirm_password) {
+        if ($request->password !== $request->password_confirmation) {
             return back()->with('error', 'Passwords do not match.');
         }
 

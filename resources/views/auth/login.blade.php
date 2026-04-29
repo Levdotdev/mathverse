@@ -154,7 +154,7 @@
                         <label class="input-label">Confirm Password</label>
                         <div class="relative">
                             <i class="fas fa-shield-alt input-icon"></i>
-                            <input type="password" id="rcPass" name="confirm_password"
+                            <input type="password" id="rcPass" name="password_confirmation"
                                    placeholder="Re-type password" required class="input-mobile-ultra pr-12">
                             <button type="button" onclick="tglPass('rcPass','rcIco')"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">

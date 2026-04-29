@@ -74,7 +74,7 @@ function addQuestionBlock(num, text, opts, correctIndex) {
             <div class="relative">
                 <i class="fas fa-circle input-icon !text-[8px]"></i>
                 <input type="text" name="questions[${idx}][options][]"
-                       value="${opts[i] || ''}" placeholder="Option ${i+1}" class="input-mobile-ultra">
+                       value="${opts[i] || ''}" placeholder="Option ${i+1}" class="input-mobile-ultra" required>
             </div>`).join('')}
         </div>
         <div class="form-group">
@@ -238,3 +238,91 @@ document.addEventListener('DOMContentLoaded', () => {
     const section = new URLSearchParams(window.location.search).get('section');
     if (section) showSection(section);
 });
+
+function openDeleteQuizModal(id) {
+    document.getElementById('deleteQuizForm').action =
+        `/teacher/quiz/${id}`;
+
+    openModal('deleteQuizModal');
+}
+
+function openDeleteClassModal(id) {
+    document.getElementById('deleteClassForm').action =
+        `/teacher/class/${id}`;
+
+    openModal('deleteClassModal');
+}
+
+let removingStudentId = null;
+let removingClassId = null;
+
+async function fetchRoster(classId) {
+    const tbody = document.getElementById('class-roster-tbody');
+
+    tbody.innerHTML =
+        '<tr><td colspan="3" class="text-center py-8 text-slate-500"><i class="fas fa-circle-notch fa-spin text-2xl"></i></td></tr>';
+
+    const data = await fetch(`/teacher/class/${classId}/roster`)
+        .then(r => r.json());
+
+    if (!data.length) {
+        tbody.innerHTML =
+            '<tr><td colspan="3" class="text-center py-6 text-slate-500 text-xs uppercase">No students yet.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.map(m => {
+        const s = m.profiles || {};
+
+        return `
+        <tr class="border-b border-white/5 hover:bg-white/5">
+
+            <td class="py-4 font-bold">
+                ${s.last_name ?? 'Unknown'}, ${s.first_name ?? 'Unknown'}
+            </td>
+
+            <td class="py-4 text-slate-400">
+                ${s.email ?? 'N/A'}
+            </td>
+
+            <td class="py-4 text-right">
+                <button
+                    onclick="openRemoveStudentModal('${s.id}', '${classId}')"
+                    class="text-red-500 hover:text-white text-[10px] font-bold uppercase">
+
+                    <i class="fas fa-user-minus mr-1"></i>
+                    Remove
+
+                </button>
+            </td>
+
+        </tr>`;
+    }).join('');
+}
+
+function openRemoveStudentModal(studentId, classId) {
+    removingStudentId = studentId;
+    removingClassId = classId;
+
+    openModal('removeStudentModal');
+}
+
+document.getElementById('confirmRemoveStudentBtn')
+    .addEventListener('click', async () => {
+
+        await fetch(
+            `/teacher/class/${removingClassId}/student/${removingStudentId}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken()
+                }
+            }
+        );
+
+        closeModal('removeStudentModal');
+
+        showToast('Student removed.');
+
+        fetchRoster(removingClassId);
+    });

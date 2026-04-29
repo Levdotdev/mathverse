@@ -49,12 +49,6 @@ class TeacherController extends Controller
 
     public function storeQuiz(Request $request)
     {
-        $request->validate([
-            'topic'       => 'required|string',
-            'room_code'   => 'required|string',
-            'max_members' => 'required|integer|min:1',
-        ]);
-
         $user  = session('supabase_user');
         $token = session('supabase_token');
 
@@ -124,7 +118,6 @@ class TeacherController extends Controller
 
     public function createClass(Request $request)
     {
-        $request->validate(['class_name' => 'required|string']);
         $user  = session('supabase_user');
         $token = session('supabase_token');
 
@@ -215,12 +208,12 @@ class TeacherController extends Controller
         $updated['last_name'] = $request->last_name;
         session(['supabase_user' => $updated]);
 
-        if ($request->filled('new_password')) {
+        if ($request->filled('new_password') || $request->filled('new_password_confirmation')) {
             if (!$request->filled('current_password')) {
                 return back()->with('error', 'Current password is required.');
             }
             if ($request->new_password !== $request->new_password_confirmation) {
-                return back()->with('error', 'Passwords do not match.');
+                return back()->with('error', 'New passwords do not match.');
             }
             $check = $this->supabase->signIn($user['email'], $request->current_password);
             if (isset($check['error'])) {
@@ -235,7 +228,7 @@ class TeacherController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Profile updated!');
+        return back()->with('success', 'Profile updated successfully!');
     }
 
     // ── Private helpers ───────────────────────────────────

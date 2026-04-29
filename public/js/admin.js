@@ -30,9 +30,7 @@ async function saveEditUser() {
             role:     document.getElementById('edit-u-role').value,
         })
     });
-    showToast('User updated. Reloading...');
-    closeModal('editUserModal');
-    setTimeout(() => location.reload(), 1000);
+    window.location.reload();
 }
 
 // Delete user
@@ -48,7 +46,5 @@ async function executeDelete() {
         method:  'DELETE',
         headers: { 'X-CSRF-TOKEN': csrfToken() }
     });
-    showToast('User purged. Reloading...');
-    closeModal('deleteUserModal');
-    setTimeout(() => location.reload(), 1000);
+    window.location.reload();
 }

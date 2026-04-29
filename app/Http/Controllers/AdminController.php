@@ -36,13 +36,13 @@ class AdminController extends Controller
             'role'     => $request->role,
         ], ['id' => $id]);
 
-        return response()->json(['success' => true]);
+        return back()->with('success', 'User role updated!');
     }
 
     public function deleteUser(string $id)
     {
         $this->supabase->adminDelete('profiles', ['id' => $id]);
-        return response()->json(['success' => true]);
+        return back()->with('success', 'User successfully deleted!');
     }
 
     public function approveTeacher(string $id)
@@ -56,7 +56,7 @@ class AdminController extends Controller
     {
         $this->supabase->adminDelete('profiles', ['id' => $id]);
         return redirect('/admin/dashboard?section=role-verify')
-            ->with('success', 'Application rejected.');
+            ->with('error', 'Application rejected.');
     }
 
     public function updateProfile(Request $request)
@@ -84,6 +84,6 @@ class AdminController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Profile updated!');
+        return back()->with('success', 'Password updated!');
     }
 }

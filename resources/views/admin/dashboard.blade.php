@@ -165,8 +165,7 @@
                                 Grant Access
                             </button>
                         </form>
-                        <form method="POST" action="/admin/deny-teacher/{{ $pt['id'] }}"
-                              onsubmit="return confirm('Reject this application?')" class="flex-1 sm:flex-none">
+                        <form method="POST" action="/admin/deny-teacher/{{ $pt['id'] }}" class="flex-1 sm:flex-none">
                             @csrf @method('DELETE')
                             <button type="submit"
                                     class="w-full border border-red-500 text-red-500 px-6 py-2 text-[10px] font-bold uppercase rounded">
@@ -202,11 +201,11 @@
                            class="input-mobile-ultra !bg-white/5 text-slate-400 !pl-4">
                 </div>
                 <div class="form-group sm:col-span-2 border-t border-white/10 pt-4 mt-2">
-                    <label class="input-label text-orange-400">Current Password (required)</label>
+                    <label class="input-label text-orange-400">Current Password</label>
                     <div class="relative">
                         <i class="fas fa-unlock-alt input-icon"></i>
                         <input type="password" id="a-curr-pass" name="current_password"
-                               class="input-mobile-ultra pr-12" placeholder="Enter current password">
+                               class="input-mobile-ultra pr-12" placeholder="Enter current password" required>
                         <button type="button" onclick="tglPass('a-curr-pass','a-ico-curr')"
                                 class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
                             <i id="a-ico-curr" class="fas fa-eye-slash"></i>
@@ -218,7 +217,7 @@
                     <div class="relative">
                         <i class="fas fa-key input-icon"></i>
                         <input type="password" id="a-pass" name="new_password"
-                               class="input-mobile-ultra pr-12" placeholder="••••••••">
+                               class="input-mobile-ultra pr-12" placeholder="••••••••" required>
                         <button type="button" onclick="tglPass('a-pass','a-ico')"
                                 class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
                             <i id="a-ico" class="fas fa-eye-slash"></i>
@@ -230,7 +229,7 @@
                     <div class="relative">
                         <i class="fas fa-shield-alt input-icon"></i>
                         <input type="password" id="a-conf" name="new_password_confirmation"
-                               class="input-mobile-ultra pr-12" placeholder="••••••••">
+                               class="input-mobile-ultra pr-12" placeholder="••••••••" required>
                         <button type="button" onclick="tglPass('a-conf','a-ico-conf')"
                                 class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
                             <i id="a-ico-conf" class="fas fa-eye-slash"></i>
