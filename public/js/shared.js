@@ -20,8 +20,16 @@ function showToast(message, isError = false) {
     document.getElementById('toast-msg').innerText = message;
     toast.classList.toggle('bg-red-500', isError);
     toast.classList.toggle('bg-cyan-500', !isError);
-    toast.classList.remove('translate-y-20');
-    setTimeout(() => toast.classList.add('translate-y-20'), 2500);
+
+    // Show
+    toast.classList.remove('opacity-0', 'pointer-events-none');
+    toast.classList.add('opacity-100');
+
+    // Hide after 2.5s
+    setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0', 'pointer-events-none');
+    }, 2500);
 }
 
 function tglPass(id, icoId) {

@@ -25,7 +25,7 @@
     @yield('content')
 
     {{-- Toast notification - available on every page --}}
-    <div id="toast" class="fixed bottom-4 right-4 bg-cyan-500 text-black font-bold px-6 py-3 rounded shadow-2xl translate-y-20 transition-all duration-300 z-[10000] text-xs uppercase">
+    <div id="toast" class="fixed bottom-6 right-4 bg-cyan-500 text-black font-bold px-6 py-3 rounded shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-[10000] text-xs uppercase">
         <i class="fas fa-info-circle mr-2"></i>
         <span id="toast-msg">Success</span>
     </div>
@@ -43,8 +43,12 @@
                 toast.classList.remove('bg-cyan-500');
                 toast.classList.add('bg-red-500');
                 @endif
-                toast.classList.remove('translate-y-20');
-                setTimeout(() => toast.classList.add('translate-y-20'), 3000);
+                toast.classList.remove('opacity-0', 'pointer-events-none');
+                toast.classList.add('opacity-100');
+                setTimeout(() => {
+                    toast.classList.remove('opacity-100');
+                    toast.classList.add('opacity-0', 'pointer-events-none');
+                }, 3000);
             }
         });
     </script>

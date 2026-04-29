@@ -105,7 +105,7 @@ async function openResultsModal(sessionId, topic) {
     }
 
     tbody.innerHTML = data.map(r => {
-        const name     = r.profiles ? `${r.profiles.last_name}, ${r.profiles.username}` : 'Unknown';
+        const name     = r.profiles ? `${r.profiles.last_name}, ${r.profiles.first_name}` : 'Unknown';
         const accuracy = r.total_questions > 0
             ? Math.round((r.correct_answers / r.total_questions) * 100) : 0;
         const color    = accuracy >= 75 ? 'text-green-500' : (accuracy >= 50 ? 'text-yellow-500' : 'text-red-500');
@@ -208,7 +208,7 @@ async function fetchLobbyParticipants() {
         const s = p.profiles || {};
         return `<tr class="border-b border-white/5">
             <td class="p-4"><i class="fas fa-vr-cardboard text-purple-400 mr-3"></i>
-                ${s.last_name ?? ''}, ${s.username ?? 'Unknown'}
+                ${s.last_name ?? ''}, ${s.first_name ?? 'Unknown'}
             </td>
             <td class="p-4 text-right text-cyan-400 font-mono text-xs">Level ${s.level ?? 1}</td>
         </tr>`;

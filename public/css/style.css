@@ -16,36 +16,47 @@ body {
     font-family: 'Rajdhani', sans-serif;
     background-color: var(--deep-space);
     min-height: 100vh;
-    overflow: hidden;
-    margin: 0;
-    perspective: 1000px;
+    overflow-x: hidden;  /* changed from overflow: hidden */
 }
 
-/* --- BACKGROUNDS --- */
+/* All background layers must be fixed so they don't add document height */
 .stars-container {
-    position: fixed; inset: 0;
+    position: fixed;
+    inset: 0;
     background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
     z-index: -5;
+    pointer-events: none;
 }
 
 .digital-rain {
-    position: fixed; inset: 0;
+    position: fixed;
+    inset: 0;
     background: url('https://www.transparenttextures.com/patterns/stardust.png');
-    opacity: 0.15; z-index: -4;
+    opacity: 0.15;
+    z-index: -4;
     animation: drift 60s linear infinite;
+    pointer-events: none;
 }
-
-@keyframes drift { from { background-position: 0 0; } to { background-position: 500px 1000px; } }
 
 .cyber-grid {
     position: fixed; bottom: -30%; left: -50%; width: 200%; height: 200%;
     background-image: linear-gradient(var(--neon-cyan) 1px, transparent 1px), linear-gradient(90deg, var(--neon-cyan) 1px, transparent 1px);
     background-size: 45px 45px;
-    transform: rotateX(65deg);
+    transform: perspective(500px) rotateX(65deg);
     opacity: 0.12;
     mask-image: linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0));
     z-index: -3;
 }
+
+#particle-container {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;  /* stops particles from extending page height */
+}
+
+@keyframes drift { from { background-position: 0 0; } to { background-position: 500px 1000px; } }
 
 /* --- TEXT STYLES --- */
 .glitch-title {

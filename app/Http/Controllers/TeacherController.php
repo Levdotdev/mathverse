@@ -112,7 +112,7 @@ class TeacherController extends Controller
         // Returns JSON for the modal fetch call
         $results = $this->supabase->adminSelect(
             'quiz_results',
-            'correct_answers,total_questions,created_at,profiles(username,last_name,email)',
+            'correct_answers,total_questions,created_at,profiles(first_name,last_name,email)',
             ['session_id' => $id]
         );
 
@@ -177,7 +177,7 @@ class TeacherController extends Controller
     {
         $participants = $this->supabase->adminSelect(
             'quiz_participants',
-            'student_id,profiles(username,last_name,level)',
+            'student_id,profiles(first_name,last_name,level)',
             ['session_id' => $sessionId]
         );
         return response()->json($participants);
