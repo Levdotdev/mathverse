@@ -228,7 +228,8 @@ class TeacherController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Profile updated successfully!');
+        return redirect('/teacher/dashboard?section=profile')
+            ->with('success', 'Profile updated successfully!');
     }
 
     // ── Private helpers ───────────────────────────────────
@@ -260,5 +261,86 @@ class TeacherController extends Controller
         if (!empty($rows)) {
             $this->supabase->insert('questions', $rows, $token);
         }
+    }
+
+    public function stats()
+    {
+        $user  = session('supabase_user');
+        $token = session('supabase_token');
+
+        // All quizzes by this teacher
+        $quizzes = $this->supabase->adminSelect(
+            'quiz_sessions', 'id,topic,created_at,room_code',
+            ['teacher_id' => $user['id']]
+        );
+
+        // All results for this teacher's quizzes
+        $allResults = [];
+        foreach ($quizzes as $q) {
+            $results = $this->supabase->adminSelect(
+                'quiz_results',
+                'correct_answers,total_questions,created_at,session_id',
+                ['session_id' => $q['id']]
+            );
+            foreach ($results as $r) {
+                $r['topic'] = $q['topic'];
+                $allResults[] = $r;
+            }
+        }
+
+        // Per-quiz average accuracy
+        $quizAccuracy = [];
+        foreach ($quizzes as $q) {
+            $qResults = array_filter($allResults, fn($r) => $r['session_id'] === $q['id']);
+            if (count($qResults) === 0) continue;
+            $avg = array_sum(array_map(fn($r) =>
+                $r['total_questions'] > 0
+                    ? ($r['correct_answers'] / $r['total_questions']) * 100
+                    : 0,
+                $qResults
+            )) / count($qResults);
+            $quizAccuracy[] = [
+                'topic'    => $q['topic'],
+                'accuracy' => round($avg, 1),
+                'attempts' => count($qResults),
+            ];
+        }
+
+        // Attempts per day (last 14 days)
+        $attemptsPerDay = [];
+        for ($i = 13; $i >= 0; $i--) {
+            $date  = date('Y-m-d', strtotime("-{$i} days"));
+            $label = date('M d', strtotime("-{$i} days"));
+            $count = count(array_filter($allResults, fn($r) =>
+                str_starts_with($r['created_at'], $date)
+            ));
+            $attemptsPerDay[] = ['date' => $label, 'count' => $count];
+        }
+
+        // Score distribution (0-25%, 26-50%, 51-75%, 76-100%)
+        $distribution = [0, 0, 0, 0];
+        foreach ($allResults as $r) {
+            if ($r['total_questions'] === 0) continue;
+            $pct = ($r['correct_answers'] / $r['total_questions']) * 100;
+            if ($pct <= 25)       $distribution[0]++;
+            elseif ($pct <= 50)   $distribution[1]++;
+            elseif ($pct <= 75)   $distribution[2]++;
+            else                  $distribution[3]++;
+        }
+
+        return response()->json([
+            'quizAccuracy'   => $quizAccuracy,
+            'attemptsPerDay' => $attemptsPerDay,
+            'distribution'   => $distribution,
+            'totalAttempts'  => count($allResults),
+            'totalQuizzes'   => count($quizzes),
+            'avgAccuracy'    => count($allResults) > 0
+                ? round(array_sum(array_map(fn($r) =>
+                    $r['total_questions'] > 0
+                        ? ($r['correct_answers'] / $r['total_questions']) * 100
+                        : 0,
+                    $allResults)) / count($allResults), 1)
+                : 0,
+        ]);
     }
 }

@@ -163,7 +163,6 @@ async function removeStudent(studentId, classId) {
         method: 'DELETE',
         headers: { 'X-CSRF-TOKEN': csrfToken() }
     });
-    showToast('Student removed.');
     fetchRoster(classId);
 }
 
@@ -213,24 +212,23 @@ async function fetchLobbyParticipants() {
             <td class="p-4 text-right text-cyan-400 font-mono text-xs">Level ${s.level ?? 1}</td>
         </tr>`;
     }).join('');
+    console.log(currentLobbyId);
 }
 
 async function startQuiz() {
-    if (!confirm('Start the quiz for all connected students?')) return;
     await fetch(`/teacher/quiz/${currentLobbyId}/start`, {
         method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken() }
     });
     showToast('Quiz Sequence Initiated!');
-    closeLobbyModal();
+    window.location.href = '/teacher/dashboard?section=quiz-creator';
 }
 
 async function endQuiz() {
-    if (!confirm('Terminate the quiz?')) return;
     await fetch(`/teacher/quiz/${currentLobbyId}/end`, {
         method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken() }
     });
     showToast('Quiz Terminated.');
-    closeLobbyModal();
+    window.location.href = '/teacher/dashboard?section=quiz-creator';
 }
 
 // Auto-open section from URL ?section= param
@@ -326,3 +324,9 @@ document.getElementById('confirmRemoveStudentBtn')
 
         fetchRoster(removingClassId);
     });
+
+document.addEventListener('DOMContentLoaded', () => {
+    const section = new URLSearchParams(window.location.search).get('section');
+
+    showSection(section || 'overview');
+});

@@ -30,7 +30,7 @@ async function saveEditUser() {
             role:     document.getElementById('edit-u-role').value,
         })
     });
-    window.location.reload();
+    window.location.href = '/admin/dashboard?section=user-lists';
 }
 
 // Delete user
@@ -46,5 +46,47 @@ async function executeDelete() {
         method:  'DELETE',
         headers: { 'X-CSRF-TOKEN': csrfToken() }
     });
-    window.location.reload();
+    window.location.href = '/admin/dashboard?section=user-lists';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const section = new URLSearchParams(window.location.search).get('section');
+
+    showSection(section || 'overview');
+});
+
+function showSection(id) {
+    document.querySelectorAll('.content-section').forEach(s => {
+        s.classList.add('hidden');
+        s.classList.remove('animate-fade-in');
+    });
+
+    document.querySelectorAll('.nav-link').forEach(b => {
+        b.classList.remove('active');
+    });
+
+    const sec = document.getElementById('sec-' + id);
+
+    if (!sec) {
+        console.error('Missing section:', id);
+        return;
+    }
+
+    sec.classList.remove('hidden');
+
+    void sec.offsetWidth;
+
+    sec.classList.add('animate-fade-in');
+
+    const btn = document.getElementById('btn-' + id);
+
+    if (btn) {
+        btn.classList.add('active');
+    } else {
+        console.error('Missing button:', id);
+    }
+
+    if (window.innerWidth < 768) {
+        toggleSidebar();
+    }
 }

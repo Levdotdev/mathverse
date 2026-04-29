@@ -78,10 +78,14 @@ function showSection(id) {
     void sec.offsetWidth;
     sec.classList.add('animate-fade-in');
     document.getElementById('btn-' + id).classList.add('active');
-    if (window.innerWidth < 768) toggleSidebar();
 }
 
 // Read CSRF token from meta tag (set in layout)
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
+document.addEventListener('DOMContentLoaded', () => {
+    const section = new URLSearchParams(window.location.search).get('section');
+
+    showSection(section || 'stats');
+});

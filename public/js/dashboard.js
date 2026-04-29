@@ -15,8 +15,6 @@ function showSection(id) {
     void sec.offsetWidth;
     sec.classList.add('animate-fade-in');
     document.getElementById('btn-' + id).classList.add('active');
-
-    if (window.innerWidth < 768) toggleSidebar();
 }
 
 function openModal(id) {

@@ -39,6 +39,7 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::post('/teacher/quiz/{id}/start', [TeacherController::class, 'startQuiz']);
     Route::post('/teacher/quiz/{id}/end', [TeacherController::class, 'endQuiz']);
     Route::post('/teacher/profile', [TeacherController::class, 'updateProfile']);
+    Route::get('/teacher/stats', [TeacherController::class, 'stats']);
 });
 
 // Admin routes
@@ -49,4 +50,5 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::post('/admin/approve-teacher/{id}', [AdminController::class, 'approveTeacher']);
     Route::delete('/admin/deny-teacher/{id}', [AdminController::class, 'denyTeacher']);
     Route::post('/admin/profile', [AdminController::class, 'updateProfile']);
+    Route::get('/admin/stats', [AdminController::class, 'stats']);
 });

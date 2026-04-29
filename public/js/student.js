@@ -26,3 +26,9 @@ function openLeaveModal(classId) {
     document.getElementById('leave-class-id').value = classId;
     openModal('deleteUserModal');
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const section = new URLSearchParams(window.location.search).get('section');
+
+    showSection(section || 'stats');
+});

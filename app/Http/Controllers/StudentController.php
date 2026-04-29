@@ -62,7 +62,8 @@ class StudentController extends Controller
             'class_id'   => $classes[0]['id'],
         ], $token);
 
-        return back()->with('success', 'Successfully joined class!');
+        return redirect('/student/dashboard?section=class')
+            ->with('success', 'Successfully joined class!');
     }
 
     public function leaveClass(Request $request)
@@ -79,7 +80,8 @@ class StudentController extends Controller
             'class_id'   => "eq.{$request->class_id}",
         ])->delete(config('services.supabase.url') . '/rest/v1/class_members');
 
-        return back()->with('success', 'Left the class.');
+        return redirect('/student/dashboard?section=class')
+            ->with('success', 'Left the class.');
     }
 
     public function classRoster(string $classId)
@@ -138,6 +140,7 @@ class StudentController extends Controller
             ]);
         }
 
-        return back()->with('success', 'Profile updated successfully!');
+        return redirect('/student/dashboard?section=profile')
+            ->with('success', 'Profile updated successfully!');
     }
 }

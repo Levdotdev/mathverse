@@ -14,6 +14,9 @@
 <button onclick="showSection('classes')"      class="nav-link w-full" id="btn-classes">
     <i class="fas fa-chalkboard mr-3 w-5 text-yellow-400"></i> Classrooms
 </button>
+<button onclick="showSection('stats')" class="nav-link w-full" id="btn-stats">
+    <i class="fas fa-chart-bar mr-3 w-5 text-pink-400"></i> Analytics
+</button>
 <button onclick="showSection('student-list')" class="nav-link w-full" id="btn-student-list">
     <i class="fas fa-users mr-3 w-5 text-green-400"></i> Student List
 </button>
@@ -23,6 +26,56 @@
 @endsection
 
 @section('dashboard-content')
+
+{{-- STATS --}}
+<section id="sec-stats" class="content-section hidden">
+    <h2 class="text-xl md:text-2xl font-orbitron font-bold mb-6 uppercase border-b border-white/10 pb-2">
+        Quiz <span class="text-pink-400">Analytics</span>
+    </h2>
+
+    {{-- Summary cards --}}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" id="stats-summary">
+        <div class="portal-frame !p-5 border-l-2 border-pink-500">
+            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Attempts</p>
+            <h3 class="text-2xl font-orbitron mt-1" id="stat-total-attempts">—</h3>
+        </div>
+        <div class="portal-frame !p-5 border-l-2 border-cyan-500">
+            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Avg Accuracy</p>
+            <h3 class="text-2xl font-orbitron mt-1" id="stat-avg-accuracy">—</h3>
+        </div>
+        <div class="portal-frame !p-5 border-l-2 border-purple-500">
+            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Quizzes</p>
+            <h3 class="text-2xl font-orbitron mt-1" id="stat-total-quizzes">—</h3>
+        </div>
+    </div>
+
+    {{-- Charts grid --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {{-- Attempts over time --}}
+        <div class="portal-frame !p-6">
+            <h4 class="font-orbitron text-xs text-cyan-400 uppercase tracking-widest mb-4">
+                <i class="fas fa-chart-line mr-2"></i> Attempts Per Day (14 days)
+            </h4>
+            <canvas id="chart-attempts" height="200"></canvas>
+        </div>
+
+        {{-- Score distribution --}}
+        <div class="portal-frame !p-6">
+            <h4 class="font-orbitron text-xs text-pink-400 uppercase tracking-widest mb-4">
+                <i class="fas fa-chart-pie mr-2"></i> Score Distribution
+            </h4>
+            <canvas id="chart-distribution" height="200"></canvas>
+        </div>
+    </div>
+
+    {{-- Per-quiz accuracy --}}
+    <div class="portal-frame !p-6">
+        <h4 class="font-orbitron text-xs text-purple-400 uppercase tracking-widest mb-4">
+            <i class="fas fa-chart-bar mr-2"></i> Average Accuracy Per Quiz
+        </h4>
+        <canvas id="chart-quiz-accuracy" height="120"></canvas>
+    </div>
+</section>
 
 {{-- OVERVIEW --}}
 <section id="sec-overview" class="content-section">
@@ -588,5 +641,17 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="{{ asset('js/teacher.js') }}"></script>
+<script src="{{ asset('js/charts.js') }}"></script>
+<script>
+    applyChartDefaults();
+
+    // Hook into showSection to lazy-load charts only when tab is opened
+    const _origShowSection = showSection;
+    showSection = function(id) {
+        _origShowSection(id);
+        if (id === 'stats') loadTeacherStats();
+    };
+</script>
 @endpush
