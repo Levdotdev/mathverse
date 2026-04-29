@@ -59,7 +59,7 @@ class AuthController extends Controller
             'last_name'  => 'required|string',
             'email'      => 'required|email',
             'password'   => 'required|min:6|confirmed',
-            'role'       => 'required|in:student,teacher',
+            'role'       => 'required|in:student,pending_teacher',
         ]);
 
         $authResult = $this->supabase->signUp($request->email, $request->password, $request->role, $request->first_name, $request->last_name);

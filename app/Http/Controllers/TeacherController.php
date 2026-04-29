@@ -31,7 +31,7 @@ class TeacherController extends Controller
         // Full student list
         $students = $this->supabase->adminSelect(
             'profiles',
-            'id,email,username,last_name,grade_level',
+            'id,email,username,last_name,grade_level, first_name',
             ['role' => 'student']
         );
 
@@ -152,7 +152,7 @@ class TeacherController extends Controller
     {
         $members = $this->supabase->adminSelect(
             'class_members',
-            'student_id,profiles(id,username,last_name,email)',
+            'student_id,profiles(id,username,last_name,email,first_name)',
             ['class_id' => $id]
         );
         return response()->json($members);

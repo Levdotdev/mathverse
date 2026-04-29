@@ -110,7 +110,7 @@
                         @endphp
                         <tr class="border-b border-white/5 hover:bg-white/5 user-row">
                             <td class="py-4 font-mono text-cyan-400">{{ $p['email'] ?? substr($p['id'],0,8) }}</td>
-                            <td class="py-4">{{ $p['last_name'] ?? '—' }}, {{ $p['username'] ?? '—' }}</td>
+                            <td class="py-4">{{ $p['last_name'] ?? '—' }}, {{ $p['first_name'] ?? '—' }}</td>
                             <td class="py-4">
                                 <span class="px-2 py-1 rounded text-[9px] font-black uppercase {{ $roleColor }}">
                                     {{ $roleLabel }}
@@ -152,7 +152,7 @@
                             <i class="fas fa-chalkboard-teacher"></i>
                         </div>
                         <div>
-                            <p class="font-bold">{{ $pt['last_name'] ?? '—' }}, {{ $pt['username'] ?? '—' }}</p>
+                            <p class="font-bold">{{ $pt['last_name'] ?? '—' }}, {{ $pt['first_name'] ?? '—' }}</p>
                             <p class="text-[9px] text-slate-500 uppercase font-bold">Teacher Application</p>
                             <p class="text-[10px] text-cyan-500 font-mono">{{ $pt['email'] ?? '' }}</p>
                         </div>
@@ -257,8 +257,8 @@
         </h3>
         <div class="space-y-4 text-left">
             <div class="form-group">
-                <label class="input-label">Full Name</label>
-                <input type="text" id="edit-u-name" class="input-mobile-ultra !pl-4">
+                <label class="input-label">Username</label>
+                <input type="text" id="edit-u-name" class="input-mobile-ultra !pl-4" disabled>
             </div>
             <div class="form-group">
                 <label class="input-label">System Role</label>

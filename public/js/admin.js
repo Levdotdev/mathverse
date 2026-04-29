@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const section = new URLSearchParams(window.location.search).get('section');
     if (section) showSection(section);
 });
-
+    
 // Edit user
 let editingUserId = null;
 

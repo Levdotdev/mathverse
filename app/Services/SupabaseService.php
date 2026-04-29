@@ -114,20 +114,21 @@ class SupabaseService
         return $response->json() ?? [];
     }
 
-    public function delete(string $table, array $filters, ?string $token = null): bool
+    public function delete(string $table, array $filters): bool
     {
-        $key = $token ?? $this->serviceKey; // deletes often need service key
-
         $request = Http::withHeaders([
-            'apikey'        => $this->anonKey,
-            'Authorization' => "Bearer {$key}",
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
         ]);
 
         foreach ($filters as $column => $value) {
-            $request = $request->withQueryParameters([$column => "eq.{$value}"]);
+            $request = $request->withQueryParameters([
+                $column => "eq.{$value}"
+            ]);
         }
 
         $response = $request->delete("{$this->url}/rest/v1/{$table}");
+
         return $response->successful();
     }
 
@@ -135,48 +136,51 @@ class SupabaseService
 
     public function adminSelect(string $table, string $query = '*', array $filters = []): array
     {
-        $request = Http::withHeaders([
-            'apikey'        => $this->serviceKey,
-            'Authorization' => "Bearer {$this->serviceKey}",
-        ])->withQueryParameters(['select' => $query]);
+        $params = ['select' => $query];
 
         foreach ($filters as $column => $value) {
-            $request = $request->withQueryParameters([$column => "eq.{$value}"]);
+            if ($column === 'order') {
+                $params['order'] = $value;
+            } else {
+                $params[$column] = "eq.{$value}";
+            }
         }
 
-        $response = $request->get("{$this->url}/rest/v1/{$table}");
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+        ])->get("{$this->url}/rest/v1/{$table}", $params);
+
         return $response->json() ?? [];
     }
 
     public function adminUpdate(string $table, array $data, array $filters): array
     {
-        $request = Http::withHeaders([
-            'apikey'        => $this->anonKey,
+        $query = http_build_query(
+            array_map(fn($v) => "eq.$v", $filters)
+        );
+
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type'  => 'application/json',
             'Prefer'        => 'return=representation',
-        ]);
+        ])->patch("{$this->url}/rest/v1/{$table}?{$query}", $data);
 
-        foreach ($filters as $column => $value) {
-            $request = $request->withQueryParameters([$column => "eq.{$value}"]);
-        }
-
-        $response = $request->patch("{$this->url}/rest/v1/{$table}", $data);
-        return $response->json() ?? [];
+        return $response->json();
     }
 
     public function adminDelete(string $table, array $filters): bool
     {
-        $request = Http::withHeaders([
-            'apikey'        => $this->anonKey,
+        $query = http_build_query(
+            array_map(fn($v) => "eq.$v", $filters)
+        );
+
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
-        ]);
+        ])->delete("{$this->url}/rest/v1/{$table}?{$query}");
 
-        foreach ($filters as $column => $value) {
-            $request = $request->withQueryParameters([$column => "eq.{$value}"]);
-        }
-
-        $response = $request->delete("{$this->url}/rest/v1/{$table}");
         return $response->successful();
     }
 }

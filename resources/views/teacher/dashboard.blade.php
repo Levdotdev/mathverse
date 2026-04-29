@@ -285,7 +285,7 @@
                     @forelse($students as $s)
                         <tr class="border-b border-white/5 hover:bg-white/5">
                             <td class="py-4 font-mono text-cyan-500">{{ $s['email'] ?? '—' }}</td>
-                            <td class="py-4">{{ $s['username'] ?? '—' }}</td>
+                            <td class="py-4">{{ $s['first_name'] ?? '—' }}</td>
                             <td class="py-4">{{ $s['last_name'] ?? '—' }}</td>
                             <td class="py-4">Grade {{ $s['grade_level'] ?? 'N/A' }}</td>
                         </tr>
@@ -307,27 +307,6 @@
         <form method="POST" action="/teacher/profile" class="space-y-6 max-w-2xl mx-auto">
             @csrf
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div class="form-group">
-                    <label class="input-label">Email Address</label>
-                    <div class="relative">
-                        <i class="fas fa-envelope input-icon"></i>
-                        <input type="email" value="{{ $user['email'] }}" readonly
-                               class="input-mobile-ultra !bg-white/5 text-slate-400">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="input-label">Grade Level</label>
-                    <div class="relative">
-                        <i class="fas fa-graduation-cap input-icon"></i>
-                        <select name="grade_level" class="input-mobile-ultra bg-slate-900 text-white">
-                            @for($g = 1; $g <= 12; $g++)
-                                <option value="{{ $g }}" {{ ($user['grade_level'] ?? 1) == $g ? 'selected' : '' }}>
-                                    Grade {{ $g }}
-                                </option>
-                            @endfor
-                        </select>
-                    </div>
-                </div>
                 <div class="form-group">
                     <label class="input-label">First Name</label>
                     <div class="relative">

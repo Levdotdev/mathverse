@@ -15,7 +15,7 @@ async function openRosterModal(classId, className) {
         <tr class="border-b border-white/5 hover:bg-white/5">
             <td class="py-4 font-bold">
                 <i class="fas fa-user-graduate text-slate-500 mr-2"></i>
-                ${m.last_name ?? 'Unknown'}, ${m.username ?? 'Unknown'}
+                ${m.last_name ?? 'Unknown'}, ${m.first_name ?? 'Unknown'}
             </td>
             <td class="py-4 text-cyan-400 font-mono text-right">Level ${m.level ?? 1}</td>
         </tr>

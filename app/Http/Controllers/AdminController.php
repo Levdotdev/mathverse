@@ -13,7 +13,7 @@ class AdminController extends Controller
     public function index()
     {
         $user     = session('supabase_user');
-        $profiles = $this->supabase->adminSelect('profiles', '*');
+        $profiles = $this->supabase->adminSelect('profiles', '*', ['order' => 'role.asc']);
 
         $totalUsers     = count($profiles);
         $totalTeachers  = count(array_filter($profiles, fn($p) => $p['role'] === 'teacher'));

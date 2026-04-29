@@ -87,7 +87,7 @@ class StudentController extends Controller
     {
         $members = $this->supabase->adminSelect(
             'class_members',
-            'student_id,profiles(username,last_name,level)',
+            'student_id,profiles(first_name,last_name,level)',
             ['class_id' => $classId]
         );
 

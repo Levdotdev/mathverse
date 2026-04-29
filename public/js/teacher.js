@@ -145,7 +145,7 @@ async function fetchRoster(classId) {
         const s = m.profiles || {};
         return `
         <tr class="border-b border-white/5 hover:bg-white/5">
-            <td class="py-4 font-bold">${s.last_name ?? 'Unknown'}, ${s.username ?? 'Unknown'}</td>
+            <td class="py-4 font-bold">${s.last_name ?? 'Unknown'}, ${s.first_name ?? 'Unknown'}</td>
             <td class="py-4 text-slate-400">${s.email ?? 'N/A'}</td>
             <td class="py-4 text-right">
                 <button onclick="removeStudent('${s.id}', '${classId}')"
