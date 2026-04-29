@@ -54,7 +54,8 @@ class StudentController extends Controller
 
         $classes = $this->supabase->adminSelect('classes', 'id', ['join_code' => strtoupper($request->join_code)]);
         if (empty($classes)) {
-            return back()->with('error', 'Invalid Join Code.');
+            return redirect('/student/dashboard?section=class')
+            ->with('error', 'Invalid Join Code.');
         }
 
         $this->supabase->insert('class_members', [
@@ -118,16 +119,19 @@ class StudentController extends Controller
         // Handle password change
         if ($request->filled('new_password') || $request->filled('new_password_confirmation')) {
             if (!$request->filled('current_password')) {
-                return back()->with('error', 'Current password is required.');
+                return redirect('/student/dashboard?section=profile')
+                    ->with('error', 'Current password is required.');
             }
             if ($request->new_password !== $request->new_password_confirmation) {
-                return back()->with('error', 'New passwords do not match.');
+                return redirect('/student/dashboard?section=profile')
+                    ->with('error', 'New passwords do not match.');
             }
 
             // Verify current password by re-signing in
             $check = $this->supabase->signIn($user['email'], $request->current_password);
             if (isset($check['error'])) {
-                return back()->with('error', 'Current password is incorrect.');
+                return redirect('/student/dashboard?section=profile')
+                    ->with('error', 'Current password is incorrect.');
             }
 
             // Update password via Supabase auth API

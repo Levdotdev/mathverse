@@ -63,14 +63,17 @@ class AdminController extends Controller
 
         if ($request->filled('new_password')) {
             if (!$request->filled('current_password')) {
-                return back()->with('error', 'Current password is required.');
+                return redirect('/admin/dashboard?section=profile')
+                    ->with('error', 'Current password is required.');
             }
             if ($request->new_password !== $request->new_password_confirmation) {
-                return back()->with('error', 'Passwords do not match.');
+                return redirect('/admin/dashboard?section=profile')
+                    ->with('error', 'Passwords do not match.');
             }
             $check = $this->supabase->signIn($user['email'], $request->current_password);
             if (isset($check['error'])) {
-                return back()->with('error', 'Current password is incorrect.');
+                return redirect('/admin/dashboard?section=profile')
+                    ->with('error', 'Current password is incorrect.');
             }
             Http::withHeaders([
                 'apikey'        => config('services.supabase.anon_key'),
