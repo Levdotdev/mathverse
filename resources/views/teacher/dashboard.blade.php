@@ -33,47 +33,46 @@
         Quiz <span class="text-pink-400">Analytics</span>
     </h2>
 
-    {{-- Summary cards --}}
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" id="stats-summary">
-        <div class="portal-frame !p-5 border-l-2 border-pink-500">
-            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Attempts</p>
-            <h3 class="text-2xl font-orbitron mt-1" id="stat-total-attempts">—</h3>
-        </div>
-        <div class="portal-frame !p-5 border-l-2 border-cyan-500">
-            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Avg Accuracy</p>
-            <h3 class="text-2xl font-orbitron mt-1" id="stat-avg-accuracy">—</h3>
-        </div>
-        <div class="portal-frame !p-5 border-l-2 border-purple-500">
-            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Quizzes</p>
-            <h3 class="text-2xl font-orbitron mt-1" id="stat-total-quizzes">—</h3>
-        </div>
+    <div id="stats-loading" class="flex flex-col items-center justify-center" style="min-height: 80vh;">
+        <i class="fas fa-circle-notch fa-spin text-4xl text-cyan-400 mb-4"></i>
+        <p class="text-xs uppercase tracking-widest font-orbitron text-slate-500">Fetching Analytics...</p>
     </div>
 
-    {{-- Charts grid --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {{-- Attempts over time --}}
-        <div class="portal-frame !p-6">
-            <h4 class="font-orbitron text-xs text-cyan-400 uppercase tracking-widest mb-4">
-                <i class="fas fa-chart-line mr-2"></i> Attempts Per Day (14 days)
-            </h4>
-            <canvas id="chart-attempts" height="200"></canvas>
+    <div id="stats-content" class="hidden">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <div class="portal-frame !p-5 border-l-2 border-pink-500">
+                <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Attempts</p>
+                <h3 class="text-2xl font-orbitron mt-1" id="stat-total-attempts">—</h3>
+            </div>
+            <div class="portal-frame !p-5 border-l-2 border-cyan-500">
+                <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Avg Accuracy</p>
+                <h3 class="text-2xl font-orbitron mt-1" id="stat-avg-accuracy">—</h3>
+            </div>
+            <div class="portal-frame !p-5 border-l-2 border-purple-500">
+                <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Quizzes</p>
+                <h3 class="text-2xl font-orbitron mt-1" id="stat-total-quizzes">—</h3>
+            </div>
         </div>
-
-        {{-- Score distribution --}}
-        <div class="portal-frame !p-6">
-            <h4 class="font-orbitron text-xs text-pink-400 uppercase tracking-widest mb-4">
-                <i class="fas fa-chart-pie mr-2"></i> Score Distribution
-            </h4>
-            <canvas id="chart-distribution" height="200"></canvas>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="portal-frame !p-6">
+                <h4 class="font-orbitron text-xs text-cyan-400 uppercase tracking-widest mb-4">
+                    <i class="fas fa-chart-line mr-2"></i> Attempts Per Day (14 days)
+                </h4>
+                <canvas id="chart-attempts" height="200"></canvas>
+            </div>
+            <div class="portal-frame !p-6">
+                <h4 class="font-orbitron text-xs text-pink-400 uppercase tracking-widest mb-4">
+                    <i class="fas fa-chart-pie mr-2"></i> Score Distribution
+                </h4>
+                <canvas id="chart-distribution" height="200"></canvas>
+            </div>
         </div>
-    </div>
-
-    {{-- Per-quiz accuracy --}}
-    <div class="portal-frame !p-6">
-        <h4 class="font-orbitron text-xs text-purple-400 uppercase tracking-widest mb-4">
-            <i class="fas fa-chart-bar mr-2"></i> Average Accuracy Per Quiz
-        </h4>
-        <canvas id="chart-quiz-accuracy" height="120"></canvas>
+        <div class="portal-frame !p-6">
+            <h4 class="font-orbitron text-xs text-purple-400 uppercase tracking-widest mb-4">
+                <i class="fas fa-chart-bar mr-2"></i> Average Accuracy Per Quiz
+            </h4>
+            <canvas id="chart-quiz-accuracy" height="120"></canvas>
+        </div>
     </div>
 </section>
 
@@ -645,13 +644,11 @@
 <script src="{{ asset('js/teacher.js') }}"></script>
 <script src="{{ asset('js/charts.js') }}"></script>
 <script>
-    applyChartDefaults();
-
-    // Hook into showSection to lazy-load charts only when tab is opened
-    const _origShowSection = showSection;
-    showSection = function(id) {
-        _origShowSection(id);
-        if (id === 'stats') loadTeacherStats();
-    };
+    document.addEventListener('DOMContentLoaded', () => {
+        applyChartDefaults();
+        document.getElementById('btn-stats')?.addEventListener('click', () => {
+            requestAnimationFrame(() => requestAnimationFrame(() => loadTeacherStats()));
+        });
+    });
 </script>
 @endpush

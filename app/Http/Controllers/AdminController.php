@@ -90,75 +90,64 @@ class AdminController extends Controller
 
     public function stats()
     {
-        // All quiz results platform-wide
-        $allResults = $this->supabase->adminSelect(
-            'quiz_results',
-            'correct_answers,total_questions,created_at,session_id'
-        );
+        // All 3 calls happen as fast as possible — no loops making extra calls
+        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
+        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,teacher_id,created_at');
+        $profiles   = $this->supabase->adminSelect('profiles', 'id,role,created_at');
 
-        // All quizzes
-        $quizzes = $this->supabase->adminSelect(
-            'quiz_sessions', 'id,topic,teacher_id,created_at'
-        );
-
-        // All profiles
-        $profiles = $this->supabase->adminSelect('profiles', 'id,role,created_at');
-
-        // Registrations per day (last 14 days)
+        // Registrations per day
         $registrationsPerDay = [];
         for ($i = 13; $i >= 0; $i--) {
             $date  = date('Y-m-d', strtotime("-{$i} days"));
-            $label = date('M d', strtotime("-{$i} days"));
-            $count = count(array_filter($profiles, fn($p) =>
-                str_starts_with($p['created_at'] ?? '', $date)
-            ));
+            $label = date('M d',   strtotime("-{$i} days"));
+            $count = count(array_filter($profiles, fn($p) => str_starts_with($p['created_at'] ?? '', $date)));
             $registrationsPerDay[] = ['date' => $label, 'count' => $count];
         }
 
-        // Attempts per day (last 14 days)
+        // Attempts per day
         $attemptsPerDay = [];
         for ($i = 13; $i >= 0; $i--) {
             $date  = date('Y-m-d', strtotime("-{$i} days"));
-            $label = date('M d', strtotime("-{$i} days"));
-            $count = count(array_filter($allResults, fn($r) =>
-                str_starts_with($r['created_at'], $date)
-            ));
+            $label = date('M d',   strtotime("-{$i} days"));
+            $count = count(array_filter($allResults, fn($r) => str_starts_with($r['created_at'] ?? '', $date)));
             $attemptsPerDay[] = ['date' => $label, 'count' => $count];
         }
 
         // Role breakdown
         $roleBreakdown = [
-            'students'        => count(array_filter($profiles, fn($p) => $p['role'] === 'student')),
-            'teachers'        => count(array_filter($profiles, fn($p) => $p['role'] === 'teacher')),
-            'pending'         => count(array_filter($profiles, fn($p) => $p['role'] === 'pending_teacher')),
+            'students' => count(array_filter($profiles, fn($p) => $p['role'] === 'student')),
+            'teachers' => count(array_filter($profiles, fn($p) => $p['role'] === 'teacher')),
+            'pending'  => count(array_filter($profiles, fn($p) => $p['role'] === 'pending_teacher')),
         ];
 
-        // Score distribution platform-wide
+        // Score distribution
         $distribution = [0, 0, 0, 0];
         foreach ($allResults as $r) {
             if (($r['total_questions'] ?? 0) === 0) continue;
             $pct = ($r['correct_answers'] / $r['total_questions']) * 100;
-            if ($pct <= 25)       $distribution[0]++;
-            elseif ($pct <= 50)   $distribution[1]++;
-            elseif ($pct <= 75)   $distribution[2]++;
-            else                  $distribution[3]++;
+            if      ($pct <= 25) $distribution[0]++;
+            elseif  ($pct <= 50) $distribution[1]++;
+            elseif  ($pct <= 75) $distribution[2]++;
+            else                 $distribution[3]++;
         }
+
+        $totalAttempts = count($allResults);
+        $avgAccuracy   = $totalAttempts > 0
+            ? round(array_sum(array_map(fn($r) =>
+                ($r['total_questions'] ?? 0) > 0
+                    ? ($r['correct_answers'] / $r['total_questions']) * 100 : 0,
+                $allResults)) / $totalAttempts, 1)
+            : 0;
 
         return response()->json([
             'registrationsPerDay' => $registrationsPerDay,
             'attemptsPerDay'      => $attemptsPerDay,
             'roleBreakdown'       => $roleBreakdown,
             'distribution'        => $distribution,
-            'totalAttempts'       => count($allResults),
+            'totalAttempts'       => $totalAttempts,
             'totalQuizzes'        => count($quizzes),
             'totalUsers'          => count($profiles),
-            'avgAccuracy'         => count($allResults) > 0
-                ? round(array_sum(array_map(fn($r) =>
-                    ($r['total_questions'] ?? 0) > 0
-                        ? ($r['correct_answers'] / $r['total_questions']) * 100
-                        : 0,
-                    $allResults)) / count($allResults), 1)
-                : 0,
+            'avgAccuracy'         => $avgAccuracy,
         ]);
     }
 }

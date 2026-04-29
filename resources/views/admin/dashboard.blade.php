@@ -34,52 +34,51 @@
         Platform <span class="text-red-500">Analytics</span>
     </h2>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div class="portal-frame !p-5 border-l-2 border-red-500">
-            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Attempts</p>
-            <h3 class="text-2xl font-orbitron mt-1" id="stat-total-attempts">—</h3>
-        </div>
-        <div class="portal-frame !p-5 border-l-2 border-cyan-500">
-            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Avg Accuracy</p>
-            <h3 class="text-2xl font-orbitron mt-1" id="stat-avg-accuracy">—</h3>
-        </div>
-        <div class="portal-frame !p-5 border-l-2 border-purple-500">
-            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Users</p>
-            <h3 class="text-2xl font-orbitron mt-1" id="stat-total-users">—</h3>
-        </div>
+    <div id="stats-loading" class="flex flex-col items-center justify-center" style="min-height: 80vh;">
+        <i class="fas fa-circle-notch fa-spin text-4xl text-red-500 mb-4"></i>
+        <p class="text-xs uppercase tracking-widest font-orbitron text-slate-500">Fetching Analytics...</p>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {{-- Attempts over time --}}
-        <div class="portal-frame !p-6">
-            <h4 class="font-orbitron text-xs text-cyan-400 uppercase tracking-widest mb-4">
-                <i class="fas fa-chart-line mr-2"></i> Quiz Attempts (14 days)
-            </h4>
-            <canvas id="chart-attempts" height="200"></canvas>
+    <div id="stats-content" class="hidden">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <div class="portal-frame !p-5 border-l-2 border-red-500">
+                <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Attempts</p>
+                <h3 class="text-2xl font-orbitron mt-1" id="stat-total-attempts">—</h3>
+            </div>
+            <div class="portal-frame !p-5 border-l-2 border-cyan-500">
+                <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Avg Accuracy</p>
+                <h3 class="text-2xl font-orbitron mt-1" id="stat-avg-accuracy">—</h3>
+            </div>
+            <div class="portal-frame !p-5 border-l-2 border-purple-500">
+                <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Users</p>
+                <h3 class="text-2xl font-orbitron mt-1" id="stat-total-users">—</h3>
+            </div>
         </div>
-
-        {{-- Registrations over time --}}
-        <div class="portal-frame !p-6">
-            <h4 class="font-orbitron text-xs text-green-400 uppercase tracking-widest mb-4">
-                <i class="fas fa-user-plus mr-2"></i> New Registrations (14 days)
-            </h4>
-            <canvas id="chart-registrations" height="200"></canvas>
-        </div>
-
-        {{-- Role breakdown --}}
-        <div class="portal-frame !p-6">
-            <h4 class="font-orbitron text-xs text-orange-400 uppercase tracking-widest mb-4">
-                <i class="fas fa-users mr-2"></i> User Role Breakdown
-            </h4>
-            <canvas id="chart-roles" height="200"></canvas>
-        </div>
-
-        {{-- Score distribution --}}
-        <div class="portal-frame !p-6">
-            <h4 class="font-orbitron text-xs text-pink-400 uppercase tracking-widest mb-4">
-                <i class="fas fa-chart-pie mr-2"></i> Score Distribution
-            </h4>
-            <canvas id="chart-distribution" height="200"></canvas>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="portal-frame !p-6">
+                <h4 class="font-orbitron text-xs text-cyan-400 uppercase tracking-widest mb-4">
+                    <i class="fas fa-chart-line mr-2"></i> Quiz Attempts (14 days)
+                </h4>
+                <canvas id="chart-attempts" height="200"></canvas>
+            </div>
+            <div class="portal-frame !p-6">
+                <h4 class="font-orbitron text-xs text-green-400 uppercase tracking-widest mb-4">
+                    <i class="fas fa-user-plus mr-2"></i> New Registrations (14 days)
+                </h4>
+                <canvas id="chart-registrations" height="200"></canvas>
+            </div>
+            <div class="portal-frame !p-6">
+                <h4 class="font-orbitron text-xs text-orange-400 uppercase tracking-widest mb-4">
+                    <i class="fas fa-users mr-2"></i> User Role Breakdown
+                </h4>
+                <canvas id="chart-roles" height="200"></canvas>
+            </div>
+            <div class="portal-frame !p-6">
+                <h4 class="font-orbitron text-xs text-pink-400 uppercase tracking-widest mb-4">
+                    <i class="fas fa-chart-pie mr-2"></i> Score Distribution
+                </h4>
+                <canvas id="chart-distribution" height="200"></canvas>
+            </div>
         </div>
     </div>
 </section>
@@ -373,12 +372,11 @@
 <script src="{{ asset('js/admin.js') }}"></script>
 <script src="{{ asset('js/charts.js') }}"></script>
 <script>
-    applyChartDefaults();
-
-    const _origShowSection = showSection;
-    showSection = function(id) {
-        _origShowSection(id);
-        if (id === 'stats') loadAdminStats();
-    };
+    document.addEventListener('DOMContentLoaded', () => {
+        applyChartDefaults();
+        document.getElementById('btn-stats')?.addEventListener('click', () => {
+            requestAnimationFrame(() => requestAnimationFrame(() => loadAdminStats()));
+        });
+    });
 </script>
 @endpush

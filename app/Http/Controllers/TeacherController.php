@@ -268,38 +268,27 @@ class TeacherController extends Controller
 
     public function stats()
     {
-        $user  = session('supabase_user');
-        $token = session('supabase_token');
+        $user = session('supabase_user');
 
-        // All quizzes by this teacher
-        $quizzes = $this->supabase->adminSelect(
-            'quiz_sessions', 'id,topic,created_at,room_code',
-            ['teacher_id' => $user['id']]
-        );
+        // Run both calls at the same time instead of sequentially
+        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,created_at', ['teacher_id' => $user['id']]);
+        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
 
-        // All results for this teacher's quizzes
-        $allResults = [];
-        foreach ($quizzes as $q) {
-            $results = $this->supabase->adminSelect(
-                'quiz_results',
-                'correct_answers,total_questions,created_at,session_id',
-                ['session_id' => $q['id']]
-            );
-            foreach ($results as $r) {
-                $r['topic'] = $q['topic'];
-                $allResults[] = $r;
-            }
-        }
+        // Filter results to only this teacher's quizzes
+        $quizIds    = array_column($quizzes, 'id');
+        $allResults = array_filter($allResults, fn($r) => in_array($r['session_id'], $quizIds));
+        $allResults = array_values($allResults);
+
+        // Map session_id to topic for easy lookup
+        $topicMap = array_column($quizzes, 'topic', 'id');
 
         // Per-quiz average accuracy
         $quizAccuracy = [];
         foreach ($quizzes as $q) {
-            $qResults = array_filter($allResults, fn($r) => $r['session_id'] === $q['id']);
-            if (count($qResults) === 0) continue;
+            $qResults = array_values(array_filter($allResults, fn($r) => $r['session_id'] === $q['id']));
+            if (empty($qResults)) continue;
             $avg = array_sum(array_map(fn($r) =>
-                $r['total_questions'] > 0
-                    ? ($r['correct_answers'] / $r['total_questions']) * 100
-                    : 0,
+                $r['total_questions'] > 0 ? ($r['correct_answers'] / $r['total_questions']) * 100 : 0,
                 $qResults
             )) / count($qResults);
             $quizAccuracy[] = [
@@ -313,37 +302,36 @@ class TeacherController extends Controller
         $attemptsPerDay = [];
         for ($i = 13; $i >= 0; $i--) {
             $date  = date('Y-m-d', strtotime("-{$i} days"));
-            $label = date('M d', strtotime("-{$i} days"));
-            $count = count(array_filter($allResults, fn($r) =>
-                str_starts_with($r['created_at'], $date)
-            ));
+            $label = date('M d',   strtotime("-{$i} days"));
+            $count = count(array_filter($allResults, fn($r) => str_starts_with($r['created_at'], $date)));
             $attemptsPerDay[] = ['date' => $label, 'count' => $count];
         }
 
-        // Score distribution (0-25%, 26-50%, 51-75%, 76-100%)
+        // Score distribution
         $distribution = [0, 0, 0, 0];
         foreach ($allResults as $r) {
             if ($r['total_questions'] === 0) continue;
             $pct = ($r['correct_answers'] / $r['total_questions']) * 100;
-            if ($pct <= 25)       $distribution[0]++;
-            elseif ($pct <= 50)   $distribution[1]++;
-            elseif ($pct <= 75)   $distribution[2]++;
-            else                  $distribution[3]++;
+            if      ($pct <= 25) $distribution[0]++;
+            elseif  ($pct <= 50) $distribution[1]++;
+            elseif  ($pct <= 75) $distribution[2]++;
+            else                 $distribution[3]++;
         }
+
+        $totalAttempts = count($allResults);
+        $avgAccuracy   = $totalAttempts > 0
+            ? round(array_sum(array_map(fn($r) =>
+                $r['total_questions'] > 0 ? ($r['correct_answers'] / $r['total_questions']) * 100 : 0,
+                $allResults)) / $totalAttempts, 1)
+            : 0;
 
         return response()->json([
             'quizAccuracy'   => $quizAccuracy,
             'attemptsPerDay' => $attemptsPerDay,
             'distribution'   => $distribution,
-            'totalAttempts'  => count($allResults),
+            'totalAttempts'  => $totalAttempts,
             'totalQuizzes'   => count($quizzes),
-            'avgAccuracy'    => count($allResults) > 0
-                ? round(array_sum(array_map(fn($r) =>
-                    $r['total_questions'] > 0
-                        ? ($r['correct_answers'] / $r['total_questions']) * 100
-                        : 0,
-                    $allResults)) / count($allResults), 1)
-                : 0,
+            'avgAccuracy'    => $avgAccuracy,
         ]);
     }
 }

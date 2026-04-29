@@ -1,5 +1,3 @@
-// public/js/charts.js
-
 const CHART_DEFAULTS = {
     color: {
         cyan:   '#00f2ff',
@@ -13,15 +11,14 @@ const CHART_DEFAULTS = {
     }
 };
 
-// Shared Chart.js global defaults for dark theme
 function applyChartDefaults() {
-    Chart.defaults.color          = CHART_DEFAULTS.color.text;
-    Chart.defaults.borderColor    = CHART_DEFAULTS.color.grid;
-    Chart.defaults.font.family    = 'Rajdhani, sans-serif';
-    Chart.defaults.font.size      = 11;
+    Chart.defaults.color       = CHART_DEFAULTS.color.text;
+    Chart.defaults.borderColor = CHART_DEFAULTS.color.grid;
+    Chart.defaults.font.family = 'Rajdhani, sans-serif';
+    Chart.defaults.font.size   = 11;
 }
 
-// ── Reusable chart builders ───────────────────────────────
+// ── Chart builders ────────────────────────────────────────
 
 function buildLineChart(canvasId, labels, data, label, color) {
     const ctx = document.getElementById(canvasId);
@@ -33,14 +30,14 @@ function buildLineChart(canvasId, labels, data, label, color) {
             datasets: [{
                 label,
                 data,
-                borderColor:     color,
-                backgroundColor: color + '20',
-                borderWidth:     2,
+                borderColor:          color,
+                backgroundColor:      color + '20',
+                borderWidth:          2,
                 pointBackgroundColor: color,
-                pointRadius:     3,
-                pointHoverRadius: 5,
-                fill:            true,
-                tension:         0.4,
+                pointRadius:          3,
+                pointHoverRadius:     5,
+                fill:                 true,
+                tension:              0.4,
             }]
         },
         options: {
@@ -63,8 +60,8 @@ function buildLineChart(canvasId, labels, data, label, color) {
                 },
                 y: {
                     beginAtZero: true,
-                    grid:  { color: CHART_DEFAULTS.color.grid },
-                    ticks: { color: CHART_DEFAULTS.color.text, stepSize: 1 }
+                    grid:        { color: CHART_DEFAULTS.color.grid },
+                    ticks:       { color: CHART_DEFAULTS.color.text, stepSize: 1 }
                 }
             }
         }
@@ -169,114 +166,173 @@ function buildDoughnutChart(canvasId, labels, data, colors) {
     });
 }
 
-// ── Teacher stats loader ──────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────
+
+function destroyCharts(ids) {
+    ids.forEach(id => {
+        const existing = Chart.getChart(id);
+        if (existing) existing.destroy();
+    });
+}
+
+function showStatsError(message) {
+    const el = document.getElementById('stats-loading');
+    if (el) el.innerHTML = `
+        <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-4 block"></i>
+        <p class="text-red-500 text-xs uppercase tracking-widest font-orbitron">${message}</p>
+    `;
+}
+
+// ── Cache ─────────────────────────────────────────────────
+
+const _statsCache = { teacher: null, admin: null };
+
+// ── Teacher stats ─────────────────────────────────────────
 
 async function loadTeacherStats() {
+    const loading = document.getElementById('stats-loading');
+    const content = document.getElementById('stats-content');
+
+    // Show spinner, hide content
+    loading?.classList.remove('hidden');
+    content?.classList.add('hidden');
+
     try {
-        const data = await fetch('/teacher/stats').then(r => r.json());
+        const data = _statsCache.teacher
+            ?? (_statsCache.teacher = await fetch('/teacher/stats').then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }));
 
-        // Summary cards
-        document.getElementById('stat-total-attempts').innerText = data.totalAttempts;
-        document.getElementById('stat-avg-accuracy').innerText   = data.avgAccuracy + '%';
-        document.getElementById('stat-total-quizzes').innerText  = data.totalQuizzes;
+        // Populate summary cards
+        document.getElementById('stat-total-attempts').innerText = data.totalAttempts ?? '0';
+        document.getElementById('stat-avg-accuracy').innerText   = (data.avgAccuracy ?? 0) + '%';
+        document.getElementById('stat-total-quizzes').innerText  = data.totalQuizzes ?? '0';
 
-        // Attempts per day line chart
-        buildLineChart(
-            'chart-attempts',
-            data.attemptsPerDay.map(d => d.date),
-            data.attemptsPerDay.map(d => d.count),
-            'Attempts',
-            CHART_DEFAULTS.color.cyan
-        );
+        // Swap spinner for content
+        loading?.classList.add('hidden');
+        content?.classList.remove('hidden');
 
-        // Score distribution doughnut
-        buildDoughnutChart(
-            'chart-distribution',
-            ['0–25%', '26–50%', '51–75%', '76–100%'],
-            data.distribution,
-            [
-                CHART_DEFAULTS.color.red,
-                CHART_DEFAULTS.color.orange,
-                CHART_DEFAULTS.color.cyan,
-                CHART_DEFAULTS.color.green,
-            ]
-        );
+        // Draw charts after content is painted
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            destroyCharts(['chart-attempts', 'chart-distribution', 'chart-quiz-accuracy']);
 
-        // Per-quiz accuracy bar chart
-        if (data.quizAccuracy.length > 0) {
-            buildBarChart(
-                'chart-quiz-accuracy',
-                data.quizAccuracy.map(q => q.topic),
-                data.quizAccuracy.map(q => q.accuracy),
-                'Avg Accuracy %',
-                CHART_DEFAULTS.color.purple
+            buildLineChart(
+                'chart-attempts',
+                data.attemptsPerDay.map(d => d.date),
+                data.attemptsPerDay.map(d => d.count),
+                'Attempts',
+                CHART_DEFAULTS.color.cyan
             );
-        }
+
+            buildDoughnutChart(
+                'chart-distribution',
+                ['0–25%', '26–50%', '51–75%', '76–100%'],
+                data.distribution,
+                [
+                    CHART_DEFAULTS.color.red,
+                    CHART_DEFAULTS.color.orange,
+                    CHART_DEFAULTS.color.cyan,
+                    CHART_DEFAULTS.color.green,
+                ]
+            );
+
+            if (data.quizAccuracy && data.quizAccuracy.length > 0) {
+                buildBarChart(
+                    'chart-quiz-accuracy',
+                    data.quizAccuracy.map(q => q.topic),
+                    data.quizAccuracy.map(q => q.accuracy),
+                    'Avg Accuracy %',
+                    CHART_DEFAULTS.color.purple
+                );
+            } else {
+                const canvas = document.getElementById('chart-quiz-accuracy');
+                if (canvas) canvas.insertAdjacentHTML('afterend',
+                    '<p class="text-slate-500 text-xs text-center mt-4 uppercase tracking-widest">No quiz attempts yet.</p>'
+                );
+            }
+        }));
 
     } catch (err) {
-        console.error('Failed to load teacher stats:', err);
+        console.error('Teacher stats error:', err);
+        _statsCache.teacher = null; // clear cache so retry works
+        showStatsError('Failed to load analytics. Please try again.');
     }
 }
 
-// ── Admin stats loader ────────────────────────────────────
+// ── Admin stats ───────────────────────────────────────────
 
 async function loadAdminStats() {
+    const loading = document.getElementById('stats-loading');
+    const content = document.getElementById('stats-content');
+
+    loading?.classList.remove('hidden');
+    content?.classList.add('hidden');
+
     try {
-        const data = await fetch('/admin/stats').then(r => r.json());
+        const data = _statsCache.admin
+            ?? (_statsCache.admin = await fetch('/admin/stats').then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            }));
 
-        // Summary cards
-        document.getElementById('stat-total-attempts').innerText = data.totalAttempts;
-        document.getElementById('stat-avg-accuracy').innerText   = data.avgAccuracy + '%';
-        document.getElementById('stat-total-users').innerText    = data.totalUsers;
+        document.getElementById('stat-total-attempts').innerText = data.totalAttempts ?? '0';
+        document.getElementById('stat-avg-accuracy').innerText   = (data.avgAccuracy ?? 0) + '%';
+        document.getElementById('stat-total-users').innerText    = data.totalUsers ?? '0';
 
-        // Attempts per day
-        buildLineChart(
-            'chart-attempts',
-            data.attemptsPerDay.map(d => d.date),
-            data.attemptsPerDay.map(d => d.count),
-            'Attempts',
-            CHART_DEFAULTS.color.cyan
-        );
+        loading?.classList.add('hidden');
+        content?.classList.remove('hidden');
 
-        // Registrations per day
-        buildLineChart(
-            'chart-registrations',
-            data.registrationsPerDay.map(d => d.date),
-            data.registrationsPerDay.map(d => d.count),
-            'Registrations',
-            CHART_DEFAULTS.color.green
-        );
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            destroyCharts(['chart-attempts', 'chart-registrations', 'chart-roles', 'chart-distribution']);
 
-        // Role breakdown doughnut
-        buildDoughnutChart(
-            'chart-roles',
-            ['Students', 'Teachers', 'Pending'],
-            [
-                data.roleBreakdown.students,
-                data.roleBreakdown.teachers,
-                data.roleBreakdown.pending,
-            ],
-            [
-                CHART_DEFAULTS.color.cyan,
-                CHART_DEFAULTS.color.purple,
-                CHART_DEFAULTS.color.orange,
-            ]
-        );
+            buildLineChart(
+                'chart-attempts',
+                data.attemptsPerDay.map(d => d.date),
+                data.attemptsPerDay.map(d => d.count),
+                'Attempts',
+                CHART_DEFAULTS.color.cyan
+            );
 
-        // Score distribution doughnut
-        buildDoughnutChart(
-            'chart-distribution',
-            ['0–25%', '26–50%', '51–75%', '76–100%'],
-            data.distribution,
-            [
-                CHART_DEFAULTS.color.red,
-                CHART_DEFAULTS.color.orange,
-                CHART_DEFAULTS.color.cyan,
-                CHART_DEFAULTS.color.green,
-            ]
-        );
+            buildLineChart(
+                'chart-registrations',
+                data.registrationsPerDay.map(d => d.date),
+                data.registrationsPerDay.map(d => d.count),
+                'Registrations',
+                CHART_DEFAULTS.color.green
+            );
+
+            buildDoughnutChart(
+                'chart-roles',
+                ['Students', 'Teachers', 'Pending'],
+                [
+                    data.roleBreakdown.students,
+                    data.roleBreakdown.teachers,
+                    data.roleBreakdown.pending,
+                ],
+                [
+                    CHART_DEFAULTS.color.cyan,
+                    CHART_DEFAULTS.color.purple,
+                    CHART_DEFAULTS.color.orange,
+                ]
+            );
+
+            buildDoughnutChart(
+                'chart-distribution',
+                ['0–25%', '26–50%', '51–75%', '76–100%'],
+                data.distribution,
+                [
+                    CHART_DEFAULTS.color.red,
+                    CHART_DEFAULTS.color.orange,
+                    CHART_DEFAULTS.color.cyan,
+                    CHART_DEFAULTS.color.green,
+                ]
+            );
+        }));
 
     } catch (err) {
-        console.error('Failed to load admin stats:', err);
+        console.error('Admin stats error:', err);
+        _statsCache.admin = null;
+        showStatsError('Failed to load analytics. Please try again.');
     }
 }
