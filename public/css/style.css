@@ -16,7 +16,7 @@ body {
     font-family: 'Rajdhani', sans-serif;
     background-color: var(--deep-space);
     min-height: 100vh;
-    overflow-x: hidden;  /* changed from overflow: hidden */
+    overflow-x: clip;
 }
 
 /* All background layers must be fixed so they don't add document height */

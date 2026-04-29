@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('body-class', 'flex min-h-screen overflow-x-hidden text-white bg-black')
+@section('body-class', 'flex min-h-screen text-white bg-black')
 
 @section('content')
 
@@ -25,7 +25,7 @@
     </button>
 </aside>
 
-<main class="flex-1 p-4 md:p-8 z-20 relative">
+<main class="flex-1 min-w-0 p-4 md:p-8 z-20 relative">
 
     {{-- Mobile header --}}
     <div class="md:hidden flex items-center justify-between mb-8 p-4 portal-frame @yield('mobile-border', '')">
