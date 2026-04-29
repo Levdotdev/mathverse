@@ -15,6 +15,14 @@ function showSection(id) {
     void sec.offsetWidth;
     sec.classList.add('animate-fade-in');
     document.getElementById('btn-' + id).classList.add('active');
+
+    if (window.innerWidth < 768) {
+        document.getElementById('sidebar')
+            .classList.add('-translate-x-full');
+
+        document.getElementById('sidebar-overlay')
+            .classList.add('hidden');
+    }
 }
 
 function openModal(id) {
