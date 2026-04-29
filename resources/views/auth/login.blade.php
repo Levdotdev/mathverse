@@ -154,7 +154,7 @@
                         <label class="input-label">Confirm Password</label>
                         <div class="relative">
                             <i class="fas fa-shield-alt input-icon"></i>
-                            <input type="password" id="rcPass" name="password_confirmation"
+                            <input type="password" id="rcPass" name="confirm_password"
                                    placeholder="Re-type password" required class="input-mobile-ultra pr-12">
                             <button type="button" onclick="tglPass('rcPass','rcIco')"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
@@ -190,7 +190,7 @@
                 <label class="input-label">Registered Email</label>
                 <div class="relative">
                     <i class="fas fa-envelope input-icon"></i>
-                    <input type="email" name="email" placeholder="Enter your email" class="input-mobile-ultra">
+                    <input type="email" name="email" placeholder="Enter your email" class="input-mobile-ultra" required>
                 </div>
             </div>
             <button type="submit" class="btn-mobile-ultra !py-4 mb-4">Send Reset Link</button>

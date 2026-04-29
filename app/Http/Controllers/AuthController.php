@@ -55,12 +55,17 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'first_name' => 'required|string',
-            'last_name'  => 'required|string',
-            'email'      => 'required|email',
-            'password'   => 'required|min:6|confirmed',
-            'role'       => 'required|in:student,pending_teacher',
+            'first_name'        => 'required|string',
+            'last_name'         => 'required|string',
+            'email'             => 'required|email',
+            'password'          => 'required|min:6|confirmed',
+            'confirm_password'  => 'required|min:6|confirmed',
+            'role'              => 'required|in:student,pending_teacher',
         ]);
+
+        if ($request->password !== $request->confirm_password) {
+            return back()->with('error', 'Passwords do not match.');
+        }
 
         $authResult = $this->supabase->signUp($request->email, $request->password, $request->role, $request->first_name, $request->last_name);
 
@@ -77,7 +82,7 @@ class AuthController extends Controller
     {
         $request->validate(['email' => 'required|email']);
         $this->supabase->resetPassword($request->email);
-        return back()->with('success', 'Recovery link sent if that email exists.');
+        return back()->with('success', 'Recovery link sent.');
     }
 
     public function logout(Request $request)
@@ -93,5 +98,17 @@ class AuthController extends Controller
             'teacher' => redirect('/teacher/dashboard'),
             default   => redirect('/student/dashboard'),
         };
+    }
+
+    public function updatePassword(Request $request)
+    {
+
+        if ($request->password !== $request->confirm_password) {
+            return back()->with('error', 'Passwords do not match.');
+        }
+
+        $response = $this->supabase->updatePassword($request->token, $request->password);
+
+        return back()->with('success', 'Password updated!');
     }
 }

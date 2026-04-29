@@ -183,4 +183,17 @@ class SupabaseService
 
         return $response->successful();
     }
+
+    public function updatePassword(string $token, string $password): array
+    {
+        $response = Http::withHeaders([
+            'apikey'        => $this->anonKey,
+            'Authorization' => "Bearer {$token}",
+            'Content-Type'  => 'application/json',
+        ])->put("{$this->url}/auth/v1/user", [
+            'password' => $password,
+        ]);
+
+        return $response->json();
+    }
 }

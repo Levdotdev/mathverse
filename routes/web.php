@@ -11,6 +11,8 @@ Route::get('/',       [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::get('/reset-password', function () { return view('reset'); });
+Route::post('/update-password', [AuthController::class, 'updatePassword']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Student routes
