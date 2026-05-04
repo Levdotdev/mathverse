@@ -77,11 +77,10 @@
 
 @push('scripts')
 <script>
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
+    const { data, error } = await supabase.auth.exchangeCodeForSession();
 
-    const token = params.get('access_token');
-
-    document.getElementById('token').value = token;
+    await supabase.auth.updateUser({
+    password: newPassword
+    });
 </script>
 @endpush
