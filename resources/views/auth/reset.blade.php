@@ -29,7 +29,7 @@
                     <i class="fas fa-user-plus text-2xl text-purple-500/40"></i>
                 </div>
 
-                <form id="resetForm" class="space-y-4">
+                <form id="resetForm" method="POST" action="/update-password" class="space-y-4">
                     @csrf
 
                     <input type="hidden" id="token" name="token">
@@ -77,10 +77,9 @@
 
 @push('scripts')
 <script>
-    const { data, error } = await supabase.auth.exchangeCodeForSession();
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token_hash');
 
-    await supabase.auth.updateUser({
-    password: newPassword
-    });
+    document.getElementById('token').value = token;
 </script>
 @endpush

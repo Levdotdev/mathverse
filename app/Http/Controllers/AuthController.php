@@ -88,13 +88,20 @@ class AuthController extends Controller
 
     public function updatePassword(Request $request)
     {
+        $token = $request->token;
 
-        if ($request->password !== $request->password_confirmation) {
-            return back()->with('error', 'Passwords do not match.');
+        $response = Http::withHeaders([
+            'apikey'       => config('services.supabase.anon_key'),
+            'Authorization'=> "Bearer {$token}",
+            'Content-Type' => 'application/json',
+        ])->put(config('services.supabase.url') . '/auth/v1/user', [
+            'password' => $request->password
+        ]);
+
+        if ($response->failed()) {
+            return back()->with('error', 'Failed to update password.');
         }
 
-        $response = $this->supabase->updatePassword($request->token, $request->password);
-
-        return back()->with('success', 'Password updated!');
+        return redirect('/login')->with('success', 'Password updated successfully!');
     }
 }
