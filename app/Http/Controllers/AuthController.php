@@ -88,12 +88,27 @@ class AuthController extends Controller
 
     public function updatePassword(Request $request)
     {
-        $token = $request->token;
+        $token_hash = $request->token;
 
-        $response = Http::withHeaders([
-            'apikey'       => config('services.supabase.anon_key'),
-            'Authorization'=> "Bearer {$token}",
+        // STEP 1: Exchange token_hash for access_token
+        $session = Http::withHeaders([
+            'apikey' => config('services.supabase.anon_key'),
             'Content-Type' => 'application/json',
+        ])->post(config('services.supabase.url') . '/auth/v1/token?grant_type=recovery', [
+            'token_hash' => $token_hash
+        ]);
+
+        if ($session->failed()) {
+            return back()->with('error', 'Invalid or expired token.');
+        }
+
+        $access_token = $session['access_token'];
+
+        // STEP 2: Update password
+        $response = Http::withHeaders([
+            'apikey'        => config('services.supabase.anon_key'),
+            'Authorization' => "Bearer {$access_token}",
+            'Content-Type'  => 'application/json',
         ])->put(config('services.supabase.url') . '/auth/v1/user', [
             'password' => $request->password
         ]);
