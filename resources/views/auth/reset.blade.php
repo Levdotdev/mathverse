@@ -29,7 +29,7 @@
                     <i class="fas fa-user-plus text-2xl text-purple-500/40"></i>
                 </div>
 
-                <form id="resetForm" method="POST" action="/update-password" class="space-y-4">
+                <form id="resetForm" class="space-y-4">
                     @csrf
 
                     <input type="hidden" id="token" name="token">
