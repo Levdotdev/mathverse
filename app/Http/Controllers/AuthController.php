@@ -54,15 +54,44 @@ class AuthController extends Controller
             return back()->with('error', 'Passwords do not match.');
         }
 
-        $authResult = $this->supabase->signUp($request->email, $request->password, $request->role, $request->first_name, $request->last_name);
+        $gradeLevel = $request->role === 'student'
+            ? (int) $request->grade_level
+            : null;
 
-        if (isset($authResult['error'])) {
-            return back()->with('error', $authResult['msg'] ?? 'Registration failed.');
+        $auth = $this->supabase->signUp(
+            $request->email,
+            $request->password,
+            $request->role,
+            $request->first_name,
+            $request->last_name,
+            $gradeLevel
+        );
+
+        if (isset($auth['error'])) {
+            return back()->with('error', $auth['body'] ?? 'Signup failed.');
         }
 
-        $userId = $authResult['user']['id'] ?? null;
+        // ── STEP 2: GET USER ID (FIX FOR NULL TOKEN ISSUE)
+        $userData = $this->supabase->getUserByEmail($request->email);
 
-        return redirect('/')->with('success', 'Registered! Please verify your email then log in.');
+        $userId = $userData['users'][0]['id'] ?? null;
+
+        if (!$userId) {
+            return back()->with('error', 'User created but ID not found.');
+        }
+
+        // ── STEP 3: UPLOAD AVATAR
+        $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
+
+        // ── STEP 4: UPDATE PROFILE
+        if ($avatarUrl) {
+            $this->supabase->updateProfile($userId, [
+                'avatar_url' => $avatarUrl
+            ]);
+        }
+
+        return redirect('/')
+            ->with('success', 'Registered successfully! Please verify your email.');
     }
 
     public function forgotPassword(Request $request)

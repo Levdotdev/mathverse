@@ -90,23 +90,43 @@
                     <i class="fas fa-user-plus text-2xl text-purple-500/40"></i>
                 </div>
 
-                <form method="POST" action="/register" class="space-y-4">
+                <form method="POST" action="/register" class="space-y-4" enctype="multipart/form-data">
                     @csrf
                     <div class="grid grid-cols-2 gap-2 mb-2">
                         <label class="cursor-pointer">
-                            <input type="radio" name="role" value="student" class="hidden peer" checked>
+                            <input type="radio" name="role" value="student" class="hidden peer" checked onchange="toggleGradeLevel(this.value)">
                             <div class="role-card peer-checked:border-cyan-500 peer-checked:bg-cyan-500/10">
                                 <i class="fas fa-user-graduate mb-1 text-sm block"></i>
                                 <span class="text-[9px] font-bold uppercase">Student</span>
                             </div>
                         </label>
                         <label class="cursor-pointer">
-                            <input type="radio" name="role" value="pending_teacher" class="hidden peer">
+                            <input type="radio" name="role" value="pending_teacher" class="hidden peer" onchange="toggleGradeLevel(this.value)">
                             <div class="role-card peer-checked:border-purple-500 peer-checked:bg-purple-500/10">
                                 <i class="fas fa-chalkboard-teacher mb-1 text-sm block"></i>
                                 <span class="text-[9px] font-bold uppercase">Teacher</span>
                             </div>
                         </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="input-label">Profile Picture</label>
+                        <div class="flex items-center gap-4">
+                            {{-- Preview circle --}}
+                            <div class="w-16 h-16 rounded-full border-2 border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shrink-0" id="avatar-preview-wrap">
+                                <i class="fas fa-user text-2xl text-slate-600" id="avatar-placeholder"></i>
+                                <img id="avatar-preview" src="" alt="Preview" class="hidden w-full h-full object-cover">
+                            </div>
+                            <div class="flex-1">
+                                <label for="avatar-input"
+                                    class="cursor-pointer block w-full text-center border border-white/10 bg-white/5 hover:bg-white/10 transition-all rounded px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white">
+                                    <i class="fas fa-upload mr-2"></i> Choose Photo
+                                </label>
+                                <input type="file" id="avatar-input" name="avatar"
+                                    accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                                <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG — max 2MB</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-2">
@@ -125,6 +145,18 @@
                                 <input type="text" name="last_name" placeholder="Last Name" required
                                        class="input-mobile-ultra">
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="grade-level-field">
+                        <label class="input-label">Grade Level</label>
+                        <div class="relative">
+                            <i class="fas fa-graduation-cap input-icon"></i>
+                            <select name="grade_level" class="input-mobile-ultra bg-slate-900 text-white">
+                                @for($g = 1; $g <= 6; $g++)
+                                    <option value="{{ $g }}">Grade {{ $g }}</option>
+                                @endfor
+                            </select>
                         </div>
                     </div>
 

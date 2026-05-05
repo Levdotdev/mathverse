@@ -32,8 +32,14 @@ class SupabaseService
         return $response->json();
     }
 
-    public function signUp(string $email, string $password, string $role, string $first_name, string $last_name): array
-    {
+    public function signUp(
+        string $email,
+        string $password,
+        string $role,
+        string $first_name,
+        string $last_name,
+        ?int $grade_level = null
+    ): array {
         $response = Http::withHeaders([
             'apikey'       => $this->anonKey,
             'Content-Type' => 'application/json',
@@ -41,13 +47,63 @@ class SupabaseService
             'email'    => $email,
             'password' => $password,
             'data' => [
-                'role'       => $role,
-                'first_name' => $first_name,
-                'last_name'  => $last_name,
+                'role'        => $role,
+                'first_name'  => $first_name,
+                'last_name'   => $last_name,
+                'grade_level' => $grade_level,
             ],
         ]);
 
         return $response->json();
+    }
+
+    public function getUserByEmail(string $email): array
+    {
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+        ])->get("{$this->url}/auth/v1/admin/users", [
+            'email' => $email
+        ]);
+
+        return $response->json();
+    }
+
+    public function uploadAvatar(string $userId, $file): ?string
+    {
+        if (!$file) return null;
+
+        $ext      = $file->getClientOriginalExtension();
+        $mime     = $file->getMimeType();
+        $content  = file_get_contents($file->getRealPath());
+
+        $path = "avatars/{$userId}.{$ext}";
+
+        $upload = Http::withHeaders([
+            'apikey'        => $this->anonKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type'  => $mime,
+            'x-upsert'      => 'true',
+        ])->withBody($content, $mime)
+          ->post("{$this->url}/storage/v1/object/{$path}");
+
+        if ($upload->successful()) {
+            return "{$this->url}/storage/v1/object/public/{$path}";
+        }
+
+        return null;
+    }
+
+    public function updateProfile(string $userId, array $data): array
+    {
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type'  => 'application/json',
+            'Prefer'        => 'return=representation',
+        ])->patch("{$this->url}/rest/v1/profiles?id=eq.{$userId}", $data);
+
+        return $response->json() ?? [];
     }
 
     public function resetPassword(string $email): array
