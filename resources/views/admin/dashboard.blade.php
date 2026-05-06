@@ -360,7 +360,6 @@
                     <option value="student">Student</option>
                     <option value="teacher">Teacher</option>
                     <option value="pending_teacher">Pending Teacher</option>
-                    <option value="admin">Administrator</option>
                 </select>
             </div>
         </div>

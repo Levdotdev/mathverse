@@ -41,6 +41,7 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::post('/teacher/quiz/{id}/end', [TeacherController::class, 'endQuiz']);
     Route::post('/teacher/profile', [TeacherController::class, 'updateProfile']);
     Route::get('/teacher/stats', [TeacherController::class, 'stats']);
+    Route::get('/teacher/quiz/{id}', [TeacherController::class, 'getQuiz']);
 });
 
 // Admin routes

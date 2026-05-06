@@ -75,6 +75,7 @@ class TeacherController extends Controller
     {
         $token = session('supabase_token');
 
+        // ── Update quiz session info ───────────────────────────
         $this->supabase->update('quiz_sessions', [
             'topic'       => $request->topic,
             'room_code'   => $request->room_code,
@@ -82,10 +83,15 @@ class TeacherController extends Controller
             'max_members' => (int) $request->max_members,
         ], ['id' => $id], $token);
 
-        // Delete old questions then re-insert
-        $this->supabase->delete('questions', ['session_id' => $id], $token);
+        // ── Replace questions (delete + insert ONCE) ───────────
+        if ($request->has('questions') && count($request->questions) > 0) {
 
-        if ($request->has('questions')) {
+            // Delete all old questions for this quiz
+            $this->supabase->delete('questions', [
+                'session_id' => $id
+            ], $token);
+
+            // Insert updated questions (ONLY ONCE)
             $this->saveQuestions($id, $request->input('questions'));
         }
 
@@ -256,7 +262,7 @@ class TeacherController extends Controller
                 'choice4'        => $opts[3] ?? '',
                 'choice5'        => '',
                 'choice6'        => '',
-                'correct_answer' => $opts[$correctIndex] ?? '',
+                'correct_answer' => $correctIndex,
             ];
         }
 
@@ -331,6 +337,22 @@ class TeacherController extends Controller
             'totalAttempts'  => $totalAttempts,
             'totalQuizzes'   => count($quizzes),
             'avgAccuracy'    => $avgAccuracy,
+        ]);
+    }
+
+    public function getQuiz(string $id)
+    {
+        $quiz = $this->supabase->adminSelect('quiz_sessions', '*', ['id' => $id])[0] ?? null;
+
+        $questions = $this->supabase->adminSelect(
+            'questions',
+            '*',
+            ['session_id' => $id]
+        );
+
+        return response()->json([
+            'quiz' => $quiz,
+            'questions' => $questions
         ]);
     }
 }

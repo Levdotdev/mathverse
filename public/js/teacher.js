@@ -1,9 +1,12 @@
 // ── Quiz builder ──────────────────────────────────────────
 
 let editingQuizId = null;
+let questionIndex = 0;
 
-function loadQuizBuilder(quizId = null) {
+async function loadQuizBuilder(quizId = null) {
     editingQuizId = quizId;
+    questionIndex = 0;
+
     const form    = document.getElementById('quiz-form');
     const method  = document.getElementById('method-field');
     const title   = document.getElementById('builder-title');
@@ -17,15 +20,42 @@ function loadQuizBuilder(quizId = null) {
         method.innerHTML  = `<input type="hidden" name="_method" value="PUT">`;
         title.innerHTML   = `Edit <span class="text-cyan-400">Assessment</span>`;
         saveBtn.innerHTML = `<i class="fas fa-check-circle mr-2"></i> Update Assessment`;
+
+        // 🔥 FETCH QUIZ DATA
+        const res  = await fetch(`/teacher/quiz/${quizId}`);
+        const data = await res.json();
+
+        // Fill basic fields
+        document.getElementById('q-topic').value       = data.quiz.topic;
+        document.getElementById('q-max-members').value = data.quiz.max_members;
+        document.getElementById('q-room-code').value   = data.quiz.room_code;
+        document.getElementById('q-class').value       = data.quiz.class_id ?? '';
+
+        // Load questions
+        data.questions.forEach((q, i) => {
+            const options = [
+                q.choice1,
+                q.choice2,
+                q.choice3,
+                q.choice4
+            ];
+
+            const correctIndex = parseInt(q.correct_answer) || 0;
+
+            addQuestionBlock(i + 1, q.question, options, correctIndex);
+        });
+
     } else {
         form.action       = '/teacher/quiz';
         method.innerHTML  = '';
         title.innerHTML   = `Create <span class="text-cyan-400">New Quiz</span>`;
         saveBtn.innerHTML = `<i class="fas fa-save mr-2"></i> Publish Assessment`;
+
         document.getElementById('q-topic').value       = '';
         document.getElementById('q-max-members').value = '50';
         document.getElementById('q-room-code').value   = Math.floor(1000 + Math.random() * 9000).toString();
         document.getElementById('q-class').value       = '';
+
         addNewQuestion();
     }
 
@@ -53,7 +83,7 @@ function addNewQuestion() {
 
 function addQuestionBlock(num, text, opts, correctIndex) {
     const container = document.getElementById('questions-builder');
-    const idx       = container.children.length;
+    const idx       = questionIndex++;
     const div       = document.createElement('div');
     div.className   = 'p-6 bg-black/40 border border-white/5 rounded relative question-block';
     div.innerHTML   = `
