@@ -39,7 +39,22 @@ class AdminController extends Controller
 
     public function deleteUser(string $id)
     {
-        $this->supabase->adminDelete('profiles', ['id' => $id]);
+        // Delete from auth.users — this cascades to profiles automatically
+        $response = Http::withHeaders([
+            'apikey'        => config('services.supabase.anon_key'),
+            'Authorization' => 'Bearer ' . config('services.supabase.service_key'),
+            'Content-Type'  => 'application/json',
+        ])->delete(config('services.supabase.url') . "/auth/v1/admin/users/{$id}");
+
+        if ($response->failed()) {
+            return response()->json([
+                'success' => false,
+                'error'   => $response->json()['msg'] ?? 'Failed to delete user.'
+            ], 500);
+        }
+
+        return redirect('/admin/dashboard?section=user-lists')
+            ->with('success', 'User deleted.');
     }
 
     public function approveTeacher(string $id)
@@ -51,9 +66,19 @@ class AdminController extends Controller
 
     public function denyTeacher(string $id)
     {
-        $this->supabase->adminDelete('profiles', ['id' => $id]);
+        $response = Http::withHeaders([
+            'apikey'        => config('services.supabase.anon_key'),
+            'Authorization' => 'Bearer ' . config('services.supabase.service_key'),
+            'Content-Type'  => 'application/json',
+        ])->delete(config('services.supabase.url') . "/auth/v1/admin/users/{$id}");
+
+        if ($response->failed()) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'Failed to reject application.');
+        }
+
         return redirect('/admin/dashboard?section=role-verify')
-            ->with('error', 'Application rejected.');
+            ->with('success', 'Application rejected.');
     }
 
     public function updateProfile(Request $request)
