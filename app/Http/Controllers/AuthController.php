@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use App\Services\SupabaseService;
 
 class AuthController extends Controller
@@ -154,35 +155,54 @@ class AuthController extends Controller
 
     public function updatePassword(Request $request)
     {
-        $token_hash = $request->token;
-
-        // STEP 1: Exchange token_hash for access_token
-        $session = Http::withHeaders([
-            'apikey' => config('services.supabase.anon_key'),
-            'Content-Type' => 'application/json',
-        ])->post(config('services.supabase.url') . '/auth/v1/token?grant_type=recovery', [
-            'token_hash' => $token_hash
-        ]);
-
-        if ($session->failed()) {
-            return back()->with('error', 'Invalid or expired token.');
+        if ($request->password !== $request->password_confirmation) {
+            return back()->with('error', 'Passwords do not match.');
         }
 
-        $access_token = $session['access_token'];
+        if (strlen($request->password) < 6) {
+            return back()->with('error', 'Password must be at least 6 characters.');
+        }
 
-        // STEP 2: Update password
+        $token_hash = $request->token;
+        $type       = 'recovery'; // always recovery for password reset
+
+        if (!$token_hash) {
+            return back()->with('error', 'Invalid or missing reset token.');
+        }
+
+        // Step 1 — Verify the token_hash to get a session
+        $session = Http::withHeaders([
+            'apikey'       => config('services.supabase.anon_key'),
+            'Content-Type' => 'application/json',
+        ])->post(config('services.supabase.url') . '/auth/v1/verify', [
+            'token_hash' => $token_hash,
+            'type'       => $type,
+        ]);
+
+        $sessionData = $session->json();
+
+        // Debug — remove after fixing
+        \Log::info('Supabase verify response:', $sessionData);
+
+        if ($session->failed() || !isset($sessionData['access_token'])) {
+            return back()->with('error', 'Invalid or expired reset link. Please request a new one. Error: ' . ($sessionData['error_description'] ?? $sessionData['msg'] ?? 'Unknown'));
+        }
+
+        $access_token = $sessionData['access_token'];
+
+        // Step 2 — Update password
         $response = Http::withHeaders([
             'apikey'        => config('services.supabase.anon_key'),
             'Authorization' => "Bearer {$access_token}",
             'Content-Type'  => 'application/json',
         ])->put(config('services.supabase.url') . '/auth/v1/user', [
-            'password' => $request->password
+            'password' => $request->password,
         ]);
 
         if ($response->failed()) {
-            return back()->with('error', 'Failed to update password.');
+            return back()->with('error', 'Failed to update password: ' . $response->json()['msg'] ?? 'Unknown error');
         }
 
-        return redirect('/login')->with('success', 'Password updated successfully!');
+        return redirect('/')->with('success', 'Password updated! Please log in.');
     }
 }

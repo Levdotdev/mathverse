@@ -21,7 +21,7 @@
         <div class="p-6">
 
             {{-- REGISTER PANEL --}}
-            <div id="regMod" class="module">
+            <div id="regMod">
                 <div class="flex justify-between items-center mb-6 border-b border-purple-500/30 pb-4">
                     <h2 class="text-2xl font-orbitron font-black text-white tracking-tighter uppercase">
                         Register <span class="text-purple-500">Account</span>
@@ -63,7 +63,7 @@
                     <button type="submit" class="btn-mobile-ultra mt-2">Change Password</button>
                 </form>
 
-                <button onclick="swMod('login')"
+                <button onclick="window.location.href='/'"
                         class="mt-6 w-full text-slate-500 text-[9px] font-bold uppercase tracking-widest">
                     <i class="fas fa-arrow-left mr-1"></i> Return to Login
                 </button>
@@ -78,8 +78,13 @@
 @push('scripts')
 <script>
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('token_hash');
+    const token  = params.get('token_hash');  // reads token_hash from URL
+
+    if (!token) {
+        alert('No reset token found in URL. Please use the link from your email.');
+    }
 
     document.getElementById('token').value = token;
+    console.log('Token set:', token); // check this in console
 </script>
 @endpush
