@@ -196,43 +196,42 @@ class TeacherController extends Controller
     {
         $user  = session('supabase_user');
         $token = session('supabase_token');
+        $userId = $user['id'];
 
+        // ── UPDATE BASIC INFO
         $this->supabase->update('profiles', [
-            'username'    => $request->first_name,
+            'first_name'  => $request->first_name,
             'last_name'   => $request->last_name,
-            'grade_level' => (int) $request->grade_level,
-        ], ['id' => $user['id']], $token);
+            'grade_level' => 0,
+        ], ['id' => $userId], $token);
 
-        $updated = session('supabase_user');
-        $updated['username']  = $request->first_name;
-        $updated['last_name'] = $request->last_name;
-        session(['supabase_user' => $updated]);
+        // ── UPLOAD AVATAR (USE SAME USER ID)
+        $avatarUrl = null;
 
-        if ($request->filled('new_password') || $request->filled('new_password_confirmation')) {
-            if (!$request->filled('current_password')) {
-                return redirect('/teacher/dashboard?section=profile')
-                    ->with('error', 'Current password is required.');
+        if ($request->hasFile('avatar')) {
+            $this->supabase->deleteAvatarByUrl($user['avatar_url'] ?? null);
+            $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
+
+            if ($avatarUrl) {
+                $this->supabase->updateProfile($userId, [
+                    'avatar_url' => $avatarUrl
+                ]);
             }
-            if ($request->new_password !== $request->new_password_confirmation) {
-                return redirect('/teacher/dashboard?section=profile')
-                    ->with('error', 'New passwords do not match.');
-            }
-            $check = $this->supabase->signIn($user['email'], $request->current_password);
-            if (isset($check['error'])) {
-                return redirect('/teacher/dashboard?section=profile')
-                    ->with('error', 'Current password is incorrect.');
-            }
-            Http::withHeaders([
-                'apikey'        => config('services.supabase.anon_key'),
-                'Authorization' => "Bearer {$token}",
-                'Content-Type'  => 'application/json',
-            ])->put(config('services.supabase.url') . '/auth/v1/user', [
-                'password' => $request->new_password,
-            ]);
         }
 
-        return redirect('/teacher/dashboard?section=profile')
-            ->with('success', 'Profile updated successfully!');
+        // ── UPDATE SESSION
+        $updated = session('supabase_user');
+        $updated['first_name']  = $request->first_name;
+        $updated['last_name']   = $request->last_name;
+        $updated['grade_level'] = 0;
+
+        if ($avatarUrl) {
+            $updated['avatar_url'] = $avatarUrl;
+        }
+
+        session(['supabase_user' => $updated]);
+
+        return back()->with('success', 'Profile updated successfully!');
     }
 
     // ── Private helpers ───────────────────────────────────

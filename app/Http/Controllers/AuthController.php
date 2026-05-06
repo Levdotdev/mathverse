@@ -115,6 +115,43 @@ class AuthController extends Controller
         };
     }
 
+    public function changePassword(Request $request)
+    {
+        $user  = session('supabase_user');
+        $token = session('supabase_token');
+
+            $role = session('supabase_user')['role'];
+
+            if ($role === 'student') {
+                $redirectProfile = '/student/dashboard?section=password';
+            } elseif ($role === 'teacher') {
+                $redirectProfile = '/teacher/dashboard?section=password';
+            } else {
+                $redirectProfile = '/admin/dashboard?section=password';
+            }
+
+            if ($request->new_password !== $request->new_password_confirmation) {
+                return redirect($redirectProfile)->with('error', 'New passwords do not match.');
+            }
+
+            $check = $this->supabase->signIn($user['email'], $request->current_password);
+
+            if (!isset($check['access_token'])) {
+                return redirect($redirectProfile)->with('error', 'Current password is incorrect.');
+            }
+
+            $newToken = $check['access_token'];
+
+            \Illuminate\Support\Facades\Http::withHeaders([
+                'apikey'        => config('services.supabase.anon_key'),
+                'Authorization' => "Bearer {$newToken}",
+                'Content-Type'  => 'application/json',
+            ])->put(config('services.supabase.url') . '/auth/v1/user', [
+                'password' => $request->new_password,
+            ]);
+            return back()->with('success', 'Password changed successfully!');
+    }
+
     public function updatePassword(Request $request)
     {
         $token_hash = $request->token;

@@ -101,50 +101,41 @@ class StudentController extends Controller
     {
         $user  = session('supabase_user');
         $token = session('supabase_token');
+        $userId = $user['id'];
 
-        // Update profile fields
+        // ── UPDATE BASIC INFO
         $this->supabase->update('profiles', [
-            'first_name'    => $request->first_name,
+            'first_name'  => $request->first_name,
             'last_name'   => $request->last_name,
             'grade_level' => (int) $request->grade_level,
-        ], ['id' => $user['id']], $token);
+        ], ['id' => $userId], $token);
 
-        // Update session so name shows immediately
-        $updated = session('supabase_user');
-        $updated['first_name']    = $request->first_name;
-        $updated['last_name']   = $request->last_name;
-        $updated['grade_level'] = $request->grade_level;
-        session(['supabase_user' => $updated]);
+        // ── UPLOAD AVATAR (USE SAME USER ID)
+        $avatarUrl = null;
 
-        // Handle password change
-        if ($request->filled('new_password') || $request->filled('new_password_confirmation')) {
-            if (!$request->filled('current_password')) {
-                return redirect('/student/dashboard?section=profile')
-                    ->with('error', 'Current password is required.');
+        if ($request->hasFile('avatar')) {
+            $this->supabase->deleteAvatarByUrl($user['avatar_url'] ?? null);
+            $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
+
+            if ($avatarUrl) {
+                $this->supabase->updateProfile($userId, [
+                    'avatar_url' => $avatarUrl
+                ]);
             }
-            if ($request->new_password !== $request->new_password_confirmation) {
-                return redirect('/student/dashboard?section=profile')
-                    ->with('error', 'New passwords do not match.');
-            }
-
-            // Verify current password by re-signing in
-            $check = $this->supabase->signIn($user['email'], $request->current_password);
-            if (isset($check['error'])) {
-                return redirect('/student/dashboard?section=profile')
-                    ->with('error', 'Current password is incorrect.');
-            }
-
-            // Update password via Supabase auth API
-            \Illuminate\Support\Facades\Http::withHeaders([
-                'apikey'        => config('services.supabase.anon_key'),
-                'Authorization' => "Bearer {$token}",
-                'Content-Type'  => 'application/json',
-            ])->put(config('services.supabase.url') . '/auth/v1/user', [
-                'password' => $request->new_password,
-            ]);
         }
 
-        return redirect('/student/dashboard?section=profile')
-            ->with('success', 'Profile updated successfully!');
+        // ── UPDATE SESSION
+        $updated = session('supabase_user');
+        $updated['first_name']  = $request->first_name;
+        $updated['last_name']   = $request->last_name;
+        $updated['grade_level'] = $request->grade_level;
+
+        if ($avatarUrl) {
+            $updated['avatar_url'] = $avatarUrl;
+        }
+
+        session(['supabase_user' => $updated]);
+
+        return back()->with('success', 'Profile updated successfully!');
     }
 }

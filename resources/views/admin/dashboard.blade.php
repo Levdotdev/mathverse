@@ -21,9 +21,6 @@
 <button onclick="showSection('role-verify')" class="nav-link w-full" id="btn-role-verify">
     <i class="fas fa-user-shield mr-3 w-5 text-orange-400"></i> Verification
 </button>
-<button onclick="showSection('profile')"    class="nav-link w-full" id="btn-profile">
-    <i class="fas fa-user-cog mr-3 w-5 text-blue-400"></i> Root Settings
-</button>
 @endsection
 
 @section('dashboard-content')
@@ -239,64 +236,104 @@
     </div>
 </section>
 
-{{-- PROFILE --}}
+<section id="sec-password" class="content-section hidden">
+    <div class="portal-frame !p-6 md:!p-10 border-red-500/20">
+        <h2 class="text-xl font-orbitron font-bold mb-10 uppercase">
+            <i class="fas fa-user-secret mr-2"></i> CHANGE <span class="text-red-500">PASSWORD</span>
+        </h2>
+        <form method="POST" action="/change-password" class="space-y-6 max-w-2xl mx-auto">
+            @csrf
+            <div class="form-group sm:col-span-2 mt-2">
+                <label class="input-label text-orange-400">Current Password</label>
+                <div class="relative">
+                    <i class="fas fa-unlock-alt input-icon"></i>
+                    <input type="password" id="s-curr-pass" name="current_password"
+                            class="input-mobile-ultra pr-12" placeholder="Enter current password" required>
+                    <button type="button" onclick="tglPass('s-curr-pass','s-ico-curr')"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                        <i id="s-ico-curr" class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group border-t border-white/10 pt-4 mt-2">
+                <label class="input-label">New Password</label>
+                <div class="relative">
+                    <i class="fas fa-key input-icon"></i>
+                    <input type="password" id="s-new-pass" name="new_password"
+                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
+                    <button type="button" onclick="tglPass('s-new-pass','s-ico-new')"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                        <i id="s-ico-new" class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="input-label">Confirm Password</label>
+                <div class="relative">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="s-conf-pass" name="new_password_confirmation"
+                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
+                    <button type="button" onclick="tglPass('s-conf-pass','s-ico-conf')"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                            <i id="s-ico-conf" class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+            </div>
+            <button type="submit" class="btn-rect-primary !bg-red-600 !text-white mt-4">
+                <i class="fas fa-database mr-2"></i> Update Password
+            </button>
+        </form>
+    </div>
+</section>
+
+{{-- PROFILE SECTION --}}
 <section id="sec-profile" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-10 border-red-500/20">
         <h2 class="text-xl font-orbitron font-bold mb-10 uppercase">
-            <i class="fas fa-user-secret mr-2"></i> Root <span class="text-red-500">Management</span>
+            <i class="fas fa-user-secret mr-2"></i> ROOT <span class="text-red-500">PROFILE</span>
         </h2>
-        <form method="POST" action="/admin/profile" class="space-y-6 max-w-2xl mx-auto">
+        <form method="POST" action="/admin/profile" class="space-y-6 max-w-2xl mx-auto" enctype="multipart/form-data">
             @csrf
+            <div class="form-group">
+                <label class="input-label">Profile Picture</label>
+                <div class="flex items-center gap-4">
+                    {{-- Preview circle --}}
+                    <div class="w-16 h-16 rounded-full border-2 border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shrink-0" id="avatar-preview-wrap">
+                        <img id="avatar-preview"
+                            src="{{ $user['avatar_url'] ?: asset('default.png') }}"
+                            class="w-full h-full object-cover">
+                        </div>
+                        <div class="flex-1">
+                            <label for="avatar-input"
+                                class="cursor-pointer block w-full text-center border border-white/10 bg-white/5 hover:bg-white/10 transition-all rounded px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white">
+                                <i class="fas fa-upload mr-2"></i> Choose Photo
+                            </label>
+                            <input type="file" id="avatar-input" name="avatar"
+                                accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG</p>
+                        </div>
+                    </div>
+                </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div class="form-group">
-                    <label class="input-label">Administrator ID</label>
-                    <input type="text" value="ADM-ROOT-2026" readonly
-                           class="input-mobile-ultra !bg-white/5 font-mono text-red-500 !pl-4">
-                </div>
-                <div class="form-group">
-                    <label class="input-label">Email Address</label>
-                    <input type="text" value="{{ $user['email'] }}" readonly
-                           class="input-mobile-ultra !bg-white/5 text-slate-400 !pl-4">
-                </div>
-                <div class="form-group sm:col-span-2 border-t border-white/10 pt-4 mt-2">
-                    <label class="input-label text-orange-400">Current Password</label>
+                    <label class="input-label">First Name</label>
                     <div class="relative">
-                        <i class="fas fa-unlock-alt input-icon"></i>
-                        <input type="password" id="a-curr-pass" name="current_password"
-                               class="input-mobile-ultra pr-12" placeholder="Enter current password" required>
-                        <button type="button" onclick="tglPass('a-curr-pass','a-ico-curr')"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="a-ico-curr" class="fas fa-eye-slash"></i>
-                        </button>
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" name="first_name" value="{{ $user['first_name'] ?? '' }}"
+                               class="input-mobile-ultra" required>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="input-label">New Password</label>
+                    <label class="input-label">Last Name</label>
                     <div class="relative">
-                        <i class="fas fa-key input-icon"></i>
-                        <input type="password" id="a-pass" name="new_password"
-                               class="input-mobile-ultra pr-12" placeholder="••••••••" required>
-                        <button type="button" onclick="tglPass('a-pass','a-ico')"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="a-ico" class="fas fa-eye-slash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="input-label">Confirm Password</label>
-                    <div class="relative">
-                        <i class="fas fa-shield-alt input-icon"></i>
-                        <input type="password" id="a-conf" name="new_password_confirmation"
-                               class="input-mobile-ultra pr-12" placeholder="••••••••" required>
-                        <button type="button" onclick="tglPass('a-conf','a-ico-conf')"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="a-ico-conf" class="fas fa-eye-slash"></i>
-                        </button>
+                        <i class="fas fa-id-card input-icon"></i>
+                        <input type="text" name="last_name" value="{{ $user['last_name'] ?? '' }}"
+                               class="input-mobile-ultra" required>
                     </div>
                 </div>
             </div>
             <button type="submit" class="btn-rect-primary !bg-red-600 !text-white mt-4">
-                <i class="fas fa-database mr-2"></i> Update Root Config
+                <i class="fas fa-database mr-2"></i> Update Profile
             </button>
         </form>
     </div>

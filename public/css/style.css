@@ -315,3 +315,14 @@ input:-webkit-autofill:focus {
     border-color: rgba(255, 255, 255, 0.1) !important;
     transition: background-color 5000s ease-in-out 0s;
 }
+
+#profileMenu.open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+}
+
+#profileMenu {
+    transform-origin: bottom;
+    transition: all 0.15s ease;
+}

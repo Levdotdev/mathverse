@@ -14,9 +14,6 @@
 <button onclick="showSection('class')"  class="nav-link w-full" id="btn-class">
     <i class="fas fa-chalkboard mr-3 w-5 text-green-400"></i> My Class
 </button>
-<button onclick="showSection('profile')" class="nav-link w-full" id="btn-profile">
-    <i class="fas fa-user-circle mr-3 w-5 text-blue-400"></i> Profile
-</button>
 @endsection
 
 @section('dashboard-content')
@@ -161,20 +158,90 @@
     </div>
 </section>
 
+<section id="sec-password" class="content-section hidden">
+    <div class="portal-frame !p-6 md:!p-10">
+        <h2 class="text-xl font-orbitron font-bold mb-10 uppercase">
+            <i class="fas fa-key mr-2"></i> CHANGE <span class="text-cyan-400">PASSWORD</span>
+        </h2>
+        <form method="POST" action="/change-password" class="space-y-6 max-w-2xl mx-auto">
+            @csrf
+            <div class="form-group sm:col-span-2 mt-2">
+                <label class="input-label text-orange-400">Current Password</label>
+                <div class="relative">
+                    <i class="fas fa-unlock-alt input-icon"></i>
+                    <input type="password" id="s-curr-pass" name="current_password"
+                            class="input-mobile-ultra pr-12" placeholder="Enter current password" required>
+                    <button type="button" onclick="tglPass('s-curr-pass','s-ico-curr')"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                        <i id="s-ico-curr" class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group border-t border-white/10 pt-4 mt-2">
+                <label class="input-label">New Password</label>
+                <div class="relative">
+                    <i class="fas fa-key input-icon"></i>
+                    <input type="password" id="s-new-pass" name="new_password"
+                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
+                    <button type="button" onclick="tglPass('s-new-pass','s-ico-new')"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                        <i id="s-ico-new" class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="input-label">Confirm Password</label>
+                <div class="relative">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="s-conf-pass" name="new_password_confirmation"
+                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
+                    <button type="button" onclick="tglPass('s-conf-pass','s-ico-conf')"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                            <i id="s-ico-conf" class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+            </div>
+            <button type="submit" class="btn-rect-primary mt-4">
+                <i class="fas fa-save mr-2"></i> Update Password
+            </button>
+        </form>
+    </div>
+</section>
+
 {{-- PROFILE SECTION --}}
 <section id="sec-profile" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-10">
         <h2 class="text-xl font-orbitron font-bold mb-10 uppercase">
             <i class="fas fa-user-circle mr-2"></i> Account <span class="text-cyan-400">Profile</span>
         </h2>
-        <form method="POST" action="/student/profile" class="space-y-6 max-w-2xl mx-auto">
+        <form method="POST" action="/student/profile" class="space-y-6 max-w-2xl mx-auto" enctype="multipart/form-data">
             @csrf
+            <div class="form-group">
+                <label class="input-label">Profile Picture</label>
+                <div class="flex items-center gap-4">
+                    {{-- Preview circle --}}
+                    <div class="w-16 h-16 rounded-full border-2 border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shrink-0" id="avatar-preview-wrap">
+                        <img id="avatar-preview"
+                            src="{{ $user['avatar_url'] ?: asset('default.png') }}"
+                            class="w-full h-full object-cover">
+                        </div>
+                        <div class="flex-1">
+                            <label for="avatar-input"
+                                class="cursor-pointer block w-full text-center border border-white/10 bg-white/5 hover:bg-white/10 transition-all rounded px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white">
+                                <i class="fas fa-upload mr-2"></i> Choose Photo
+                            </label>
+                            <input type="file" id="avatar-input" name="avatar"
+                                accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG</p>
+                        </div>
+                    </div>
+                </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div class="form-group">
                     <label class="input-label">Email Address</label>
                     <div class="relative">
                         <i class="fas fa-envelope input-icon"></i>
-                        <input type="email" value="{{ $user['email'] }}" readonly
+                        <input type="email" value="{{ $user['email'] }}" readonly name="email"
                                class="input-mobile-ultra !bg-white/5 text-slate-400">
                     </div>
                 </div>
@@ -205,42 +272,6 @@
                         <i class="fas fa-id-card input-icon"></i>
                         <input type="text" name="last_name" value="{{ $profile['last_name'] ?? '' }}"
                                class="input-mobile-ultra" required>
-                    </div>
-                </div>
-                <div class="form-group sm:col-span-2 border-t border-white/10 pt-4 mt-2">
-                    <label class="input-label text-orange-400">Current Password (only if you wish to change password)</label>
-                    <div class="relative">
-                        <i class="fas fa-unlock-alt input-icon"></i>
-                        <input type="password" id="s-curr-pass" name="current_password"
-                               class="input-mobile-ultra pr-12" placeholder="Enter current password">
-                        <button type="button" onclick="tglPass('s-curr-pass','s-ico-curr')"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="s-ico-curr" class="fas fa-eye-slash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="input-label">New Password</label>
-                    <div class="relative">
-                        <i class="fas fa-key input-icon"></i>
-                        <input type="password" id="s-new-pass" name="new_password"
-                               class="input-mobile-ultra pr-12" placeholder="••••••••">
-                        <button type="button" onclick="tglPass('s-new-pass','s-ico-new')"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="s-ico-new" class="fas fa-eye-slash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="input-label">Confirm Password</label>
-                    <div class="relative">
-                        <i class="fas fa-lock input-icon"></i>
-                        <input type="password" id="s-conf-pass" name="new_password_confirmation"
-                               class="input-mobile-ultra pr-12" placeholder="••••••••">
-                        <button type="button" onclick="tglPass('s-conf-pass','s-ico-conf')"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="s-ico-conf" class="fas fa-eye-slash"></i>
-                        </button>
                     </div>
                 </div>
             </div>

@@ -13,6 +13,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::get('/reset-password', function () { return view('reset'); });
 Route::post('/update-password', [AuthController::class, 'updatePassword']);
+Route::post('/change-password', [AuthController::class, 'changePassword']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Student routes

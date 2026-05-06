@@ -89,3 +89,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     showSection(section || 'stats');
 });
+
+function previewAvatar(input) {
+    const file    = input.files[0];
+    const preview = document.getElementById('avatar-preview');
+    const placeholder = document.getElementById('avatar-placeholder');
+
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        preview.src = e.target.result;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+}

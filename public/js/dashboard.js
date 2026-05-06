@@ -35,3 +35,24 @@ function openModal(id) {
 function closeModal(id) {
     document.getElementById(id).classList.add('hidden');
 }
+
+const profileMenu = document.getElementById('profileMenu');
+const profileArrow = document.getElementById('profileArrow');
+const profileBtn = document.querySelector('#sidebar button');
+
+function toggleProfileMenu(e) {
+    e.stopPropagation();
+    profileMenu.classList.toggle('open');
+    profileArrow.classList.toggle('rotate-180');
+}
+
+document.addEventListener('click', function (e) {
+    const isClickInside =
+        profileMenu.contains(e.target) ||
+        profileBtn.contains(e.target);
+
+    if (!isClickInside) {
+        profileMenu.classList.remove('open');
+        profileArrow.classList.remove('rotate-180');
+    }
+});

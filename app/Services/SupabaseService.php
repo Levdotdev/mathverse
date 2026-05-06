@@ -77,7 +77,7 @@ class SupabaseService
         $mime     = $file->getMimeType();
         $content  = file_get_contents($file->getRealPath());
 
-        $path = "avatars/{$userId}.{$ext}";
+        $path = "avatars/{$userId}_" . time() . ".{$ext}";
 
         $upload = Http::withHeaders([
             'apikey'        => $this->anonKey,
@@ -92,6 +92,24 @@ class SupabaseService
         }
 
         return null;
+    }
+
+    public function deleteAvatarByUrl(?string $avatarUrl): bool
+    {
+        if (!$avatarUrl) return false;
+
+        $parts = explode('/object/public/', $avatarUrl);
+
+        if (count($parts) < 2) return false;
+
+        $path = $parts[1];
+
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+        ])->delete("{$this->url}/storage/v1/object/{$path}");
+
+        return $response->successful();
     }
 
     public function updateProfile(string $userId, array $data): array

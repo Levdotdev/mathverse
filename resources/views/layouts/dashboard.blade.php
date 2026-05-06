@@ -20,9 +20,50 @@
         @yield('sidebar-nav')
     </nav>
 
-    <button type="button" onclick="openModal('logoutModal')" class="btn-rect-secondary w-full">
-        <i class="fas fa-power-off mr-2"></i> Log Out
-    </button>
+    <div class="relative mb-6">
+        <button onclick="toggleProfileMenu(event)"
+            class="flex items-center gap-3 w-full">
+
+            <img src="{{ $user['avatar_url'] ?: asset('default.png') }}"
+                class="w-10 h-10 rounded-full object-cover border border-white/10">
+
+            <div class="text-left">
+                <p class="text-xs font-bold">
+                    {{ trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'User' }}
+                </p>
+                <p class="text-[10px] text-slate-500">
+                    {{ ucwords($user['role']) }}
+                </p>
+            </div>
+
+            <i id="profileArrow"
+            class="fas fa-chevron-down ml-auto text-xs transition-transform duration-200"></i>
+        </button>
+
+        <div id="profileMenu"
+            class="absolute left-0 bottom-full mb-2 w-full bg-black/90 border border-white/10 rounded-lg overflow-hidden z-50 transition-all duration-200 scale-95 opacity-0 pointer-events-none">
+
+            <button onclick="showSection('profile'); toggleProfileMenu(event)" id="btn-profile"
+                class="w-full text-left px-4 py-3 text-xs hover:bg-white/5">
+                <i class="fas fa-user mr-2"></i> Profile
+            </button>
+
+            <button onclick="showSection('password'); toggleProfileMenu(event)" id="btn-password"
+                class="w-full text-left px-4 py-3 text-xs hover:bg-white/5">
+                <i class="fas fa-key mr-2"></i> Change Password
+            </button>
+
+            <form method="POST" action="/logout">
+                @csrf
+                <button type="button"
+                    onclick="openModal('logoutModal')"
+                    class="w-full text-left px-4 py-3 text-xs text-red-400 hover:bg-red-500/10">
+                    <i class="fas fa-power-off mr-2"></i> Logout
+                </button>
+            </form>
+
+        </div>
+    </div>
 </aside>
 
 <main class="flex-1 min-w-0 p-4 md:p-8 z-20 relative">
