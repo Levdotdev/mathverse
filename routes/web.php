@@ -54,3 +54,17 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::post('/admin/profile', [AdminController::class, 'updateProfile']);
     Route::get('/admin/stats', [AdminController::class, 'stats']);
 });
+
+// Teacher reports
+Route::middleware('auth.supabase:teacher')->group(function () {
+    Route::get('/teacher/report/quiz-performance', [TeacherController::class, 'reportQuizPerformance']);
+    Route::get('/teacher/report/student-progress', [TeacherController::class, 'reportStudentProgress']);
+    Route::get('/teacher/report/classes',          [TeacherController::class, 'reportClasses']);
+});
+
+// Admin reports
+Route::middleware('auth.supabase:admin')->group(function () {
+    Route::get('/admin/report/students', [AdminController::class, 'reportStudents']);
+    Route::get('/admin/report/teachers', [AdminController::class, 'reportTeachers']);
+    Route::get('/admin/report/summary',  [AdminController::class, 'reportSummary']);
+});

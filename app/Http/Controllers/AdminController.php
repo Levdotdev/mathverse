@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Services\SupabaseService;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminController extends Controller
 {
@@ -15,7 +16,7 @@ class AdminController extends Controller
         $user     = session('supabase_user');
         $profiles = $this->supabase->adminSelect('profiles', '*', ['order' => 'role.asc']);
 
-        $totalUsers     = count($profiles);
+        $totalUsers     = count($profiles) - 1;
         $totalTeachers  = count(array_filter($profiles, fn($p) => $p['role'] === 'teacher'));
         $totalStudents  = count(array_filter($profiles, fn($p) => $p['role'] === 'student'));
         $pendingTeachers = array_values(array_filter($profiles, fn($p) => $p['role'] === 'pending_teacher'));
@@ -184,5 +185,157 @@ class AdminController extends Controller
             'totalUsers'          => count($profiles),
             'avgAccuracy'         => $avgAccuracy,
         ]);
+    }
+
+    public function reportStudents(Request $request)
+    {
+        $format   = $request->query('format', 'pdf');
+        $profiles = $this->supabase->adminSelect('profiles', '*', ['role' => 'student']);
+
+        $rows = array_map(fn($p) => [
+            'name'     => ($p['last_name'] ?? '') . ', ' . ($p['first_name'] ?? ''),
+            'email'    => $p['email'] ?? '',
+            'grade'    => $p['grade_level'] ? 'Grade ' . $p['grade_level'] : 'N/A',
+            'trophies' => $p['trophies'] ?? 0,
+            'level'    => $p['level'] ?? 1,
+            'joined'   => isset($p['created_at'])
+                ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y')
+                : 'N/A',
+        ], $profiles);
+
+        usort($rows, fn($a, $b) => strcmp($a['name'], $b['name']));
+
+        if ($format === 'csv') {
+            return $this->downloadCsv($rows,
+                ['Name', 'Email', 'Grade', 'Level', 'Trophies', 'Date Joined'],
+                ['name', 'email', 'grade', 'level', 'trophies', 'joined'],
+                'student-registry-report'
+            );
+        }
+
+        $pdf = Pdf::loadView('reports.students', [
+            'rows'      => $rows,
+            'generated' => now()->format('M d, Y h:i A'),
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('student-registry-report.pdf');
+    }
+
+    public function reportTeachers(Request $request)
+    {
+        $format   = $request->query('format', 'pdf');
+        $profiles = $this->supabase->adminSelect('profiles', '*', ['role' => 'teacher']);
+
+        // Get quiz count per teacher
+        $allQuizzes = $this->supabase->adminSelect('quiz_sessions', 'id,teacher_id');
+
+        $rows = array_map(function($p) use ($allQuizzes) {
+            $quizCount = count(array_filter($allQuizzes, fn($q) => $q['teacher_id'] === $p['id']));
+            return [
+                'name'       => ($p['last_name'] ?? '') . ', ' . ($p['first_name'] ?? ''),
+                'email'      => $p['email'] ?? '',
+                'grade'      => $p['grade_level'] ? 'Grade ' . $p['grade_level'] : 'N/A',
+                'quizzes'    => $quizCount,
+                'joined'     => isset($p['created_at'])
+                    ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y')
+                    : 'N/A',
+            ];
+        }, $profiles);
+
+        usort($rows, fn($a, $b) => strcmp($a['name'], $b['name']));
+
+        if ($format === 'csv') {
+            return $this->downloadCsv($rows,
+                ['Name', 'Email', 'Grade', 'Quizzes Created', 'Date Joined'],
+                ['name', 'email', 'grade', 'quizzes', 'joined'],
+                'teacher-registry-report'
+            );
+        }
+
+        $pdf = Pdf::loadView('reports.teachers', [
+            'rows'      => $rows,
+            'generated' => now()->format('M d, Y h:i A'),
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('teacher-registry-report.pdf');
+    }
+
+    public function reportSummary(Request $request)
+    {
+        $format     = $request->query('format', 'pdf');
+        $profiles   = $this->supabase->adminSelect('profiles', '*');
+        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id');
+        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,student_id');
+
+        $students = array_values(array_filter($profiles, fn($p) => $p['role'] === 'student'));
+        $teachers = array_values(array_filter($profiles, fn($p) => $p['role'] === 'teacher'));
+        $pending  = array_values(array_filter($profiles, fn($p) => $p['role'] === 'pending_teacher'));
+
+        $totalAttempts = count($allResults);
+        $avgAccuracy   = 0;
+        if ($totalAttempts > 0) {
+            $avgAccuracy = round(array_sum(array_map(fn($r) =>
+                $r['total_questions'] > 0 ? ($r['correct_answers'] / $r['total_questions']) * 100 : 0,
+                $allResults)) / $totalAttempts, 1);
+        }
+
+        // Top 10 students by trophies
+        usort($students, fn($a, $b) => ($b['trophies'] ?? 0) - ($a['trophies'] ?? 0));
+        $top10 = array_slice($students, 0, 10);
+        $top10 = array_map(fn($s) => [
+            'name'     => ($s['last_name'] ?? '') . ', ' . ($s['first_name'] ?? ''),
+            'grade'    => 'Grade ' . ($s['grade_level'] ?? 'N/A'),
+            'trophies' => $s['trophies'] ?? 0,
+        ], $top10);
+
+        $summary = [
+            'total_users'    => count($profiles) - 1,
+            'total_students' => count($students),
+            'total_teachers' => count($teachers),
+            'total_pending'  => count($pending),
+            'total_quizzes'  => count($quizzes),
+            'total_attempts' => $totalAttempts,
+            'avg_accuracy'   => $avgAccuracy . '%',
+            'generated'      => now()->format('M d, Y h:i A'),
+        ];
+
+        if ($format === 'csv') {
+            $summaryRows = [
+                ['Metric', 'Value'],
+                ['Total Users',    $summary['total_users']],
+                ['Total Students', $summary['total_students']],
+                ['Total Teachers', $summary['total_teachers']],
+                ['Pending Teachers', $summary['total_pending']],
+                ['Total Quizzes',  $summary['total_quizzes']],
+                ['Total Attempts', $summary['total_attempts']],
+                ['Avg Accuracy',   $summary['avg_accuracy']],
+            ];
+            return response()->streamDownload(function () use ($summaryRows, $top10) {
+                $out = fopen('php://output', 'w');
+                foreach ($summaryRows as $row) fputcsv($out, $row);
+                fputcsv($out, []);
+                fputcsv($out, ['Top 10 Students by Trophies']);
+                fputcsv($out, ['Name', 'Grade', 'Trophies']);
+                foreach ($top10 as $s) fputcsv($out, [$s['name'], $s['grade'], $s['trophies']]);
+                fclose($out);
+            }, 'platform-summary.csv', ['Content-Type' => 'text/csv']);
+        }
+
+        $pdf = Pdf::loadView('reports.summary', compact('summary', 'top10'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('platform-summary-report.pdf');
+    }
+
+    private function downloadCsv(array $rows, array $headers, array $keys, string $filename): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        return response()->streamDownload(function () use ($rows, $headers, $keys) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, $headers);
+            foreach ($rows as $row) {
+                fputcsv($out, array_map(fn($k) => $row[$k] ?? '', $keys));
+            }
+            fclose($out);
+        }, "{$filename}.csv", ['Content-Type' => 'text/csv']);
     }
 }

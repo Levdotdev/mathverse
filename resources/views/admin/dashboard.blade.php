@@ -21,6 +21,9 @@
 <button onclick="showSection('role-verify')" class="nav-link w-full" id="btn-role-verify">
     <i class="fas fa-user-shield mr-3 w-5 text-orange-400"></i> Verification
 </button>
+<button onclick="showSection('reports')" class="nav-link w-full" id="btn-reports">
+    <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports
+</button>
 @endsection
 
 @section('dashboard-content')
@@ -336,6 +339,65 @@
                 <i class="fas fa-database mr-2"></i> Update Profile
             </button>
         </form>
+    </div>
+</section>
+
+{{-- REPORTS --}}
+<section id="sec-reports" class="content-section hidden">
+    <h2 class="text-xl md:text-2xl font-orbitron font-bold mb-6 uppercase border-b border-red-500/20 pb-2">
+        Export <span class="text-green-400">Reports</span>
+    </h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div class="portal-frame !p-6 border-l-4 border-cyan-500">
+            <i class="fas fa-user-graduate text-3xl text-cyan-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Student Registry</h3>
+            <p class="text-slate-500 text-xs mb-6">All students with grade, level, trophies, and join date.</p>
+            <div class="flex gap-2">
+                <a href="/admin/report/students?format=pdf"
+                   class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-pdf mr-1"></i> PDF
+                </a>
+                <a href="/admin/report/students?format=csv"
+                   class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-csv mr-1"></i> CSV
+                </a>
+            </div>
+        </div>
+
+        <div class="portal-frame !p-6 border-l-4 border-purple-500">
+            <i class="fas fa-chalkboard-teacher text-3xl text-purple-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Teacher Registry</h3>
+            <p class="text-slate-500 text-xs mb-6">All teachers with quizzes created and join date.</p>
+            <div class="flex gap-2">
+                <a href="/admin/report/teachers?format=pdf"
+                   class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-pdf mr-1"></i> PDF
+                </a>
+                <a href="/admin/report/teachers?format=csv"
+                   class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-csv mr-1"></i> CSV
+                </a>
+            </div>
+        </div>
+
+        <div class="portal-frame !p-6 border-l-4 border-red-500">
+            <i class="fas fa-chart-pie text-3xl text-red-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Platform Summary</h3>
+            <p class="text-slate-500 text-xs mb-6">Full snapshot: users, quizzes, accuracy, top students.</p>
+            <div class="flex gap-2">
+                <a href="/admin/report/summary?format=pdf"
+                   class="flex-1 btn-rect-primary !bg-red-600 !text-white !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-pdf mr-1"></i> PDF
+                </a>
+                <a href="/admin/report/summary?format=csv"
+                   class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-csv mr-1"></i> CSV
+                </a>
+            </div>
+        </div>
+
     </div>
 </section>
 

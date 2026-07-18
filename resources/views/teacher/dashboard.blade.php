@@ -20,6 +20,9 @@
 <button onclick="showSection('student-list')" class="nav-link w-full" id="btn-student-list">
     <i class="fas fa-users mr-3 w-5 text-green-400"></i> Student List
 </button>
+<button onclick="showSection('reports')" class="nav-link w-full" id="btn-reports">
+    <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports
+</button>
 @endsection
 
 @section('dashboard-content')
@@ -457,6 +460,65 @@
                 <i class="fas fa-save mr-2"></i> Update Profile
             </button>
         </form>
+    </div>
+</section>
+
+{{-- REPORTS --}}
+<section id="sec-reports" class="content-section hidden">
+    <h2 class="text-xl md:text-2xl font-orbitron font-bold mb-6 uppercase border-b border-white/10 pb-2">
+        Export <span class="text-green-400">Reports</span>
+    </h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div class="portal-frame !p-6 border-l-4 border-purple-500">
+            <i class="fas fa-vr-cardboard text-3xl text-purple-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Quiz Performance</h3>
+            <p class="text-slate-500 text-xs mb-6">Accuracy, pass rates, and attempt counts per quiz.</p>
+            <div class="flex gap-2">
+                <a href="/teacher/report/quiz-performance?format=pdf"
+                   class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-pdf mr-1"></i> PDF
+                </a>
+                <a href="/teacher/report/quiz-performance?format=csv"
+                   class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-csv mr-1"></i> CSV
+                </a>
+            </div>
+        </div>
+
+        <div class="portal-frame !p-6 border-l-4 border-cyan-500">
+            <i class="fas fa-user-graduate text-3xl text-cyan-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Student Progress</h3>
+            <p class="text-slate-500 text-xs mb-6">Per-student accuracy, trophies, and quiz history.</p>
+            <div class="flex gap-2">
+                <a href="/teacher/report/student-progress?format=pdf"
+                   class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-pdf mr-1"></i> PDF
+                </a>
+                <a href="/teacher/report/student-progress?format=csv"
+                   class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-csv mr-1"></i> CSV
+                </a>
+            </div>
+        </div>
+
+        <div class="portal-frame !p-6 border-l-4 border-yellow-500">
+            <i class="fas fa-chalkboard text-3xl text-yellow-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Classroom Report</h3>
+            <p class="text-slate-500 text-xs mb-6">Class roster, join codes, and student counts.</p>
+            <div class="flex gap-2">
+                <a href="/teacher/report/classes?format=pdf"
+                   class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-pdf mr-1"></i> PDF
+                </a>
+                <a href="/teacher/report/classes?format=csv"
+                   class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
+                    <i class="fas fa-file-csv mr-1"></i> CSV
+                </a>
+            </div>
+        </div>
+
     </div>
 </section>
 

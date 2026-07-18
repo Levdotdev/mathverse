@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Services\SupabaseService;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class TeacherController extends Controller
 {
@@ -356,5 +357,176 @@ class TeacherController extends Controller
             'quiz' => $quiz,
             'questions' => $questions
         ]);
+    }
+
+    public function reportQuizPerformance(Request $request)
+    {
+        $user    = session('supabase_user');
+        $format  = $request->query('format', 'pdf');
+
+        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,room_code,created_at', ['teacher_id' => $user['id']]);
+        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
+
+        $quizIds    = array_column($quizzes, 'id');
+        $allResults = array_values(array_filter($allResults, fn($r) => in_array($r['session_id'], $quizIds)));
+
+        $rows = [];
+        foreach ($quizzes as $q) {
+            $qResults = array_values(array_filter($allResults, fn($r) => $r['session_id'] === $q['id']));
+            $attempts = count($qResults);
+            $avgAcc   = 0;
+            $passed   = 0;
+
+            if ($attempts > 0) {
+                $avgAcc = round(array_sum(array_map(fn($r) =>
+                    $r['total_questions'] > 0 ? ($r['correct_answers'] / $r['total_questions']) * 100 : 0,
+                    $qResults)) / $attempts, 1);
+                $passed = count(array_filter($qResults, fn($r) =>
+                    $r['total_questions'] > 0 && ($r['correct_answers'] / $r['total_questions']) >= 0.75));
+            }
+
+            $rows[] = [
+                'topic'     => $q['topic'],
+                'room_code' => $q['room_code'],
+                'attempts'  => $attempts,
+                'avg_acc'   => $avgAcc,
+                'pass_rate' => $attempts > 0 ? round(($passed / $attempts) * 100, 1) : 0,
+                'date'      => \Carbon\Carbon::parse($q['created_at'])->format('M d, Y'),
+            ];
+        }
+
+        if ($format === 'csv') {
+            return $this->downloadCsv($rows,
+                ['Topic', 'Room Code', 'Attempts', 'Avg Accuracy %', 'Pass Rate %', 'Date Created'],
+                ['topic', 'room_code', 'attempts', 'avg_acc', 'pass_rate', 'date'],
+                'quiz-performance-report'
+            );
+        }
+
+        $pdf = Pdf::loadView('reports.quiz-performance', [
+            'rows'      => $rows,
+            'teacher'   => $user,
+            'generated' => now()->format('M d, Y h:i A'),
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('quiz-performance-report.pdf');
+    }
+
+    public function reportStudentProgress(Request $request)
+    {
+        $user   = session('supabase_user');
+        $format = $request->query('format', 'pdf');
+
+        // Get all students from teacher's classes
+        $classes    = $this->supabase->adminSelect('classes', 'id,class_name', ['teacher_id' => $user['id']]);
+        $classIds   = array_column($classes, 'id');
+        $members    = $this->supabase->adminSelect('class_members', 'student_id,class_id');
+        $members    = array_filter($members, fn($m) => in_array($m['class_id'], $classIds));
+        $studentIds = array_unique(array_column(array_values($members), 'student_id'));
+
+        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,student_id');
+
+        $rows = [];
+        foreach ($studentIds as $sid) {
+            $profile  = $this->supabase->adminSelect('profiles', 'first_name,last_name,grade_level,trophies', ['id' => $sid]);
+            $p        = $profile[0] ?? null;
+            if (!$p) continue;
+
+            $sResults = array_values(array_filter($allResults, fn($r) => $r['student_id'] === $sid));
+            $attempts = count($sResults);
+            $avgAcc   = 0;
+
+            if ($attempts > 0) {
+                $avgAcc = round(array_sum(array_map(fn($r) =>
+                    $r['total_questions'] > 0 ? ($r['correct_answers'] / $r['total_questions']) * 100 : 0,
+                    $sResults)) / $attempts, 1);
+            }
+
+            $rows[] = [
+                'name'        => ($p['last_name'] ?? '') . ', ' . ($p['first_name'] ?? ''),
+                'grade'       => 'Grade ' . ($p['grade_level'] ?? 'N/A'),
+                'quizzes'     => $attempts,
+                'avg_acc'     => $avgAcc,
+                'trophies'    => $p['trophies'] ?? 0,
+            ];
+        }
+
+        usort($rows, fn($a, $b) => $b['avg_acc'] <=> $a['avg_acc']);
+
+        if ($format === 'csv') {
+            return $this->downloadCsv($rows,
+                ['Student Name', 'Grade Level', 'Quizzes Taken', 'Avg Accuracy %', 'Trophies'],
+                ['name', 'grade', 'quizzes', 'avg_acc', 'trophies'],
+                'student-progress-report'
+            );
+        }
+
+        $pdf = Pdf::loadView('reports.student-progress', [
+            'rows'      => $rows,
+            'teacher'   => $user,
+            'generated' => now()->format('M d, Y h:i A'),
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('student-progress-report.pdf');
+    }
+
+    public function reportClasses(Request $request)
+    {
+        $user   = session('supabase_user');
+        $format = $request->query('format', 'pdf');
+
+        $classes = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
+        $members = $this->supabase->adminSelect('class_members', 'student_id,class_id');
+
+        $rows = [];
+        foreach ($classes as $c) {
+            $classMembers = array_values(array_filter($members, fn($m) => $m['class_id'] === $c['id']));
+            $studentNames = [];
+
+            foreach ($classMembers as $m) {
+                $profile = $this->supabase->adminSelect('profiles', 'first_name,last_name', ['id' => $m['student_id']]);
+                if (!empty($profile[0])) {
+                    $p = $profile[0];
+                    $studentNames[] = ($p['last_name'] ?? '') . ', ' . ($p['first_name'] ?? '');
+                }
+            }
+
+            $rows[] = [
+                'class_name' => $c['class_name'],
+                'join_code'  => $c['join_code'],
+                'students'   => count($classMembers),
+                'roster'     => implode(' | ', $studentNames),
+                'created'    => \Carbon\Carbon::parse($c['created_at'])->format('M d, Y'),
+            ];
+        }
+
+        if ($format === 'csv') {
+            return $this->downloadCsv($rows,
+                ['Class Name', 'Join Code', 'Total Students', 'Roster', 'Date Created'],
+                ['class_name', 'join_code', 'students', 'roster', 'created'],
+                'classes-report'
+            );
+        }
+
+        $pdf = Pdf::loadView('reports.classes', [
+            'rows'      => $rows,
+            'teacher'   => $user,
+            'generated' => now()->format('M d, Y h:i A'),
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('classes-report.pdf');
+    }
+
+    // Shared CSV helper
+    private function downloadCsv(array $rows, array $headers, array $keys, string $filename): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        return response()->streamDownload(function () use ($rows, $headers, $keys) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, $headers);
+            foreach ($rows as $row) {
+                fputcsv($out, array_map(fn($k) => $row[$k] ?? '', $keys));
+            }
+            fclose($out);
+        }, "{$filename}.csv", ['Content-Type' => 'text/csv']);
     }
 }
