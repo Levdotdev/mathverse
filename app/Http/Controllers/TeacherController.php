@@ -58,6 +58,7 @@ class TeacherController extends Controller
             'room_code'   => $request->room_code,
             'class_id'    => $request->class_id ?: null,
             'max_members' => (int) $request->max_members,
+            'time_limit'  => (int) $request->time_limit,
             'is_active'   => true,
             'status'      => 'waiting',
         ], $token);
@@ -81,6 +82,7 @@ class TeacherController extends Controller
             'room_code'   => $request->room_code,
             'class_id'    => $request->class_id ?: null,
             'max_members' => (int) $request->max_members,
+            'time_limit'  => (int) $request->time_limit,
         ], ['id' => $id], $token);
 
         // ── Replace questions (delete + insert ONCE) ───────────

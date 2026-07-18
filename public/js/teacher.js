@@ -28,6 +28,7 @@ async function loadQuizBuilder(quizId = null) {
         // Fill basic fields
         document.getElementById('q-topic').value       = data.quiz.topic;
         document.getElementById('q-max-members').value = data.quiz.max_members;
+        document.getElementById('q-time-limit').value  = data.quiz.time_limit;
         document.getElementById('q-room-code').value   = data.quiz.room_code;
         document.getElementById('q-class').value       = data.quiz.class_id ?? '';
 
@@ -53,6 +54,7 @@ async function loadQuizBuilder(quizId = null) {
 
         document.getElementById('q-topic').value       = '';
         document.getElementById('q-max-members').value = '50';
+        document.getElementById('q-time-limit').value = '30';
         document.getElementById('q-room-code').value   = Math.floor(1000 + Math.random() * 9000).toString();
         document.getElementById('q-class').value       = '';
 

@@ -213,11 +213,19 @@
                                    class="input-mobile-ultra" required>
                         </div>
                     </div>
-                    <div class="form-group">
+                    <!--<div class="form-group">
                         <label class="input-label">Max Participants</label>
                         <div class="relative">
+                            <i class="fas fa-users-cog input-icon"></i>-->
+                            <input type="hidden" name="max_members" id="q-max-members"
+                                   value="50" min="1" class="input-mobile-ultra !pl-[42px]">
+                        <!--</div>
+                    </div>-->
+                    <div class="form-group">
+                        <label class="input-label">Time Limit per Question</label>
+                        <div class="relative">
                             <i class="fas fa-users-cog input-icon"></i>
-                            <input type="number" name="max_members" id="q-max-members"
+                            <input type="number" name="time_limit" id="q-time-limit"
                                    value="50" min="1" class="input-mobile-ultra !pl-[42px]">
                         </div>
                     </div>
