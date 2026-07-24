@@ -362,3 +362,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     showSection(section || 'overview');
 });
+
+function openQuizReportModal(quizId, topic) {
+    document.getElementById('quiz-report-topic').innerText = topic;
+    document.getElementById('quiz-report-pdf').href = `/teacher/report/quiz/${quizId}?format=pdf`;
+    document.getElementById('quiz-report-csv').href = `/teacher/report/quiz/${quizId}?format=csv`;
+    openModal('quizReportModal');
+}

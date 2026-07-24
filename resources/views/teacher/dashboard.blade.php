@@ -170,6 +170,11 @@
                                 class="flex-1 sm:flex-none btn-rect-secondary !py-2 !px-4 text-[10px] !border-cyan-500/30 hover:!bg-cyan-500/10 hover:!text-cyan-400">
                             <i class="fas fa-chart-bar sm:mr-1"></i><span class="sm:hidden"> Results</span>
                         </button>
+                        <button onclick="openQuizReportModal('{{ $q['id'] }}', '{{ addslashes($q['topic']) }}')"
+                                class="flex-1 sm:flex-none btn-rect-secondary !py-2 !px-4 text-[10px] !border-green-500/30 hover:!bg-green-500/10 hover:!text-green-400"
+                                title="Download Report">
+                            <i class="fas fa-file-download sm:mr-1"></i><span class="sm:hidden"> Report</span>
+                        </button>
                         <button onclick="loadQuizBuilder('{{ $q['id'] }}')"
                                 class="flex-1 sm:flex-none btn-rect-secondary !py-2 !px-4 text-[10px] !border-purple-500/30 hover:!bg-purple-500/10 hover:!text-purple-400">
                             <i class="fas fa-edit sm:mr-1"></i><span class="sm:hidden"> Edit</span>
@@ -227,7 +232,7 @@
                     <div class="form-group">
                         <label class="input-label">Time Limit per Question</label>
                         <div class="relative">
-                            <i class="fas fa-users-cog input-icon"></i>
+                            <i class="fas fa-stopwatch input-icon"></i>
                             <input type="number" name="time_limit" id="q-time-limit"
                                    value="50" min="1" class="input-mobile-ultra !pl-[42px]">
                         </div>
@@ -317,6 +322,16 @@
                             class="btn-rect-secondary !py-2 !text-[10px] !border-yellow-500/30 hover:!bg-yellow-500/10 hover:!text-yellow-400 w-full">
                         <i class="fas fa-users mr-2"></i> Manage Roster
                     </button>
+                    <div class="flex gap-2">
+                        <a href="/teacher/report/classroom/{{ $c['id'] }}?format=pdf"
+                        class="flex-1 btn-rect-secondary !py-2 !text-[10px] !border-green-500/30 hover:!bg-green-500/10 hover:!text-green-400 text-center">
+                            <i class="fas fa-file-pdf mr-1"></i> PDF
+                        </a>
+                        <a href="/teacher/report/classroom/{{ $c['id'] }}?format=csv"
+                        class="flex-1 btn-rect-secondary !py-2 !text-[10px] !border-green-500/30 hover:!bg-green-500/10 hover:!text-green-400 text-center">
+                            <i class="fas fa-file-csv mr-1"></i> CSV
+                        </a>
+                    </div>
                 </div>
             </div>
         @empty
@@ -526,6 +541,31 @@
 
 {{-- ── MODALS ─────────────────────────────────────────── --}}
 @section('modals')
+
+<div id="quizReportModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-8 w-full max-w-sm text-center border-green-500/30">
+        <i class="fas fa-file-download text-4xl text-green-400 mb-4"></i>
+        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">
+            Download <span class="text-green-400">Report</span>
+        </h3>
+        <p id="quiz-report-topic" class="text-slate-500 text-xs uppercase tracking-widest mb-8">—</p>
+
+        <div class="flex flex-col gap-3">
+            <a id="quiz-report-pdf" href="#"
+               class="btn-rect-primary !bg-green-500 !text-black uppercase text-xs">
+                <i class="fas fa-file-pdf mr-2"></i> Download PDF
+            </a>
+            <a id="quiz-report-csv" href="#"
+               class="btn-rect-secondary !border-green-500/30 text-green-400 uppercase text-xs">
+                <i class="fas fa-file-csv mr-2"></i> Download CSV
+            </a>
+            <button onclick="closeModal('quizReportModal')"
+                    class="text-[10px] font-bold mt-2 uppercase text-slate-500">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
 
 <div id="createClassModal" class="modal-overlay hidden">
     <div class="portal-frame !p-8 w-full max-w-sm text-center border-yellow-500/30">

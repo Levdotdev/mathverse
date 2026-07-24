@@ -60,6 +60,8 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::get('/teacher/report/quiz-performance', [TeacherController::class, 'reportQuizPerformance']);
     Route::get('/teacher/report/student-progress', [TeacherController::class, 'reportStudentProgress']);
     Route::get('/teacher/report/classes',          [TeacherController::class, 'reportClasses']);
+    Route::get('/teacher/report/quiz/{id}',      [TeacherController::class, 'reportSingleQuiz']);
+    Route::get('/teacher/report/classroom/{id}', [TeacherController::class, 'reportSingleClassroom']);
 });
 
 // Admin reports
