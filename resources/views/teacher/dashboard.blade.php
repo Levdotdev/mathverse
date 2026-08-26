@@ -17,9 +17,6 @@
 <button onclick="showSection('stats')" class="nav-link w-full" id="btn-stats">
     <i class="fas fa-chart-bar mr-3 w-5 text-pink-400"></i> Analytics
 </button>
-<button onclick="showSection('student-list')" class="nav-link w-full" id="btn-student-list">
-    <i class="fas fa-users mr-3 w-5 text-green-400"></i> Student List
-</button>
 <button onclick="showSection('reports')" class="nav-link w-full" id="btn-reports">
     <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports
 </button>
@@ -339,39 +336,6 @@
                 No classes created yet.
             </div>
         @endforelse
-    </div>
-</section>
-
-{{-- STUDENT LIST --}}
-<section id="sec-student-list" class="content-section hidden">
-    <div class="portal-frame !p-6 md:!p-8">
-        <h2 class="text-xl font-orbitron font-bold mb-6 uppercase">
-            Student <span class="text-cyan-400">Registry</span>
-        </h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left min-w-[500px]">
-                <thead class="text-slate-500 text-[10px] uppercase border-b border-white/5">
-                    <tr>
-                        <th class="pb-4">Email</th>
-                        <th class="pb-4">First Name</th>
-                        <th class="pb-4">Last Name</th>
-                        <th class="pb-4">Grade</th>
-                    </tr>
-                </thead>
-                <tbody class="text-sm font-rajdhani text-white">
-                    @forelse($students as $s)
-                        <tr class="border-b border-white/5 hover:bg-white/5">
-                            <td class="py-4 font-mono text-cyan-500">{{ $s['email'] ?? '—' }}</td>
-                            <td class="py-4">{{ $s['first_name'] ?? '—' }}</td>
-                            <td class="py-4">{{ $s['last_name'] ?? '—' }}</td>
-                            <td class="py-4">Grade {{ $s['grade_level'] ?? 'N/A' }}</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="4" class="py-6 text-center text-slate-500 text-xs uppercase">No students found.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
     </div>
 </section>
 

@@ -29,20 +29,13 @@ class TeacherController extends Controller
         $quizCount    = count($allQuizzes);
         $recentQuizzes = array_slice($allQuizzes, 0, 5);
 
-        // Full student list
-        $students = $this->supabase->adminSelect(
-            'profiles',
-            'id,email,username,last_name,grade_level, first_name',
-            ['role' => 'student']
-        );
-
         // Classes owned by this teacher
         $classes = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
         usort($classes, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
 
         return view('teacher.dashboard', compact(
             'user', 'studentCount', 'quizCount',
-            'recentQuizzes', 'allQuizzes', 'students', 'classes'
+            'recentQuizzes', 'allQuizzes', 'classes'
         ));
     }
 
