@@ -99,7 +99,7 @@ class StudentController extends Controller
 
     public function updateProfile(Request $request)
     {
-        if ($avatarSizeError = $this->rejectOversizedAvatar($request)) {
+        if ($avatarSizeError = $this->rejectOversizedAvatar($request, '/student/dashboard?section=profile')) {
             return $avatarSizeError;
         }
 
@@ -140,6 +140,6 @@ class StudentController extends Controller
 
         session(['supabase_user' => $updated]);
 
-        return back()->with('success', 'Profile updated successfully!');
+        return redirect('/student/dashboard?section=profile')->with('success', 'Profile updated successfully!');
     }
 }

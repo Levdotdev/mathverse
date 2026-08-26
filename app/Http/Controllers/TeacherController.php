@@ -196,7 +196,7 @@ class TeacherController extends Controller
 
     public function updateProfile(Request $request)
     {
-        if ($avatarSizeError = $this->rejectOversizedAvatar($request)) {
+        if ($avatarSizeError = $this->rejectOversizedAvatar($request, '/teacher/dashboard?section=profile')) {
             return $avatarSizeError;
         }
 
@@ -237,7 +237,7 @@ class TeacherController extends Controller
 
         session(['supabase_user' => $updated]);
 
-        return back()->with('success', 'Profile updated successfully!');
+        return redirect('/teacher/dashboard?section=profile')->with('success', 'Profile updated successfully!');
     }
 
     // ── Private helpers ───────────────────────────────────

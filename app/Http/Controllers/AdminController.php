@@ -84,7 +84,7 @@ class AdminController extends Controller
 
     public function updateProfile(Request $request)
     {
-        if ($avatarSizeError = $this->rejectOversizedAvatar($request)) {
+        if ($avatarSizeError = $this->rejectOversizedAvatar($request, '/admin/dashboard?section=profile')) {
             return $avatarSizeError;
         }
 
@@ -125,7 +125,7 @@ class AdminController extends Controller
 
         session(['supabase_user' => $updated]);
 
-        return back()->with('success', 'Profile updated successfully!');
+        return redirect('/admin/dashboard?section=profile')->with('success', 'Profile updated successfully!');
     }
 
     public function stats()
