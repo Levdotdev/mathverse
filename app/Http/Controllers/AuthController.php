@@ -51,6 +51,10 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        if ($avatarSizeError = $this->rejectOversizedAvatar($request)) {
+            return $avatarSizeError;
+        }
+
         if ($request->password !== $request->password_confirmation) {
             return back()->with('error', 'Passwords do not match.');
         }

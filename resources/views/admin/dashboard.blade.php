@@ -313,7 +313,7 @@
                             </label>
                             <input type="file" id="avatar-input" name="avatar"
                                 accept="image/*" class="hidden" onchange="previewAvatar(this)">
-                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG</p>
+                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • Less than 5 MB</p>
                         </div>
                     </div>
                 </div>

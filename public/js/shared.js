@@ -90,18 +90,78 @@ document.addEventListener('DOMContentLoaded', () => {
     showSection(section || 'stats');
 });
 
+const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+let oversizedAvatarInput = null;
+
+function avatarExceedsSizeLimit(file) {
+    return file && file.size >= MAX_AVATAR_SIZE_BYTES;
+}
+
+function showAvatarSizeModal(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    oversizedAvatarInput = input;
+    const fileDetails = document.getElementById('image-size-file');
+
+    if (fileDetails) {
+        const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
+        fileDetails.innerText = `${file.name} (${sizeInMb} MB)`;
+    }
+
+    openModal('imageSizeModal');
+}
+
+function validateAvatarSize(input) {
+    const file = input.files?.[0];
+
+    if (!file || !avatarExceedsSizeLimit(file)) {
+        input.removeAttribute('aria-invalid');
+        if (oversizedAvatarInput === input) {
+            oversizedAvatarInput = null;
+        }
+        return true;
+    }
+
+    input.setAttribute('aria-invalid', 'true');
+    showAvatarSizeModal(input);
+    return false;
+}
+
+function chooseAnotherAvatar() {
+    const input = oversizedAvatarInput
+        ?? document.querySelector('input[type="file"][name="avatar"]');
+
+    closeModal('imageSizeModal');
+    setTimeout(() => input?.click(), 100);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('input[type="file"][name="avatar"]').forEach(input => {
+        const form = input.closest('form');
+        if (!form) return;
+
+        form.addEventListener('submit', event => {
+            if (!validateAvatarSize(input)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+            }
+        });
+    });
+});
+
 function previewAvatar(input) {
-    const file    = input.files[0];
+    const file = input.files?.[0];
     const preview = document.getElementById('avatar-preview');
     const placeholder = document.getElementById('avatar-placeholder');
 
-    if (!file) return;
+    if (!file || !validateAvatarSize(input) || !preview) return;
 
     const reader = new FileReader();
     reader.onload = e => {
         preview.src = e.target.result;
         preview.classList.remove('hidden');
-        placeholder.classList.add('hidden');
+        placeholder?.classList.add('hidden');
     };
     reader.readAsDataURL(file);
 }

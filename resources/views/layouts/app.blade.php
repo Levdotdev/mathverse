@@ -24,6 +24,44 @@
 
     @yield('content')
 
+    {{-- Reusable image-size alert for registration and profile forms --}}
+    <div id="imageSizeModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="image-size-title">
+        <div class="portal-frame !p-8 w-full max-w-sm text-center border-red-500/50">
+            <i class="fas fa-image text-4xl text-red-500 mb-4"></i>
+            <h3 id="image-size-title" class="font-orbitron font-bold mb-2 uppercase text-white">
+                Image <span class="text-red-500">Too Large</span>
+            </h3>
+            <p id="image-size-message" class="text-xs text-slate-400 mb-3">
+                The selected image must be less than 5 MB.
+            </p>
+            <p id="image-size-file" class="text-[10px] font-mono text-red-400 break-all mb-8">
+                Please choose a smaller image.
+            </p>
+            <div class="flex flex-col gap-3">
+                <button type="button" onclick="chooseAnotherAvatar()"
+                        class="btn-rect-primary !bg-red-600 !text-white">
+                    <i class="fas fa-folder-open mr-2"></i> Choose Another Image
+                </button>
+                <button type="button" onclick="closeModal('imageSizeModal')"
+                        class="text-[10px] font-bold uppercase text-slate-500">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if(session('image_size_error'))
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const message = document.getElementById('image-size-message');
+            if (message) {
+                message.textContent = @json(session('image_size_error'));
+            }
+            openModal('imageSizeModal');
+        });
+    </script>
+    @endif
+
     {{-- Toast notification - available on every page --}}
     <div id="toast" class="fixed bottom-6 right-4 bg-cyan-500 text-black font-bold px-6 py-3 rounded shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-[10000] text-xs uppercase">
         <i class="fas fa-info-circle mr-2"></i>

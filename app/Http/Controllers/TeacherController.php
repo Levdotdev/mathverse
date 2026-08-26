@@ -196,6 +196,10 @@ class TeacherController extends Controller
 
     public function updateProfile(Request $request)
     {
+        if ($avatarSizeError = $this->rejectOversizedAvatar($request)) {
+            return $avatarSizeError;
+        }
+
         $user  = session('supabase_user');
         $token = session('supabase_token');
         $userId = $user['id'];
