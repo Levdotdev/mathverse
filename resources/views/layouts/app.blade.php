@@ -91,6 +91,14 @@
         });
     </script>
     @endif
+
+    @if($errors->any())
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            showToast(@json($errors->first()), true);
+        });
+    </script>
+    @endif
     
     <script src="{{ asset('js/shared.js') }}"></script>
 

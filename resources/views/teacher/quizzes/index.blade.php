@@ -1,0 +1,145 @@
+@extends('layouts.dashboard')
+
+@section('title', 'My VR Quiz Bees')
+@section('sidebar-subtitle', 'Instructional Hub')
+@section('mobile-title', 'My Quizzes')
+
+@section('sidebar-nav')
+    @include('teacher.partials.sidebar-nav', ['activePage' => 'quizzes'])
+@endsection
+
+@section('dashboard-content')
+<div id="quiz-list-container">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+        <div>
+            <h2 class="text-xl md:text-2xl font-orbitron font-bold uppercase">
+                My VR Quiz <span class="text-purple-400">Bees</span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-2">Create quiz content here, then assign it to a matching class.</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-3">
+            <a href="/teacher/quiz-library{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
+               class="btn-rect-secondary !py-3 !px-5 text-center sm:!w-auto">
+                <i class="fas fa-book-open mr-2"></i> Shared Library
+            </a>
+            <button onclick="loadQuizBuilder()" class="btn-rect-primary !py-3 sm:!w-auto px-6">
+                <i class="fas fa-plus mr-2"></i> Create Quiz
+            </button>
+        </div>
+    </div>
+
+    <div class="space-y-4">
+        @forelse($quizzes as $quiz)
+            <article class="portal-frame !p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-5 hover:border-purple-500/50 transition-colors">
+                <div class="flex items-center gap-4 min-w-0">
+                    <div class="w-12 h-12 bg-purple-500/10 border border-purple-500/20 rounded flex items-center justify-center shrink-0">
+                        <i class="fas fa-vr-cardboard text-purple-400 text-xl"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="font-bold text-lg text-white truncate">{{ $quiz['topic'] }}</h3>
+                        <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold uppercase tracking-widest">
+                            <span class="text-purple-300 bg-purple-500/10 px-2 py-1 rounded">Grade {{ $quiz['grade_level'] }}</span>
+                            <span class="text-slate-400 bg-white/5 px-2 py-1 rounded">{{ $quiz['question_count'] }} Questions</span>
+                            <span class="text-slate-500 px-1 py-1">{{ \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y') }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 w-full lg:w-auto">
+                    <button onclick='openAssignQuiz(@json($quiz["id"]), @json($quiz["topic"]), {{ $quiz["grade_level"] }})'
+                            class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-yellow-500/30 hover:!text-yellow-400">
+                        <i class="fas fa-chalkboard-teacher mr-1"></i> Assign
+                    </button>
+                    <button onclick='loadQuizBuilder(@json($quiz["id"]))'
+                            class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-purple-500/30 hover:!text-purple-400">
+                        <i class="fas fa-edit mr-1"></i> Edit
+                    </button>
+                    <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
+                            class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-red-500/30 hover:!text-red-400">
+                        <i class="fas fa-trash-alt mr-1"></i> Delete
+                    </button>
+                </div>
+            </article>
+        @empty
+            <div class="portal-frame !p-10 text-center">
+                <i class="fas fa-scroll text-4xl text-slate-700 mb-4"></i>
+                <p class="text-slate-500 uppercase text-xs tracking-widest">You have not created a quiz yet.</p>
+            </div>
+        @endforelse
+    </div>
+</div>
+
+<div id="quiz-editor-container" class="hidden">
+    <div class="portal-frame !p-6 md:!p-8 relative">
+        <button type="button" onclick="toggleQuizView('list')" class="absolute top-5 right-5 text-slate-500 hover:text-white">
+            <i class="fas fa-times-circle text-xl"></i>
+        </button>
+        <h2 id="builder-title" class="text-xl font-orbitron font-bold mb-2 uppercase">
+            Create <span class="text-purple-400">Quiz</span>
+        </h2>
+        <p class="text-xs text-slate-500 mb-8">Time limit and VR code are added only when this quiz is assigned to a class.</p>
+
+        <form id="quiz-form" method="POST" action="/teacher/quizzes">
+            @csrf
+            <span id="method-field"></span>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
+                <div class="form-group">
+                    <label class="input-label">Quiz Topic</label>
+                    <div class="relative">
+                        <i class="fas fa-tag input-icon"></i>
+                        <input type="text" name="topic" id="q-topic" maxlength="150"
+                               placeholder="e.g. Adding Fractions" class="input-mobile-ultra" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="input-label">Grade Level</label>
+                    <select name="grade_level" id="q-grade" class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
+                        @for($grade = 1; $grade <= 6; $grade++)
+                            <option value="{{ $grade }}">Grade {{ $grade }}</option>
+                        @endfor
+                    </select>
+                </div>
+            </div>
+
+            <div id="questions-builder" class="space-y-6"></div>
+
+            <div class="mt-8 flex flex-col sm:flex-row gap-4">
+                <button type="button" onclick="addNewQuestion()" class="btn-rect-secondary flex-1">
+                    <i class="fas fa-plus mr-2"></i> Add Question
+                </button>
+                <button type="submit" id="save-quiz-btn" class="btn-rect-primary flex-1">
+                    <i class="fas fa-save mr-2"></i> Save Quiz
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endsection
+
+@section('modals')
+    @include('teacher.quizzes.assign-modal')
+
+    <div id="deleteQuizModal" class="modal-overlay hidden">
+        <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
+            <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
+            <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Delete Quiz?</h3>
+            <p id="delete-quiz-topic" class="text-xs text-slate-400 mb-2"></p>
+            <p class="text-[10px] text-slate-500 mb-8 uppercase">Existing class sessions and results will remain available.</p>
+            <form id="deleteQuizForm" method="POST">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Delete Quiz</button>
+            </form>
+            <button onclick="closeModal('deleteQuizModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        </div>
+    </div>
+
+    @include('teacher.partials.logout-modal')
+@endsection
+
+@push('scripts')
+<script src="{{ asset('js/teacher-quizzes.js') }}"></script>
+@if($errors->any())
+<script>document.addEventListener('DOMContentLoaded', () => loadQuizBuilder());</script>
+@endif
+@endpush

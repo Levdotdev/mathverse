@@ -4,17 +4,19 @@ function toggleSidebar() {
 }
 
 function showSection(id) {
+    const sec = document.getElementById('sec-' + id);
+    if (!sec) return false;
+
     document.querySelectorAll('.content-section').forEach(s => {
         s.classList.add('hidden');
         s.classList.remove('animate-fade-in');
     });
     document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
 
-    const sec = document.getElementById('sec-' + id);
     sec.classList.remove('hidden');
     void sec.offsetWidth;
     sec.classList.add('animate-fade-in');
-    document.getElementById('btn-' + id).classList.add('active');
+    document.getElementById('btn-' + id)?.classList.add('active');
 
     if (window.innerWidth < 768) {
         document.getElementById('sidebar')
@@ -23,6 +25,8 @@ function showSection(id) {
         document.getElementById('sidebar-overlay')
             .classList.add('hidden');
     }
+
+    return true;
 }
 
 function openModal(id) {

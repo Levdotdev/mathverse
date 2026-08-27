@@ -68,16 +68,20 @@ function toggleSidebar() {
 }
 
 function showSection(id) {
+    const sec = document.getElementById('sec-' + id);
+    if (!sec) return false;
+
     document.querySelectorAll('.content-section').forEach(s => {
         s.classList.add('hidden');
         s.classList.remove('animate-fade-in');
     });
     document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
-    const sec = document.getElementById('sec-' + id);
     sec.classList.remove('hidden');
     void sec.offsetWidth;
     sec.classList.add('animate-fade-in');
-    document.getElementById('btn-' + id).classList.add('active');
+    document.getElementById('btn-' + id)?.classList.add('active');
+
+    return true;
 }
 
 // Read CSRF token from meta tag (set in layout)
@@ -85,9 +89,13 @@ function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
 document.addEventListener('DOMContentLoaded', () => {
-    const section = new URLSearchParams(window.location.search).get('section');
+    const sections = [...document.querySelectorAll('.content-section')];
+    if (!sections.length) return;
 
-    showSection(section || 'stats');
+    const section = new URLSearchParams(window.location.search).get('section');
+    const visible = sections.find(item => !item.classList.contains('hidden'));
+    const fallback = visible?.id.replace(/^sec-/, '') ?? 'stats';
+    showSection(section || fallback);
 });
 
 const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;

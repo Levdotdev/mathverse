@@ -44,57 +44,20 @@ class StudentController extends Controller
             $classes = array_merge($classes, $result);
         }
 
-        return view('student.dashboard', compact('user', 'profile', 'rank', 'leaderboard', 'quizHistory', 'classes'));
-    }
-
-    public function joinClass(Request $request)
-    {
-        $user  = session('supabase_user');
-        $token = session('supabase_token');
-
-        $classes = $this->supabase->adminSelect('classes', 'id', ['join_code' => strtoupper($request->join_code)]);
-        if (empty($classes)) {
-            return redirect('/student/dashboard?section=class')
-            ->with('error', 'Invalid Join Code.');
+        foreach ($classes as &$class) {
+            $class['customization'] = $this->supabase->adminSelect(
+                'class_customizations',
+                '*',
+                ['class_id' => $class['id']]
+            )[0] ?? [
+                'theme_color' => '#22c55e',
+                'icon' => 'chalkboard',
+                'banner_pattern' => 'grid',
+            ];
         }
+        unset($class);
 
-        $this->supabase->insert('class_members', [
-            'student_id' => $user['id'],
-            'class_id'   => $classes[0]['id'],
-        ], $token);
-
-        return redirect('/student/dashboard?section=class')
-            ->with('success', 'Successfully joined class!');
-    }
-
-    public function leaveClass(Request $request)
-    {
-        $user  = session('supabase_user');
-        $token = session('supabase_token');
-
-        // Supabase REST needs both filters — we'll use a raw multi-filter call
-        \Illuminate\Support\Facades\Http::withHeaders([
-            'apikey'        => config('services.supabase.anon_key'),
-            'Authorization' => "Bearer {$token}",
-        ])->withQueryParameters([
-            'student_id' => "eq.{$user['id']}",
-            'class_id'   => "eq.{$request->class_id}",
-        ])->delete(config('services.supabase.url') . '/rest/v1/class_members');
-
-        return redirect('/student/dashboard?section=class')
-            ->with('success', 'Left the class.');
-    }
-
-    public function classRoster(string $classId)
-    {
-        $members = $this->supabase->adminSelect(
-            'class_members',
-            'student_id,profiles(first_name,last_name,level)',
-            ['class_id' => $classId]
-        );
-
-        $roster = array_map(fn($m) => $m['profiles'] ?? [], $members);
-        return response()->json(array_filter($roster));
+        return view('student.dashboard', compact('user', 'profile', 'rank', 'leaderboard', 'quizHistory', 'classes'));
     }
 
     public function updateProfile(Request $request)
@@ -103,16 +66,51 @@ class StudentController extends Controller
             return $avatarSizeError;
         }
 
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'grade_level' => 'required|integer|between:1,6',
+        ]);
+
         $user  = session('supabase_user');
         $token = session('supabase_token');
         $userId = $user['id'];
+        $newGrade = (int) $validated['grade_level'];
+
+        if ($newGrade !== (int) ($user['grade_level'] ?? 0)) {
+            $memberships = $this->supabase->adminSelect(
+                'class_members',
+                'class_id',
+                ['student_id' => $userId]
+            );
+
+            foreach ($memberships as $membership) {
+                $class = $this->supabase->adminSelect(
+                    'classes',
+                    'class_name,grade_level',
+                    ['id' => $membership['class_id']]
+                )[0] ?? null;
+
+                if ($class && (int) $class['grade_level'] !== $newGrade) {
+                    return redirect('/student/dashboard?section=profile')->with(
+                        'error',
+                        "Ask your teacher to remove you from {$class['class_name']} before changing to Grade {$newGrade}."
+                    );
+                }
+            }
+        }
 
         // ── UPDATE BASIC INFO
-        $this->supabase->update('profiles', [
-            'first_name'  => $request->first_name,
-            'last_name'   => $request->last_name,
-            'grade_level' => (int) $request->grade_level,
+        $profileUpdated = $this->supabase->update('profiles', [
+            'first_name'  => $validated['first_name'],
+            'last_name'   => $validated['last_name'],
+            'grade_level' => $newGrade,
         ], ['id' => $userId], $token);
+
+        if (!isset($profileUpdated[0]['id'])) {
+            return redirect('/student/dashboard?section=profile')
+                ->with('error', 'The profile could not be updated. Your current class grade must remain matched.');
+        }
 
         // ── UPLOAD AVATAR (USE SAME USER ID)
         $avatarUrl = null;
@@ -130,9 +128,9 @@ class StudentController extends Controller
 
         // ── UPDATE SESSION
         $updated = session('supabase_user');
-        $updated['first_name']  = $request->first_name;
-        $updated['last_name']   = $request->last_name;
-        $updated['grade_level'] = $request->grade_level;
+        $updated['first_name']  = $validated['first_name'];
+        $updated['last_name']   = $validated['last_name'];
+        $updated['grade_level'] = $newGrade;
 
         if ($avatarUrl) {
             $updated['avatar_url'] = $avatarUrl;

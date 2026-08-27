@@ -5,15 +5,7 @@
 @section('mobile-title', 'Student Hub')
 
 @section('sidebar-nav')
-<button onclick="showSection('stats')"  class="nav-link active w-full" id="btn-stats">
-    <i class="fas fa-chart-line mr-3 w-5 text-cyan-400"></i> My Stats
-</button>
-<button onclick="showSection('ranking')" class="nav-link w-full" id="btn-ranking">
-    <i class="fas fa-trophy mr-3 w-5 text-yellow-500"></i> Ranking
-</button>
-<button onclick="showSection('class')"  class="nav-link w-full" id="btn-class">
-    <i class="fas fa-chalkboard mr-3 w-5 text-green-400"></i> My Class
-</button>
+    @include('student.partials.sidebar-nav')
 @endsection
 
 @section('dashboard-content')
@@ -81,7 +73,7 @@
             <h3 class="font-orbitron font-bold text-lg uppercase mb-1">Join a New Class</h3>
             <p class="text-xs text-slate-400">Enter the 6-character code from your teacher.</p>
         </div>
-        <form method="POST" action="/student/join-class" class="flex w-full md:w-auto gap-2">
+        <form method="POST" action="/student/classes/join" class="flex w-full md:w-auto gap-2">
             @csrf
             <div class="relative w-full md:w-48">
                 <input type="text" name="join_code" placeholder="Join Code"
@@ -95,23 +87,37 @@
         <i class="fas fa-chalkboard mr-2"></i> My Enrolled Classes
     </h4>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+    @php
+        $studentClassIcons = [
+            'chalkboard' => 'fa-chalkboard', 'calculator' => 'fa-calculator',
+            'rocket' => 'fa-rocket', 'atom' => 'fa-atom',
+            'shapes' => 'fa-shapes', 'gamepad' => 'fa-gamepad',
+        ];
+    @endphp
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
         @forelse($classes as $class)
-            <div class="portal-frame !p-5 border-l-4 border-green-500 flex justify-between items-center hover:bg-white/5 transition-all">
-                <div>
-                    <h4 class="font-bold text-white text-lg">{{ $class['class_name'] }}</h4>
-                    <p class="text-[10px] text-slate-500 uppercase mt-1 tracking-widest">
-                        Code: <span class="text-cyan-400 font-mono">{{ $class['join_code'] }}</span>
-                    </p>
+            @php
+                $custom = $class['customization'];
+                $color = $custom['theme_color'];
+                $icon = $studentClassIcons[$custom['icon']] ?? 'fa-chalkboard';
+            @endphp
+            <article class="portal-frame overflow-hidden" style="border-color: {{ $color }}66;">
+                <div class="p-6 flex items-center gap-4" style="background: linear-gradient(135deg, {{ $color }}28, transparent);">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl shrink-0"
+                         style="color: {{ $color }}; background: {{ $color }}22; border: 1px solid {{ $color }}55;">
+                        <i class="fas {{ $icon }}"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[9px] uppercase font-bold tracking-widest" style="color: {{ $color }};">Grade {{ $class['grade_level'] }}</p>
+                        <h4 class="font-bold text-white text-lg truncate">{{ $class['class_name'] }}</h4>
+                    </div>
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="openRosterModal('{{ $class['id'] }}', '{{ addslashes($class['class_name']) }}')"
-                            class="text-cyan-400 text-[10px] font-bold uppercase border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 rounded">
-                        <i class="fas fa-users mr-1"></i> Roster
-                    </button>
-                    <button type="button" onclick="openLeaveModal('{{ $class['id'] }}')" class="text-red-500 text-[10px] font-bold uppercase border border-red-500/30 bg-red-500/10 px-3 py-2 rounded">Leave</button>
+                <div class="p-4">
+                    <a href="/student/classes/{{ $class['id'] }}" class="btn-rect-primary !py-3 block text-center">
+                        View Quizzes & Analytics <i class="fas fa-arrow-right ml-2"></i>
+                    </a>
                 </div>
-            </div>
+            </article>
         @empty
             <div class="portal-frame !p-6 text-center text-slate-500 text-xs uppercase tracking-widest sm:col-span-2">
                 You have not joined any classes yet.
@@ -285,64 +291,5 @@
 @endsection
 
 @section('modals')
-{{-- Class Roster Modal --}}
-<div id="viewClassRosterModal" class="modal-overlay hidden">
-    <div class="portal-frame !p-6 md:!p-8 w-full max-w-2xl text-left border-green-500/30">
-        <div class="flex justify-between items-center border-b border-white/10 pb-4 mb-6">
-            <h3 class="font-orbitron font-bold uppercase text-lg text-green-400" id="roster-modal-title">Classmates</h3>
-            <button onclick="closeModal('viewClassRosterModal')" class="text-slate-500 hover:text-white">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-        </div>
-        <div class="overflow-x-auto max-h-96">
-            <table class="w-full text-left min-w-[400px]">
-                <thead class="text-slate-500 text-[10px] uppercase border-b border-white/5">
-                    <tr><th class="pb-4">Student Name</th><th class="pb-4 text-right">Level</th></tr>
-                </thead>
-                <tbody id="roster-tbody" class="text-sm font-rajdhani text-white"></tbody>
-            </table>
-        </div>
-        <button onclick="closeModal('viewClassRosterModal')" class="btn-rect-secondary mt-6 w-full text-xs">
-            Close Panel
-        </button>
-    </div>
-</div>
-
-<div id="deleteUserModal" class="modal-overlay hidden">
-    <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">
-        <i class="fas fa-user-minus text-4xl text-red-600 mb-4"></i>
-        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Leave Class?</h3>
-        <p class="text-[10px] text-slate-500 mb-8 uppercase">This removes your class data permanently.</p>
-        <div class="flex flex-col gap-2">
-            <form method="POST" action="/student/leave-class">
-                @csrf
-                <input type="hidden" id="leave-class-id" name="class_id">
-                <button type="submit"
-                    class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Leave Class</button>
-            </form>
-            <button onclick="closeModal('deleteUserModal')"
-                    class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
-        </div>
-    </div>
-</div>
-
-<div id="logoutModal" class="modal-overlay hidden">
-    <div class="portal-frame !p-10 w-full max-w-xs text-center shadow-[0_0_100px_rgba(0,0,0,1)]">
-        <i class="fas fa-sign-out-alt text-4xl text-cyan-400 mb-6"></i>
-        <h3 class="font-orbitron font-bold text-white mb-2 uppercase">Are you sure you want to log out?</h3>
-        <p class="text-xs text-slate-500 uppercase mb-8">You will need to log in again to access your account.</p>
-        <div class="space-y-3">
-            <form id="logoutForm" method="POST" action="/logout" class="mt-10">
-                @csrf
-                <button onclick="handleLogout()" class="btn-rect-primary !py-3">Confirm Logout</button>
-            </form>
-            <button onclick="closeModal('logoutModal')" class="w-full text-[10px] font-bold text-slate-500 uppercase">Cancel</button>
-        </div>
-    </div>
-</div>
-
+@include('student.partials.logout-modal')
 @endsection
-
-@push('scripts')
-<script src="{{ asset('js/student.js') }}"></script>
-@endpush

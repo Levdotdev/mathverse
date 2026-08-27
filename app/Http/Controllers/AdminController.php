@@ -21,7 +21,7 @@ class AdminController extends Controller
         $totalStudents  = count(array_filter($profiles, fn($p) => $p['role'] === 'student'));
         $pendingTeachers = array_values(array_filter($profiles, fn($p) => $p['role'] === 'pending_teacher'));
 
-        $quizCountResp = $this->supabase->adminSelect('quiz_sessions', 'id');
+        $quizCountResp = $this->supabase->adminSelect('quizzes', 'id');
         $totalQuizzes  = count($quizCountResp);
 
         return view('admin.dashboard', compact(
@@ -132,7 +132,7 @@ class AdminController extends Controller
     {
         // All 3 calls happen as fast as possible — no loops making extra calls
         $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
-        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,teacher_id,created_at');
+        $quizzes    = $this->supabase->adminSelect('quizzes', 'id,topic,teacher_id,created_at');
         $profiles   = $this->supabase->adminSelect('profiles', 'id,role,created_at');
 
         // Registrations per day
@@ -231,7 +231,7 @@ class AdminController extends Controller
         $profiles = $this->supabase->adminSelect('profiles', '*', ['role' => 'teacher']);
 
         // Get quiz count per teacher
-        $allQuizzes = $this->supabase->adminSelect('quiz_sessions', 'id,teacher_id');
+        $allQuizzes = $this->supabase->adminSelect('quizzes', 'id,teacher_id');
 
         $rows = array_map(function($p) use ($allQuizzes) {
             $quizCount = count(array_filter($allQuizzes, fn($q) => $q['teacher_id'] === $p['id']));
@@ -268,7 +268,7 @@ class AdminController extends Controller
     {
         $format     = $request->query('format', 'pdf');
         $profiles   = $this->supabase->adminSelect('profiles', '*');
-        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id');
+        $quizzes    = $this->supabase->adminSelect('quizzes', 'id');
         $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,student_id');
 
         $students = array_values(array_filter($profiles, fn($p) => $p['role'] === 'student'));

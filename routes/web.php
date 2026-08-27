@@ -3,8 +3,16 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\StudentClassController;
 use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\TeacherClassController;
+use App\Http\Controllers\TeacherQuizController;
 use App\Http\Controllers\AdminController;
+
+Route::pattern('id', '[0-9a-fA-F-]{36}');
+Route::pattern('classId', '[0-9a-fA-F-]{36}');
+Route::pattern('studentId', '[0-9a-fA-F-]{36}');
+Route::pattern('sessionId', '[0-9a-fA-F-]{36}');
 
 // Auth routes
 Route::get('/',       [AuthController::class, 'showLogin'])->name('login');
@@ -19,29 +27,37 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Student routes
 Route::middleware('auth.supabase:student')->group(function () {
     Route::get('/student/dashboard', [StudentController::class, 'index']);
-    Route::post('/student/join-class', [StudentController::class, 'joinClass']);
-    Route::post('/student/leave-class', [StudentController::class, 'leaveClass']);
-    Route::get('/student/class-roster/{classId}', [StudentController::class, 'classRoster']);
+    Route::post('/student/classes/join', [StudentClassController::class, 'join']);
+    Route::get('/student/classes/{id}', [StudentClassController::class, 'show']);
     Route::post('/student/profile', [StudentController::class, 'updateProfile']);
 });
 
 // Teacher routes
 Route::middleware('auth.supabase:teacher')->group(function () {
     Route::get('/teacher/dashboard', [TeacherController::class, 'index']);
-    Route::post('/teacher/quiz', [TeacherController::class, 'storeQuiz']);
-    Route::put('/teacher/quiz/{id}', [TeacherController::class, 'updateQuiz']);
-    Route::delete('/teacher/quiz/{id}', [TeacherController::class, 'deleteQuiz']);
-    Route::get('/teacher/quiz/{id}/results', [TeacherController::class, 'quizResults']);
-    Route::post('/teacher/class', [TeacherController::class, 'createClass']);
-    Route::delete('/teacher/class/{id}', [TeacherController::class, 'deleteClass']);
-    Route::get('/teacher/class/{id}/roster', [TeacherController::class, 'classRoster']);
-    Route::delete('/teacher/class/{classId}/student/{studentId}', [TeacherController::class, 'removeStudent']);
-    Route::get('/teacher/lobby/{sessionId}', [TeacherController::class, 'lobbyParticipants']);
-    Route::post('/teacher/quiz/{id}/start', [TeacherController::class, 'startQuiz']);
-    Route::post('/teacher/quiz/{id}/end', [TeacherController::class, 'endQuiz']);
+
+    Route::get('/teacher/quizzes', [TeacherQuizController::class, 'index']);
+    Route::get('/teacher/quiz-library', [TeacherQuizController::class, 'library']);
+    Route::post('/teacher/quizzes', [TeacherQuizController::class, 'store']);
+    Route::get('/teacher/quizzes/{id}', [TeacherQuizController::class, 'show']);
+    Route::put('/teacher/quizzes/{id}', [TeacherQuizController::class, 'update']);
+    Route::delete('/teacher/quizzes/{id}', [TeacherQuizController::class, 'destroy']);
+    Route::post('/teacher/quizzes/{id}/assign', [TeacherQuizController::class, 'assign']);
+
+    Route::post('/teacher/classes', [TeacherClassController::class, 'store']);
+    Route::get('/teacher/classes/{id}', [TeacherClassController::class, 'show']);
+    Route::get('/teacher/classes/{id}/settings', [TeacherClassController::class, 'settings']);
+    Route::put('/teacher/classes/{id}/settings', [TeacherClassController::class, 'updateSettings']);
+    Route::post('/teacher/classes/{id}/regenerate-code', [TeacherClassController::class, 'regenerateCode']);
+    Route::delete('/teacher/classes/{id}', [TeacherClassController::class, 'destroy']);
+    Route::delete('/teacher/classes/{classId}/students/{studentId}', [TeacherClassController::class, 'removeStudent']);
+    Route::get('/teacher/classes/{classId}/quizzes/{sessionId}/lobby', [TeacherClassController::class, 'lobby']);
+    Route::get('/teacher/classes/{classId}/quizzes/{sessionId}/results', [TeacherClassController::class, 'results']);
+    Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/start', [TeacherClassController::class, 'start']);
+    Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/end', [TeacherClassController::class, 'end']);
+
     Route::post('/teacher/profile', [TeacherController::class, 'updateProfile']);
     Route::get('/teacher/stats', [TeacherController::class, 'stats']);
-    Route::get('/teacher/quiz/{id}', [TeacherController::class, 'getQuiz']);
 });
 
 // Admin routes

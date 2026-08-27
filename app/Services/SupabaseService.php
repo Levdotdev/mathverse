@@ -29,7 +29,7 @@ class SupabaseService
             'password' => $password,
         ]);
 
-        return $response->json();
+        return $response->json() ?? [];
     }
 
     public function signUp(
@@ -121,7 +121,7 @@ class SupabaseService
             'Prefer'        => 'return=representation',
         ])->patch("{$this->url}/rest/v1/profiles?id=eq.{$userId}", $data);
 
-        return $response->json() ?? [];
+        return $this->responseRows($response);
     }
 
     public function resetPassword(string $email): array
@@ -152,7 +152,7 @@ class SupabaseService
         }
 
         $response = $request->get("{$this->url}/rest/v1/{$table}");
-        return $response->json() ?? [];
+        return $this->responseRows($response);
     }
 
     public function insert(string $table, array $data, ?string $token = null): array
@@ -166,7 +166,7 @@ class SupabaseService
             'Prefer'        => 'return=representation',
         ])->post("{$this->url}/rest/v1/{$table}", $data);
 
-        return $response->json() ?? [];
+        return $this->responseRows($response);
     }
 
     public function update(string $table, array $data, array $filters, ?string $token = null): array
@@ -185,7 +185,7 @@ class SupabaseService
         }
 
         $response = $request->patch("{$this->url}/rest/v1/{$table}", $data);
-        return $response->json() ?? [];
+        return $this->responseRows($response);
     }
 
     public function delete(string $table, array $filters): bool
@@ -210,22 +210,76 @@ class SupabaseService
 
     public function adminSelect(string $table, string $query = '*', array $filters = []): array
     {
-        $params = ['select' => $query];
-
-        foreach ($filters as $column => $value) {
-            if ($column === 'order') {
-                $params['order'] = $value;
-            } else {
-                $params[$column] = "eq.{$value}";
-            }
-        }
+        $params = $this->buildAdminSelectParams($query, $filters);
 
         $response = Http::withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
         ])->get("{$this->url}/rest/v1/{$table}", $params);
 
-        return $response->json() ?? [];
+        return $this->responseRows($response);
+    }
+
+    /**
+     * Run a server-side paginated PostgREST query and return its exact total.
+     * Operator filters use: ['operator' => 'ilike', 'value' => '*fractions*'].
+     */
+    public function adminSelectPage(
+        string $table,
+        string $query = '*',
+        array $filters = [],
+        int $limit = 24,
+        int $offset = 0
+    ): array {
+        $params = $this->buildAdminSelectParams($query, $filters);
+        $params['limit'] = max(1, min($limit, 100));
+        $params['offset'] = max(0, $offset);
+
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Prefer'        => 'count=exact',
+        ])->get("{$this->url}/rest/v1/{$table}", $params);
+
+        $total = 0;
+        $contentRange = (string) $response->header('Content-Range');
+        if (preg_match('/\/(\d+)$/', $contentRange, $matches)) {
+            $total = (int) $matches[1];
+        }
+
+        $rows = $this->responseRows($response);
+
+        return [
+            'data'  => $rows,
+            'total' => $total,
+        ];
+    }
+
+    private function buildAdminSelectParams(string $query, array $filters): array
+    {
+        $params = ['select' => $query];
+        $allowedOperators = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in', 'not.is'];
+
+        foreach ($filters as $column => $value) {
+            if (in_array($column, ['order', 'limit', 'offset'], true)) {
+                $params[$column] = $value;
+                continue;
+            }
+
+            if (is_array($value) && isset($value['operator'], $value['value'])) {
+                $operator = (string) $value['operator'];
+                if (!in_array($operator, $allowedOperators, true)) {
+                    throw new \InvalidArgumentException("Unsupported Supabase filter operator: {$operator}");
+                }
+
+                $params[$column] = $operator . '.' . $value['value'];
+                continue;
+            }
+
+            $params[$column] = "eq.{$value}";
+        }
+
+        return $params;
     }
 
     public function adminUpdate(string $table, array $data, array $filters): array
@@ -241,7 +295,7 @@ class SupabaseService
             'Prefer'        => 'return=representation',
         ])->patch("{$this->url}/rest/v1/{$table}?{$query}", $data);
 
-        return $response->json();
+        return $this->responseRows($response);
     }
 
     public function adminDelete(string $table, array $filters): bool
@@ -269,5 +323,16 @@ class SupabaseService
         ]);
 
         return $response->json();
+    }
+
+    private function responseRows($response): array
+    {
+        if (!$response->successful()) {
+            return [];
+        }
+
+        $rows = $response->json();
+
+        return is_array($rows) && array_is_list($rows) ? $rows : [];
     }
 }

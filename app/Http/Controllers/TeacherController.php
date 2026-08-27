@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use App\Services\SupabaseService;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -24,172 +23,45 @@ class TeacherController extends Controller
         $allStudents = $this->supabase->adminSelect('profiles', 'id', ['role' => 'student']);
         $studentCount = count($allStudents);
 
-        $allQuizzes = $this->supabase->adminSelect('quiz_sessions', '*', ['teacher_id' => $user['id']]);
-        usort($allQuizzes, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
-        $quizCount    = count($allQuizzes);
-        $recentQuizzes = array_slice($allQuizzes, 0, 5);
+        $ownedQuizzes = $this->supabase->adminSelect(
+            'quizzes',
+            'id',
+            ['teacher_id' => $user['id']]
+        );
+        $quizCount = count($ownedQuizzes);
+
+        $recentQuizzes = $this->supabase->adminSelect(
+            'quiz_sessions',
+            '*',
+            [
+                'teacher_id' => $user['id'],
+                'class_id' => ['operator' => 'not.is', 'value' => 'null'],
+                'order' => 'created_at.desc',
+                'limit' => 5,
+            ]
+        );
 
         // Classes owned by this teacher
         $classes = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
         usort($classes, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
 
+        foreach ($classes as &$class) {
+            $class['customization'] = $this->supabase->adminSelect(
+                'class_customizations',
+                '*',
+                ['class_id' => $class['id']]
+            )[0] ?? [
+                'theme_color' => '#f59e0b',
+                'icon' => 'chalkboard',
+                'banner_pattern' => 'grid',
+            ];
+        }
+        unset($class);
+
         return view('teacher.dashboard', compact(
             'user', 'studentCount', 'quizCount',
-            'recentQuizzes', 'allQuizzes', 'classes'
+            'recentQuizzes', 'classes'
         ));
-    }
-
-    // ── Quiz CRUD ─────────────────────────────────────────
-
-    public function storeQuiz(Request $request)
-    {
-        $user  = session('supabase_user');
-        $token = session('supabase_token');
-
-        $result = $this->supabase->insert('quiz_sessions', [
-            'teacher_id'  => $user['id'],
-            'topic'       => $request->topic,
-            'room_code'   => $request->room_code,
-            'class_id'    => $request->class_id ?: null,
-            'max_members' => (int) $request->max_members,
-            'time_limit'  => (int) $request->time_limit,
-            'is_active'   => true,
-            'status'      => 'waiting',
-        ], $token);
-
-        $sessionId = $result[0]['id'] ?? null;
-        if ($sessionId && $request->has('questions')) {
-            $this->saveQuestions($sessionId, $request->input('questions'));
-        }
-
-        return redirect('/teacher/dashboard?section=quiz-creator')
-            ->with('success', 'Quiz created successfully!');
-    }
-
-    public function updateQuiz(Request $request, string $id)
-    {
-        $token = session('supabase_token');
-
-        // ── Update quiz session info ───────────────────────────
-        $this->supabase->update('quiz_sessions', [
-            'topic'       => $request->topic,
-            'room_code'   => $request->room_code,
-            'class_id'    => $request->class_id ?: null,
-            'max_members' => (int) $request->max_members,
-            'time_limit'  => (int) $request->time_limit,
-        ], ['id' => $id], $token);
-
-        // ── Replace questions (delete + insert ONCE) ───────────
-        if ($request->has('questions') && count($request->questions) > 0) {
-
-            // Delete all old questions for this quiz
-            $this->supabase->delete('questions', [
-                'session_id' => $id
-            ], $token);
-
-            // Insert updated questions (ONLY ONCE)
-            $this->saveQuestions($id, $request->input('questions'));
-        }
-
-        return redirect('/teacher/dashboard?section=quiz-creator')
-            ->with('success', 'Quiz updated successfully!');
-    }
-
-    public function deleteQuiz(string $id)
-    {
-        $token = session('supabase_token');
-        $this->supabase->delete('quiz_sessions', ['id' => $id], $token);
-        return redirect('/teacher/dashboard?section=quiz-creator')
-            ->with('success', 'Quiz deleted.');
-    }
-
-    public function quizResults(string $id)
-    {
-        // Returns JSON for the modal fetch call
-        $results = $this->supabase->adminSelect(
-            'quiz_results',
-            'correct_answers,total_questions,created_at,profiles(first_name,last_name,email)',
-            ['session_id' => $id]
-        );
-
-        usort($results, fn($a, $b) => ($b['correct_answers'] ?? 0) - ($a['correct_answers'] ?? 0));
-        return response()->json($results);
-    }
-
-    // ── Class CRUD ────────────────────────────────────────
-
-    public function createClass(Request $request)
-    {
-        $user  = session('supabase_user');
-        $token = session('supabase_token');
-
-        $joinCode = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 6));
-
-        $this->supabase->insert('classes', [
-            'teacher_id' => $user['id'],
-            'class_name' => $request->class_name,
-            'join_code'  => $joinCode,
-        ], $token);
-
-        return redirect('/teacher/dashboard?section=classes')
-            ->with('success', "Class created! Join code: {$joinCode}");
-    }
-
-    public function deleteClass(string $id)
-    {
-        $token = session('supabase_token');
-        $this->supabase->delete('classes', ['id' => $id], $token);
-        return redirect('/teacher/dashboard?section=classes')
-            ->with('success', 'Class deleted.');
-    }
-
-    public function classRoster(string $id)
-    {
-        $members = $this->supabase->adminSelect(
-            'class_members',
-            'student_id,profiles(id,username,last_name,email,first_name)',
-            ['class_id' => $id]
-        );
-        return response()->json($members);
-    }
-
-    public function removeStudent(string $classId, string $studentId)
-    {
-        Http::withHeaders([
-            'apikey'        => config('services.supabase.anon_key'),
-            'Authorization' => 'Bearer ' . config('services.supabase.service_key'),
-        ])->withQueryParameters([
-            'student_id' => "eq.{$studentId}",
-            'class_id'   => "eq.{$classId}",
-        ])->delete(config('services.supabase.url') . '/rest/v1/class_members');
-
-        return response()->json(['success' => true]);
-    }
-
-    // ── Lobby ─────────────────────────────────────────────
-
-    public function lobbyParticipants(string $sessionId)
-    {
-        $participants = $this->supabase->adminSelect(
-            'quiz_participants',
-            'student_id,profiles(first_name,last_name,level)',
-            ['session_id' => $sessionId]
-        );
-        return response()->json($participants);
-    }
-
-    public function startQuiz(string $id)
-    {
-        $token = session('supabase_token');
-        $this->supabase->update('quiz_sessions', ['status' => 'active'], ['id' => $id], $token);
-        return response()->json(['success' => true]);
-    }
-
-    public function endQuiz(string $id)
-    {
-        $token = session('supabase_token');
-        $this->supabase->update('quiz_sessions', ['status' => 'completed'], ['id' => $id], $token);
-        return response()->json(['success' => true]);
     }
 
     // ── Profile ───────────────────────────────────────────
@@ -240,52 +112,19 @@ class TeacherController extends Controller
         return redirect('/teacher/dashboard?section=profile')->with('success', 'Profile updated successfully!');
     }
 
-    // ── Private helpers ───────────────────────────────────
-
-    private function saveQuestions(string $sessionId, array $questions): void
-    {
-        $token = session('supabase_token');
-        $rows  = [];
-
-        foreach ($questions as $q) {
-            if (empty(trim($q['question'] ?? ''))) continue;
-            $opts = $q['options'] ?? ['', '', '', ''];
-            $correctIndex = (int)($q['correct'] ?? 0);
-            $rows[] = [
-                'session_id'     => $sessionId,
-                'grade'          => 1,
-                'type'           => 'multiple_choice',
-                'question'       => $q['question'],
-                'choice1'        => $opts[0] ?? '',
-                'choice2'        => $opts[1] ?? '',
-                'choice3'        => $opts[2] ?? '',
-                'choice4'        => $opts[3] ?? '',
-                'choice5'        => '',
-                'choice6'        => '',
-                'correct_answer' => $correctIndex,
-            ];
-        }
-
-        if (!empty($rows)) {
-            $this->supabase->insert('questions', $rows, $token);
-        }
-    }
-
     public function stats()
     {
         $user = session('supabase_user');
 
         // Run both calls at the same time instead of sequentially
-        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,created_at', ['teacher_id' => $user['id']]);
+        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,created_at,class_id', ['teacher_id' => $user['id']]);
+        $quizzes    = array_values(array_filter($quizzes, fn ($quiz) => !empty($quiz['class_id'])));
         $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
 
         // Filter results to only this teacher's quizzes
         $quizIds    = array_column($quizzes, 'id');
         $allResults = array_filter($allResults, fn($r) => in_array($r['session_id'], $quizIds));
         $allResults = array_values($allResults);
-
-        // Map session_id to topic for easy lookup
-        $topicMap = array_column($quizzes, 'topic', 'id');
 
         // Per-quiz average accuracy
         $quizAccuracy = [];
@@ -340,28 +179,13 @@ class TeacherController extends Controller
         ]);
     }
 
-    public function getQuiz(string $id)
-    {
-        $quiz = $this->supabase->adminSelect('quiz_sessions', '*', ['id' => $id])[0] ?? null;
-
-        $questions = $this->supabase->adminSelect(
-            'questions',
-            '*',
-            ['session_id' => $id]
-        );
-
-        return response()->json([
-            'quiz' => $quiz,
-            'questions' => $questions
-        ]);
-    }
-
     public function reportQuizPerformance(Request $request)
     {
         $user    = session('supabase_user');
         $format  = $request->query('format', 'pdf');
 
-        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,room_code,created_at', ['teacher_id' => $user['id']]);
+        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,room_code,created_at,class_id', ['teacher_id' => $user['id']]);
+        $quizzes    = array_values(array_filter($quizzes, fn ($quiz) => !empty($quiz['class_id'])));
         $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
 
         $quizIds    = array_column($quizzes, 'id');
@@ -421,7 +245,23 @@ class TeacherController extends Controller
         $members    = array_filter($members, fn($m) => in_array($m['class_id'], $classIds));
         $studentIds = array_unique(array_column(array_values($members), 'student_id'));
 
-        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,student_id');
+        $classSessions = empty($classIds)
+            ? []
+            : $this->supabase->adminSelect(
+                'quiz_sessions',
+                'id',
+                ['class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
+            );
+        $classSessionIds = array_column($classSessions, 'id');
+
+        $allResults = $this->supabase->adminSelect(
+            'quiz_results',
+            'correct_answers,total_questions,student_id,session_id'
+        );
+        $allResults = array_values(array_filter(
+            $allResults,
+            fn ($result) => in_array($result['session_id'], $classSessionIds, true)
+        ));
 
         $rows = [];
         foreach ($studentIds as $sid) {
@@ -535,7 +375,7 @@ class TeacherController extends Controller
         $quiz = $this->supabase->adminSelect('quiz_sessions', '*', ['id' => $id]);
         $quiz = $quiz[0] ?? null;
 
-        if (!$quiz) {
+        if (!$quiz || ($quiz['teacher_id'] ?? null) !== $user['id'] || empty($quiz['class_id'])) {
             return back()->with('error', 'Quiz not found.');
         }
 
@@ -640,15 +480,24 @@ class TeacherController extends Controller
         $class = $this->supabase->adminSelect('classes', '*', ['id' => $id]);
         $class = $class[0] ?? null;
 
-        if (!$class) {
+        if (!$class || ($class['teacher_id'] ?? null) !== $user['id']) {
             return back()->with('error', 'Class not found.');
         }
 
         // Members
         $members = $this->supabase->adminSelect('class_members', 'student_id,joined_at', ['class_id' => $id]);
 
-        // All quiz results for students in this class
-        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,student_id');
+        // Only results produced by quiz sessions assigned to this class.
+        $classSessions = $this->supabase->adminSelect('quiz_sessions', 'id', ['class_id' => $id]);
+        $classSessionIds = array_column($classSessions, 'id');
+        $allResults = $this->supabase->adminSelect(
+            'quiz_results',
+            'correct_answers,total_questions,student_id,session_id'
+        );
+        $allResults = array_values(array_filter(
+            $allResults,
+            fn ($result) => in_array($result['session_id'], $classSessionIds, true)
+        ));
 
         $rows = [];
         foreach ($members as $m) {

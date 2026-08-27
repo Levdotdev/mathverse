@@ -43,15 +43,23 @@
         <div id="profileMenu"
             class="absolute left-0 bottom-full mb-2 w-full bg-black/90 border border-white/10 rounded-lg overflow-hidden z-50 transition-all duration-200 scale-95 opacity-0 pointer-events-none">
 
-            <button onclick="showSection('profile'); toggleProfileMenu(event)" id="btn-profile"
-                class="w-full text-left px-4 py-3 text-xs hover:bg-white/5">
-                <i class="fas fa-user mr-2"></i> Profile
-            </button>
+            @php
+                $roleDashboard = match ($user['role'] ?? 'student') {
+                    'teacher' => '/teacher/dashboard',
+                    'admin' => '/admin/dashboard',
+                    default => '/student/dashboard',
+                };
+            @endphp
 
-            <button onclick="showSection('password'); toggleProfileMenu(event)" id="btn-password"
-                class="w-full text-left px-4 py-3 text-xs hover:bg-white/5">
+            <a href="{{ $roleDashboard }}?section=profile" id="btn-profile"
+                class="block w-full text-left px-4 py-3 text-xs hover:bg-white/5">
+                <i class="fas fa-user mr-2"></i> Profile
+            </a>
+
+            <a href="{{ $roleDashboard }}?section=password" id="btn-password"
+                class="block w-full text-left px-4 py-3 text-xs hover:bg-white/5">
                 <i class="fas fa-key mr-2"></i> Change Password
-            </button>
+            </a>
 
             <form method="POST" action="/logout">
                 @csrf
