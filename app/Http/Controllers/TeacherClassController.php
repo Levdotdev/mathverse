@@ -101,9 +101,11 @@ class TeacherClassController extends Controller
             fn (array $session): bool => ($session['status'] ?? 'waiting') === 'completed'
         ));
 
+        $leaderboard = $this->classLeaderboard($members, array_column($sessions, 'id'));
+
         return view('teacher.classes.show', compact(
             'user', 'class', 'customization', 'members', 'mismatchedMembers',
-            'openSessions', 'endedSessions'
+            'openSessions', 'endedSessions', 'leaderboard'
         ));
     }
 
@@ -214,8 +216,12 @@ class TeacherClassController extends Controller
     {
         $user = session('supabase_user');
         $token = session('supabase_token');
-        if (!$this->ownedClass($id, $user['id'])) {
+        $class = $this->ownedClass($id, $user['id']);
+        if (!$class) {
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
+        }
+        if (!empty($class['archived_at'])) {
+            return redirect("/teacher/classes/{$id}/settings")->with('error', 'Archived class codes cannot be regenerated.');
         }
 
         $joinCode = $this->generateJoinCode();
@@ -228,6 +234,78 @@ class TeacherClassController extends Controller
 
         return redirect("/teacher/classes/{$id}/settings")
             ->with('success', "New join code generated: {$joinCode}");
+    }
+
+    public function archive(string $id)
+    {
+        $user = session('supabase_user');
+        $class = $this->ownedClass($id, $user['id']);
+        if (!$class) {
+            return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
+        }
+
+        if (!empty($class['archived_at'])) {
+            return redirect("/teacher/classes/{$id}/settings")->with('error', 'This class is already archived.');
+        }
+
+        $updated = $this->supabase->update(
+            'classes',
+            ['archived_at' => now()->toIso8601String()],
+            ['id' => $id],
+            session('supabase_token')
+        );
+        if (!isset($updated[0]['id'])) {
+            return redirect("/teacher/classes/{$id}/settings")
+                ->with('error', 'The class could not be archived. Run the latest Supabase migration first.');
+        }
+
+        $openSessions = $this->supabase->adminSelect('quiz_sessions', 'id,status', ['class_id' => $id]);
+        foreach ($openSessions as $session) {
+            if (in_array($session['status'] ?? 'waiting', ['waiting', 'active'], true)) {
+                $this->supabase->adminUpdate('quiz_sessions', [
+                    'status' => 'completed',
+                    'is_active' => false,
+                ], ['id' => $session['id']]);
+            }
+        }
+
+        $this->supabase->adminUpdate('profiles', ['class_id' => null], ['class_id' => $id]);
+
+        return redirect('/teacher/dashboard?section=classes')
+            ->with('success', 'Class archived. Its history is preserved and it no longer locks student grade levels.');
+    }
+
+    public function restore(string $id)
+    {
+        $user = session('supabase_user');
+        $class = $this->ownedClass($id, $user['id']);
+        if (!$class) {
+            return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
+        }
+
+        if (empty($class['archived_at'])) {
+            return redirect("/teacher/classes/{$id}/settings")->with('error', 'This class is already active.');
+        }
+
+        $members = $this->supabase->adminSelect('class_members', 'profiles(grade_level)', ['class_id' => $id]);
+        $mismatch = array_filter($members, fn (array $member): bool =>
+            (int) ($member['profiles']['grade_level'] ?? 0) !== (int) $class['grade_level']
+        );
+        if (!empty($mismatch)) {
+            return redirect("/teacher/classes/{$id}/settings")
+                ->with('error', 'Remove students whose current grade differs from this class before restoring it.');
+        }
+
+        $updated = $this->supabase->update(
+            'classes',
+            ['archived_at' => null],
+            ['id' => $id],
+            session('supabase_token')
+        );
+
+        return isset($updated[0]['id'])
+            ? redirect("/teacher/classes/{$id}")->with('success', 'Class restored.')
+            : redirect("/teacher/classes/{$id}/settings")->with('error', 'The class could not be restored.');
     }
 
     public function destroy(string $id)
@@ -306,9 +384,14 @@ class TeacherClassController extends Controller
 
         $results = $this->supabase->adminSelect(
             'quiz_results',
-            'correct_answers,total_questions,created_at,profiles(first_name,last_name,email)',
-            ['session_id' => $sessionId]
+            'student_id,correct_answers,total_questions,created_at,profiles(first_name,last_name,email)',
+            ['session_id' => $sessionId, 'order' => 'created_at.asc']
         );
+        $firstResults = [];
+        foreach ($results as $result) {
+            $firstResults[$result['student_id']] ??= $result;
+        }
+        $results = array_values($firstResults);
         usort($results, fn ($a, $b) => ($b['correct_answers'] ?? 0) <=> ($a['correct_answers'] ?? 0));
 
         return response()->json($results);
@@ -317,7 +400,14 @@ class TeacherClassController extends Controller
     public function start(string $classId, string $sessionId)
     {
         $session = $this->ownedSession($classId, $sessionId);
-        if (!$session || ($session['status'] ?? 'waiting') !== 'waiting') {
+        if (!$session) {
+            return response()->json(['message' => 'Quiz session not found.'], 404);
+        }
+        $class = $this->ownedClass($classId, session('supabase_user')['id']);
+        if (!empty($class['archived_at'])) {
+            return response()->json(['message' => 'Archived classes cannot start quizzes.'], 422);
+        }
+        if (($session['status'] ?? 'waiting') !== 'waiting') {
             return response()->json(['message' => 'Only an assigned quiz can be started.'], 422);
         }
 
@@ -389,12 +479,21 @@ class TeacherClassController extends Controller
 
         $results = $this->supabase->adminSelect(
             'quiz_results',
-            'session_id,correct_answers,total_questions',
-            ['session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')']]
+            'session_id,student_id,correct_answers,total_questions,created_at',
+            [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+                'order' => 'created_at.asc',
+            ]
         );
 
-        $grouped = [];
+        $firstResults = [];
         foreach ($results as $result) {
+            $key = $result['session_id'] . ':' . $result['student_id'];
+            $firstResults[$key] ??= $result;
+        }
+
+        $grouped = [];
+        foreach ($firstResults as $result) {
             $id = $result['session_id'];
             $accuracy = ($result['total_questions'] ?? 0) > 0
                 ? (($result['correct_answers'] ?? 0) / $result['total_questions']) * 100
@@ -412,6 +511,60 @@ class TeacherClassController extends Controller
         unset($item);
 
         return $grouped;
+    }
+
+    private function classLeaderboard(array $members, array $sessionIds): array
+    {
+        $sessionIds = array_values(array_unique(array_filter($sessionIds)));
+        if (empty($members)) {
+            return [];
+        }
+
+        $results = empty($sessionIds) ? [] : $this->supabase->adminSelect(
+            'quiz_results',
+            'session_id,student_id,correct_answers,total_questions,created_at',
+            ['session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'], 'order' => 'created_at.asc']
+        );
+
+        $firstResults = [];
+        foreach ($results as $result) {
+            $key = $result['session_id'] . ':' . $result['student_id'];
+            $firstResults[$key] ??= $result;
+        }
+
+        $rows = [];
+        foreach ($members as $member) {
+            $profile = $member['profiles'] ?? [];
+            $studentId = $profile['id'] ?? $member['student_id'];
+            $studentResults = array_values(array_filter(
+                $firstResults,
+                fn (array $result): bool => $result['student_id'] === $studentId
+            ));
+            $accuracies = array_map(fn (array $result): float => ($result['total_questions'] ?? 0) > 0
+                ? (($result['correct_answers'] ?? 0) / $result['total_questions']) * 100
+                : 0, $studentResults);
+            $rows[] = [
+                'student_id' => $studentId,
+                'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')) ?: 'Unknown Student',
+                'average' => !empty($accuracies) ? round(array_sum($accuracies) / count($accuracies), 1) : 0,
+                'quizzes' => count($studentResults),
+                'correct' => array_sum(array_column($studentResults, 'correct_answers')),
+            ];
+        }
+
+        usort($rows, fn (array $a, array $b): int =>
+            ($b['average'] <=> $a['average'])
+            ?: ($b['correct'] <=> $a['correct'])
+            ?: ($b['quizzes'] <=> $a['quizzes'])
+            ?: strcmp($a['name'], $b['name'])
+        );
+
+        foreach ($rows as $index => &$row) {
+            $row['rank'] = $index + 1;
+        }
+        unset($row);
+
+        return $rows;
     }
 
     private function generateJoinCode(): string

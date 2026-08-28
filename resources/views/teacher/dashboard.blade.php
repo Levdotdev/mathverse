@@ -52,9 +52,9 @@
         </div>
         <div class="portal-frame !p-6">
             <h4 class="font-orbitron text-xs text-purple-400 uppercase tracking-widest mb-4">
-                <i class="fas fa-chart-bar mr-2"></i> Average Accuracy Per Assignment
+                <i class="fas fa-chart-bar mr-2"></i> Average Accuracy Per Active Class
             </h4>
-            <canvas id="chart-quiz-accuracy" height="120"></canvas>
+            <canvas id="chart-class-accuracy" height="120"></canvas>
         </div>
     </div>
 </section>
@@ -188,6 +188,21 @@
             </div>
         @endforelse
     </div>
+
+    @if(!empty($archivedClasses))
+        <div class="mt-10">
+            <h3 class="text-sm font-orbitron font-bold uppercase mb-4 text-slate-400"><i class="fas fa-archive mr-2"></i> Archived Classes</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                @foreach($archivedClasses as $class)
+                    <article class="portal-frame !p-5 opacity-75 border-slate-600/40">
+                        <p class="text-[9px] text-slate-500 uppercase tracking-widest">Archived · Grade {{ $class['grade_level'] }}</p>
+                        <h4 class="font-bold text-lg mt-2">{{ $class['class_name'] }}</h4>
+                        <a href="/teacher/classes/{{ $class['id'] }}/settings" class="btn-rect-secondary !py-2 mt-4 block text-center"><i class="fas fa-cog mr-2"></i> Settings</a>
+                    </article>
+                @endforeach
+            </div>
+        </div>
+    @endif
 </section>
 
 {{-- PASSWORD --}}
@@ -274,34 +289,6 @@
             </div>
             <button type="submit" class="btn-rect-primary mt-4"><i class="fas fa-save mr-2"></i> Update Profile</button>
         </form>
-    </div>
-</section>
-
-{{-- REPORTS --}}
-<section id="sec-reports" class="content-section hidden">
-    <h2 class="text-xl md:text-2xl font-orbitron font-bold mb-6 uppercase border-b border-white/10 pb-2">
-        Export <span class="text-green-400">Reports</span>
-    </h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        @foreach([
-            ['icon' => 'fa-vr-cardboard', 'color' => 'purple', 'title' => 'Quiz Performance', 'text' => 'Accuracy, pass rates, and attempts per assigned quiz.', 'route' => 'quiz-performance'],
-            ['icon' => 'fa-user-graduate', 'color' => 'cyan', 'title' => 'Student Progress', 'text' => 'Per-student accuracy, trophies, and class quiz history.', 'route' => 'student-progress'],
-            ['icon' => 'fa-chalkboard', 'color' => 'yellow', 'title' => 'Classroom Report', 'text' => 'Class rosters, join codes, and student counts.', 'route' => 'classes'],
-        ] as $report)
-            <div class="portal-frame !p-6">
-                <i class="fas {{ $report['icon'] }} text-3xl text-{{ $report['color'] }}-400 mb-4 block"></i>
-                <h3 class="font-orbitron font-bold uppercase mb-1">{{ $report['title'] }}</h3>
-                <p class="text-slate-500 text-xs mb-6">{{ $report['text'] }}</p>
-                <div class="flex gap-2">
-                    <a href="/teacher/report/{{ $report['route'] }}?format=pdf" class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center">
-                        <i class="fas fa-file-pdf mr-1"></i> PDF
-                    </a>
-                    <a href="/teacher/report/{{ $report['route'] }}?format=csv" class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
-                        <i class="fas fa-file-csv mr-1"></i> CSV
-                    </a>
-                </div>
-            </div>
-        @endforeach
     </div>
 </section>
 

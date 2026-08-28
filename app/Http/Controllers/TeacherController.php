@@ -19,10 +19,6 @@ class TeacherController extends Controller
             return redirect('/')->with('error', 'Please log in first.');
         }
 
-        // Dashboard metrics
-        $allStudents = $this->supabase->adminSelect('profiles', 'id', ['role' => 'student']);
-        $studentCount = count($allStudents);
-
         $ownedQuizzes = $this->supabase->adminSelect(
             'quizzes',
             'id',
@@ -30,22 +26,11 @@ class TeacherController extends Controller
         );
         $quizCount = count($ownedQuizzes);
 
-        $recentQuizzes = $this->supabase->adminSelect(
-            'quiz_sessions',
-            '*',
-            [
-                'teacher_id' => $user['id'],
-                'class_id' => ['operator' => 'not.is', 'value' => 'null'],
-                'order' => 'created_at.desc',
-                'limit' => 5,
-            ]
-        );
-
         // Classes owned by this teacher
-        $classes = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
-        usort($classes, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
+        $allClasses = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
+        usort($allClasses, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
 
-        foreach ($classes as &$class) {
+        foreach ($allClasses as &$class) {
             $class['customization'] = $this->supabase->adminSelect(
                 'class_customizations',
                 '*',
@@ -58,9 +43,31 @@ class TeacherController extends Controller
         }
         unset($class);
 
+        $classes = array_values(array_filter($allClasses, fn (array $class): bool => empty($class['archived_at'])));
+        $archivedClasses = array_values(array_filter($allClasses, fn (array $class): bool => !empty($class['archived_at'])));
+        $activeClassIds = array_column($classes, 'id');
+
+        $memberships = empty($activeClassIds) ? [] : $this->supabase->adminSelect(
+            'class_members',
+            'student_id,class_id',
+            ['class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $activeClassIds) . ')']]
+        );
+        $studentCount = count(array_unique(array_column($memberships, 'student_id')));
+
+        $recentQuizzes = empty($activeClassIds) ? [] : $this->supabase->adminSelect(
+            'quiz_sessions',
+            '*',
+            [
+                'teacher_id' => $user['id'],
+                'class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $activeClassIds) . ')'],
+                'order' => 'created_at.desc',
+                'limit' => 5,
+            ]
+        );
+
         return view('teacher.dashboard', compact(
             'user', 'studentCount', 'quizCount',
-            'recentQuizzes', 'classes'
+            'recentQuizzes', 'classes', 'archivedClasses'
         ));
     }
 
@@ -116,29 +123,44 @@ class TeacherController extends Controller
     {
         $user = session('supabase_user');
 
-        // Run both calls at the same time instead of sequentially
-        $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,created_at,class_id', ['teacher_id' => $user['id']]);
-        $quizzes    = array_values(array_filter($quizzes, fn ($quiz) => !empty($quiz['class_id'])));
-        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
+        $classes = $this->supabase->adminSelect(
+            'classes',
+            'id,class_name,archived_at',
+            ['teacher_id' => $user['id'], 'archived_at' => ['operator' => 'is', 'value' => 'null']]
+        );
+        $classIds = array_column($classes, 'id');
+        $quizzes = empty($classIds) ? [] : $this->supabase->adminSelect(
+            'quiz_sessions',
+            'id,topic,created_at,class_id',
+            ['class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
+        );
+        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+            'quiz_results', 'correct_answers,total_questions,created_at,session_id,student_id', ['order' => 'created_at.asc']
+        ));
 
         // Filter results to only this teacher's quizzes
         $quizIds    = array_column($quizzes, 'id');
         $allResults = array_filter($allResults, fn($r) => in_array($r['session_id'], $quizIds));
         $allResults = array_values($allResults);
 
-        // Per-quiz average accuracy
-        $quizAccuracy = [];
-        foreach ($quizzes as $q) {
-            $qResults = array_values(array_filter($allResults, fn($r) => $r['session_id'] === $q['id']));
-            if (empty($qResults)) continue;
-            $avg = array_sum(array_map(fn($r) =>
-                $r['total_questions'] > 0 ? ($r['correct_answers'] / $r['total_questions']) * 100 : 0,
-                $qResults
-            )) / count($qResults);
-            $quizAccuracy[] = [
-                'topic'    => $q['topic'],
-                'accuracy' => round($avg, 1),
-                'attempts' => count($qResults),
+        // Average accuracy for each non-archived class.
+        $classAccuracy = [];
+        foreach ($classes as $class) {
+            $sessionIds = array_column(array_values(array_filter(
+                $quizzes,
+                fn (array $quiz): bool => $quiz['class_id'] === $class['id']
+            )), 'id');
+            $classResults = array_values(array_filter(
+                $allResults,
+                fn (array $result): bool => in_array($result['session_id'], $sessionIds, true)
+            ));
+            $accuracies = array_map(fn (array $result): float => ($result['total_questions'] ?? 0) > 0
+                ? (($result['correct_answers'] ?? 0) / $result['total_questions']) * 100
+                : 0, $classResults);
+            $classAccuracy[] = [
+                'class_name' => $class['class_name'],
+                'accuracy' => !empty($accuracies) ? round(array_sum($accuracies) / count($accuracies), 1) : 0,
+                'attempts' => count($classResults),
             ];
         }
 
@@ -170,7 +192,7 @@ class TeacherController extends Controller
             : 0;
 
         return response()->json([
-            'quizAccuracy'   => $quizAccuracy,
+            'classAccuracy'  => $classAccuracy,
             'attemptsPerDay' => $attemptsPerDay,
             'distribution'   => $distribution,
             'totalAttempts'  => $totalAttempts,
@@ -186,7 +208,9 @@ class TeacherController extends Controller
 
         $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,room_code,created_at,class_id', ['teacher_id' => $user['id']]);
         $quizzes    = array_values(array_filter($quizzes, fn ($quiz) => !empty($quiz['class_id'])));
-        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
+        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+            'quiz_results', 'correct_answers,total_questions,created_at,session_id,student_id', ['order' => 'created_at.asc']
+        ));
 
         $quizIds    = array_column($quizzes, 'id');
         $allResults = array_values(array_filter($allResults, fn($r) => in_array($r['session_id'], $quizIds)));
@@ -254,10 +278,11 @@ class TeacherController extends Controller
             );
         $classSessionIds = array_column($classSessions, 'id');
 
-        $allResults = $this->supabase->adminSelect(
+        $allResults = $this->firstAttempts($this->supabase->adminSelect(
             'quiz_results',
-            'correct_answers,total_questions,student_id,session_id'
-        );
+            'correct_answers,total_questions,student_id,session_id,created_at',
+            ['order' => 'created_at.asc']
+        ));
         $allResults = array_values(array_filter(
             $allResults,
             fn ($result) => in_array($result['session_id'], $classSessionIds, true)
@@ -354,6 +379,21 @@ class TeacherController extends Controller
         return $pdf->download('classes-report.pdf');
     }
 
+    private function firstAttempts(array $results): array
+    {
+        $first = [];
+        foreach ($results as $result) {
+            $sessionId = $result['session_id'] ?? null;
+            $studentId = $result['student_id'] ?? null;
+            if (!$sessionId || !$studentId) {
+                continue;
+            }
+            $first[$sessionId . ':' . $studentId] ??= $result;
+        }
+
+        return array_values($first);
+    }
+
     private function downloadCsv(array $rows, array $headers, array $keys, string $filename): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         return response()->streamDownload(function () use ($rows, $headers, $keys) {
@@ -383,11 +423,11 @@ class TeacherController extends Controller
         $questions = $this->supabase->adminSelect('questions', '*', ['session_id' => $id]);
 
         // Results with student profiles
-        $results = $this->supabase->adminSelect(
+        $results = $this->firstAttempts($this->supabase->adminSelect(
             'quiz_results',
-            'correct_answers,total_questions,created_at,student_id',
-            ['session_id' => $id]
-        );
+            'correct_answers,total_questions,created_at,student_id,session_id',
+            ['session_id' => $id, 'order' => 'created_at.asc']
+        ));
 
         // Get student names
         $rows = [];
@@ -403,7 +443,7 @@ class TeacherController extends Controller
                 'grade'    => $p ? 'Grade ' . ($p['grade_level'] ?? 'N/A') : 'N/A',
                 'score'    => $r['correct_answers'] . ' / ' . $r['total_questions'],
                 'accuracy' => $accuracy,
-                'status'   => $accuracy >= 75 ? 'Passed' : ($accuracy >= 50 ? 'Average' : 'Failed'),
+                'status'   => $accuracy >= 75 ? 'Passed' : 'Failed',
                 'date'     => \Carbon\Carbon::parse($r['created_at'])->format('M d, Y h:i A'),
             ];
         }
@@ -415,7 +455,7 @@ class TeacherController extends Controller
             ? round(array_sum(array_column($rows, 'accuracy')) / $totalAttempts, 1)
             : 0;
         $passed  = count(array_filter($rows, fn($r) => $r['accuracy'] >= 75));
-        $failed  = count(array_filter($rows, fn($r) => $r['accuracy'] < 50));
+        $failed  = count(array_filter($rows, fn($r) => $r['accuracy'] < 75));
 
         $summary = [
             'topic'         => $quiz['topic'],
@@ -490,10 +530,11 @@ class TeacherController extends Controller
         // Only results produced by quiz sessions assigned to this class.
         $classSessions = $this->supabase->adminSelect('quiz_sessions', 'id', ['class_id' => $id]);
         $classSessionIds = array_column($classSessions, 'id');
-        $allResults = $this->supabase->adminSelect(
+        $allResults = $this->firstAttempts($this->supabase->adminSelect(
             'quiz_results',
-            'correct_answers,total_questions,student_id,session_id'
-        );
+            'correct_answers,total_questions,student_id,session_id,created_at',
+            ['order' => 'created_at.asc']
+        ));
         $allResults = array_values(array_filter(
             $allResults,
             fn ($result) => in_array($result['session_id'], $classSessionIds, true)

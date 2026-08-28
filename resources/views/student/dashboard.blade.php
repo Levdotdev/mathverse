@@ -16,12 +16,18 @@
         Academic <span class="text-cyan-400">Progress</span>
     </h2>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div class="portal-frame !p-5 border-b-2 border-cyan-500">
-            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Global Rank</p>
+            <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Grade {{ $gradeLevel }} Rank</p>
             <h3 class="text-2xl font-orbitron mt-1">#{{ $rank }}</h3>
         </div>
-        <div class="portal-frame !p-5 border-b-2 border-purple-500">
+        <div class="portal-frame !p-5 border-b-2 border-purple-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Taken</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['taken'] }}</h3></div>
+        <div class="portal-frame !p-5 border-b-2 border-red-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Missed</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['missed'] }}</h3></div>
+        <div class="portal-frame !p-5 border-b-2 border-blue-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Average</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['average'] }}%</h3></div>
+        <div class="portal-frame !p-5 border-b-2 border-green-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Passed (75%+)</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['passed'] }}</h3></div>
+        <div class="portal-frame !p-5 border-b-2 border-orange-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Failed (&lt;75%)</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['failed'] }}</h3></div>
+        <div class="portal-frame !p-5 border-b-2 border-yellow-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Best Accuracy</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['best'] }}%</h3></div>
+        <div class="portal-frame !p-5 border-b-2 border-slate-500">
             <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Total Trophies</p>
             <h3 class="text-2xl font-orbitron mt-1">{{ number_format($profile['trophies'] ?? 0) }}</h3>
         </div>
@@ -34,29 +40,48 @@
         <div class="space-y-4">
             @forelse($quizHistory as $record)
                 @php
-                    $accuracy = $record['total_questions'] > 0
-                        ? round(($record['correct_answers'] / $record['total_questions']) * 100)
-                        : 0;
-                    $statusColor = $accuracy >= 75 ? 'text-green-500' : ($accuracy >= 50 ? 'text-yellow-500' : 'text-red-500');
-                    $statusText  = $accuracy >= 75 ? 'Cleared' : ($accuracy >= 50 ? 'Passed' : 'Failed');
+                    $accuracy = $record['accuracy'];
+                    $statusColor = $accuracy >= 75 ? 'text-green-500' : 'text-red-500';
+                    $statusText  = $accuracy >= 75 ? 'Passed' : 'Failed';
                     $topic = $record['quiz_sessions']['topic'] ?? 'Unknown Quiz';
+                    $classId = $record['quiz_sessions']['class_id'] ?? null;
+                    $sessionId = $record['session_id'] ?? ($record['quiz_sessions']['id'] ?? null);
                 @endphp
-                <div class="flex justify-between items-center bg-white/5 p-4 rounded border border-white/5 hover:border-cyan-500/30 transition-colors">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/5 p-4 rounded border border-white/5 hover:border-cyan-500/30 transition-colors">
                     <div>
                         <p class="font-bold text-sm text-white">{{ $topic }}</p>
                         <p class="text-[10px] text-slate-500 font-mono">
                             Date: {{ \Carbon\Carbon::parse($record['created_at'])->format('M d, Y') }}
                         </p>
                     </div>
-                    <div class="text-right">
+                    <div class="flex items-center gap-4 sm:text-right">
+                        <div>
                         <p class="text-cyan-400 font-bold">{{ $record['correct_answers'] }}/{{ $record['total_questions'] }}</p>
                         <p class="text-[9px] {{ $statusColor }} font-black uppercase">{{ $statusText }} ({{ $accuracy }}%)</p>
+                        </div>
+                        @if($classId && $sessionId)
+                            <a href="/student/classes/{{ $classId }}/quizzes/{{ $sessionId }}/review" class="btn-rect-secondary !py-2 !px-3 !w-auto text-[9px]">Review</a>
+                        @endif
                     </div>
                 </div>
             @empty
                 <p class="text-slate-500 text-xs py-4 text-center uppercase tracking-widest">
                     No quiz history yet. Play a VR Quiz Bee to see results here!
                 </p>
+            @endforelse
+        </div>
+    </div>
+
+    <div class="portal-frame !p-6 mt-6 border-l-4 border-red-500">
+        <h4 class="font-orbitron text-xs text-red-400 uppercase mb-5 tracking-widest"><i class="fas fa-calendar-times mr-2"></i> Missed Quizzes</h4>
+        <div class="space-y-3">
+            @forelse($missedQuizzes as $missed)
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                    <div><p class="font-bold text-sm">{{ $missed['topic'] }}</p><p class="text-[10px] text-slate-500">{{ $missed['class_name'] }} · Ended {{ \Carbon\Carbon::parse($missed['created_at'])->format('M d, Y') }}</p></div>
+                    <a href="/student/classes/{{ $missed['class_id'] }}/quizzes/{{ $missed['id'] }}/review" class="btn-rect-secondary !py-2 !px-3 !w-auto text-[9px]">Review Answers</a>
+                </div>
+            @empty
+                <p class="text-slate-500 text-xs uppercase tracking-widest">No missed quizzes.</p>
             @endforelse
         </div>
     </div>
@@ -130,8 +155,9 @@
 <section id="sec-ranking" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-8">
         <h2 class="text-xl font-orbitron font-bold mb-6 uppercase">
-            Global <span class="text-cyan-400">Ranking</span>
+            Grade {{ $gradeLevel }} <span class="text-cyan-400">Global Ranking</span>
         </h2>
+        <p class="text-xs text-slate-500 mb-6">Only Grade {{ $gradeLevel }} students are included.</p>
         <div class="overflow-x-auto">
             <table class="w-full text-left">
                 <thead class="text-slate-500 text-[10px] uppercase border-b border-white/10">

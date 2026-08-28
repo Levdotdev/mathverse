@@ -37,7 +37,7 @@
         <div class="value" style="color:#22c55e;">{{ $summary['passed'] }}</div>
     </div>
     <div class="summary-card">
-        <div class="label">Failed (&lt;50%)</div>
+        <div class="label">Failed (&lt;75%)</div>
         <div class="value" style="color:#ef4444;">{{ $summary['failed'] }}</div>
     </div>
 </div>
@@ -82,7 +82,7 @@
     <tbody>
         @forelse($rows as $i => $r)
         @php
-            $statusColor = $r['accuracy'] >= 75 ? '#22c55e' : ($r['accuracy'] >= 50 ? '#f97316' : '#ef4444');
+            $statusColor = $r['accuracy'] >= 75 ? '#22c55e' : '#ef4444';
         @endphp
         <tr>
             <td class="text-center"><strong>#{{ $i + 1 }}</strong></td>

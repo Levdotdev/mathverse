@@ -1,0 +1,30 @@
+@php $activePage = $activePage ?? 'dashboard'; @endphp
+
+<a href="/admin/dashboard" id="btn-overview"
+   class="nav-link w-full {{ $activePage === 'dashboard' ? 'active' : '' }}">
+    <i class="fas fa-microchip mr-3 w-5 text-red-500"></i> Mainframe
+</a>
+<a href="/admin/dashboard?section=stats" id="btn-stats"
+   class="nav-link w-full {{ $activePage === 'analytics' ? 'active' : '' }}">
+    <i class="fas fa-chart-bar mr-3 w-5 text-pink-400"></i> Analytics
+</a>
+<a href="/admin/quizzes"
+   class="nav-link w-full {{ $activePage === 'quizzes' ? 'active' : '' }}">
+    <i class="fas fa-book-open mr-3 w-5 text-purple-400"></i> Shared Quizzes
+</a>
+<a href="/admin/dashboard?section=students" id="btn-students"
+   class="nav-link w-full {{ $activePage === 'students' ? 'active' : '' }}">
+    <i class="fas fa-user-graduate mr-3 w-5 text-cyan-400"></i> Students
+</a>
+<a href="/admin/dashboard?section=teachers" id="btn-teachers"
+   class="nav-link w-full {{ $activePage === 'teachers' ? 'active' : '' }}">
+    <i class="fas fa-chalkboard-teacher mr-3 w-5 text-blue-400"></i> Teachers
+</a>
+<a href="/admin/dashboard?section=role-verify" id="btn-role-verify"
+   class="nav-link w-full {{ $activePage === 'verification' ? 'active' : '' }}">
+    <i class="fas fa-user-shield mr-3 w-5 text-orange-400"></i> Verification
+</a>
+<a href="/admin/dashboard?section=reports" id="btn-reports"
+   class="nav-link w-full {{ $activePage === 'reports' ? 'active' : '' }}">
+    <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports
+</a>

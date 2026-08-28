@@ -27,6 +27,13 @@
     </div>
 </div>
 
+@if(!empty($class['archived_at']))
+    <div class="portal-frame !p-5 mb-7 border-l-4 border-slate-500">
+        <p class="font-bold text-slate-300"><i class="fas fa-archive mr-2"></i>This class is archived</p>
+        <p class="text-xs text-slate-500 mt-2">It is hidden from students, excluded from active class counts, and no longer prevents their grade changes. Quiz history is preserved.</p>
+    </div>
+@endif
+
 <div class="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-7">
     <form method="POST" action="/teacher/classes/{{ $class['id'] }}/settings" class="portal-frame !p-6 md:!p-8 space-y-8">
         @csrf
@@ -111,10 +118,25 @@
                 <button onclick="copyToClipboard('{{ $class['join_code'] }}')" class="text-slate-400 hover:text-white"><i class="fas fa-copy"></i></button>
             </div>
             <p class="text-xs text-slate-500 mt-4">Regenerating invalidates the previous code immediately.</p>
-            <form method="POST" action="/teacher/classes/{{ $class['id'] }}/regenerate-code" class="mt-5">
-                @csrf
-                <button class="btn-rect-secondary !py-3"><i class="fas fa-sync-alt mr-2"></i> Generate New Code</button>
-            </form>
+            @if(empty($class['archived_at']))
+                <form method="POST" action="/teacher/classes/{{ $class['id'] }}/regenerate-code" class="mt-5">
+                    @csrf
+                    <button class="btn-rect-secondary !py-3"><i class="fas fa-sync-alt mr-2"></i> Generate New Code</button>
+                </form>
+            @endif
+        </div>
+
+        <div class="portal-frame !p-6 border-l-4 border-slate-500">
+            <h2 class="font-orbitron font-bold text-slate-300 uppercase">Class Archive</h2>
+            @if(empty($class['archived_at']))
+                <p class="text-xs text-slate-500 mt-3 mb-5">Archive the class without deleting students, assignments, or results.</p>
+                <button onclick="openModal('archiveClassModal')" class="btn-rect-secondary !py-3"><i class="fas fa-archive mr-2"></i> Archive Class</button>
+            @else
+                <p class="text-xs text-slate-500 mt-3 mb-5">Restore only when all retained members match Grade {{ $class['grade_level'] }}.</p>
+                <form method="POST" action="/teacher/classes/{{ $class['id'] }}/restore">@csrf
+                    <button class="btn-rect-primary !py-3"><i class="fas fa-box-open mr-2"></i> Restore Class</button>
+                </form>
+            @endif
         </div>
 
         <div class="portal-frame !p-6 border-l-4 border-red-500">
@@ -129,6 +151,20 @@
 @endsection
 
 @section('modals')
+@if(empty($class['archived_at']))
+<div id="archiveClassModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-sm text-center border-slate-500/50">
+        <i class="fas fa-archive text-4xl text-slate-400 mb-4"></i>
+        <h3 class="font-orbitron font-bold uppercase">Archive Class?</h3>
+        <p class="text-xs text-slate-400 mt-3 mb-8">Open quizzes will be ended. Students will no longer see this class, but all history stays saved.</p>
+        <form method="POST" action="/teacher/classes/{{ $class['id'] }}/archive">@csrf
+            <button class="btn-rect-primary !bg-slate-600 !text-white">Archive Class</button>
+        </form>
+        <button onclick="closeModal('archiveClassModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+    </div>
+</div>
+@endif
+
 <div id="deleteClassModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
         <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>

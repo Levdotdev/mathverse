@@ -228,6 +228,10 @@ class TeacherQuizController extends Controller
             return back()->with('error', 'The selected quiz or class is not available.');
         }
 
+        if (!empty($class['archived_at'])) {
+            return back()->with('error', 'Archived classes cannot receive new quiz assignments.');
+        }
+
         if ((int) $quiz['grade_level'] !== (int) $class['grade_level']) {
             return back()->with('error', 'A quiz can only be assigned to a class with the same grade level.');
         }
@@ -375,8 +379,12 @@ class TeacherQuizController extends Controller
     {
         return $this->supabase->adminSelect(
             'classes',
-            'id,class_name,grade_level',
-            ['teacher_id' => $teacherId, 'order' => 'class_name.asc']
+            'id,class_name,grade_level,archived_at',
+            [
+                'teacher_id' => $teacherId,
+                'archived_at' => ['operator' => 'is', 'value' => 'null'],
+                'order' => 'class_name.asc',
+            ]
         );
     }
 

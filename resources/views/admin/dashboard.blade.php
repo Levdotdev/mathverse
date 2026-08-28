@@ -9,21 +9,7 @@
 @section('logout-btn-class', '!border-red-500/30 !text-red-500')
 
 @section('sidebar-nav')
-<button onclick="showSection('overview')"   class="nav-link active w-full" id="btn-overview">
-    <i class="fas fa-microchip mr-3 w-5 text-red-500"></i> Mainframe
-</button>
-<button onclick="showSection('stats')" class="nav-link w-full" id="btn-stats">
-    <i class="fas fa-chart-bar mr-3 w-5 text-pink-400"></i> Analytics
-</button>
-<button onclick="showSection('user-lists')" class="nav-link w-full" id="btn-user-lists">
-    <i class="fas fa-database mr-3 w-5 text-cyan-400"></i> User Registry
-</button>
-<button onclick="showSection('role-verify')" class="nav-link w-full" id="btn-role-verify">
-    <i class="fas fa-user-shield mr-3 w-5 text-orange-400"></i> Verification
-</button>
-<button onclick="showSection('reports')" class="nav-link w-full" id="btn-reports">
-    <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports
-</button>
+    @include('admin.partials.sidebar-nav')
 @endsection
 
 @section('dashboard-content')
@@ -132,64 +118,74 @@
     </div>
 </section>
 
-{{-- USER REGISTRY --}}
-<section id="sec-user-lists" class="content-section hidden">
+{{-- STUDENT REGISTRY --}}
+<section id="sec-students" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-8">
-        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+        <div class="flex flex-col lg:flex-row justify-between lg:items-end mb-6 gap-4">
             <h2 class="text-xl font-orbitron font-bold uppercase">
-                User <span class="text-cyan-400">Database</span>
+                Student <span class="text-cyan-400">Registry</span>
             </h2>
-            <div class="relative w-full sm:w-64">
-                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-                <input type="text" id="admin-search" placeholder="Search email or name..."
-                       class="input-mobile-ultra !py-2">
+            <div class="grid grid-cols-1 sm:grid-cols-[220px_190px] gap-3 w-full lg:w-auto">
+                <input type="search" data-registry-search="students" placeholder="Search student..." class="input-mobile-ultra !py-2 !pl-4">
+                <select id="student-grade-filter" class="input-mobile-ultra !py-2 !pl-4 bg-slate-900 text-white">
+                    <option value="">All grade levels</option>
+                    @for($g = 1; $g <= 6; $g++)
+                        <option value="{{ $g }}" {{ $selectedGrade === $g ? 'selected' : '' }}>Grade {{ $g }}</option>
+                    @endfor
+                </select>
             </div>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full text-left min-w-[500px]">
+            <table class="w-full text-left min-w-[650px]">
                 <thead class="text-slate-500 text-[10px] uppercase border-b border-white/5">
-                    <tr>
-                        <th class="pb-4">Email</th>
-                        <th class="pb-4">Full Name</th>
-                        <th class="pb-4">Role</th>
-                        <th class="pb-4">Actions</th>
-                    </tr>
+                    <tr><th class="pb-4">Email</th><th class="pb-4">Full Name</th><th class="pb-4">Grade Level</th><th class="pb-4 text-right">Action</th></tr>
                 </thead>
-                <tbody id="admin-user-tbody" class="text-sm font-rajdhani text-white">
-                    @foreach($profiles as $p)
-                        @php
-                            $roleColor = match($p['role']) {
-                                'admin'          => 'text-red-500 bg-red-500/10',
-                                'teacher'        => 'text-purple-400 bg-purple-500/10',
-                                'pending_teacher'=> 'text-orange-400 bg-orange-500/10',
-                                default          => 'text-cyan-400 bg-cyan-500/10',
-                            };
-                            $roleLabel = $p['role'] === 'pending_teacher' ? 'Pending' : ucfirst($p['role']);
-                        @endphp
-                        <tr class="border-b border-white/5 hover:bg-white/5 user-row">
+                <tbody class="text-sm font-rajdhani text-white">
+                    @forelse($students as $p)
+                        <tr class="border-b border-white/5 hover:bg-white/5 registry-row" data-registry="students">
                             <td class="py-4 font-mono text-cyan-400">{{ $p['email'] ?? substr($p['id'],0,8) }}</td>
                             <td class="py-4">{{ $p['last_name'] ?? '—' }}, {{ $p['first_name'] ?? '—' }}</td>
-                            <td class="py-4">
-                                <span class="px-2 py-1 rounded text-[9px] font-black uppercase {{ $roleColor }}">
-                                    {{ $roleLabel }}
-                                </span>
-                            </td>
-                            <td class="py-4">
-                                @if($p['role'] === 'admin')
-                                    <span class="text-slate-500 italic text-[10px]">LOCKED_BY_CORE</span>
-                                @else
-                                    <button onclick="openEditModal('{{ $p['id'] }}','{{ addslashes($p['username'] ?? '') }}','{{ $p['role'] }}')"
-                                            class="text-cyan-400 hover:text-white mr-4 text-[10px] font-bold uppercase">
-                                        <i class="fas fa-edit mr-1"></i> Edit
-                                    </button>
-                                    <button onclick="confirmDelete('{{ $p['id'] }}')"
-                                            class="text-red-500 hover:text-white text-[10px] font-bold uppercase">
-                                        <i class="fas fa-trash-alt mr-1"></i> Delete
-                                    </button>
-                                @endif
+                            <td class="py-4 text-cyan-400">Grade {{ $p['grade_level'] ?? 'N/A' }}</td>
+                            <td class="py-4 text-right">
+                                <button onclick='confirmDelete(@json($p["id"]), @json(trim(($p["first_name"] ?? "") . " " . ($p["last_name"] ?? ""))))'
+                                        class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
                             </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No students match this grade filter.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+{{-- TEACHER REGISTRY --}}
+<section id="sec-teachers" class="content-section hidden">
+    <div class="portal-frame !p-6 md:!p-8">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4">
+            <h2 class="text-xl font-orbitron font-bold uppercase">Teacher <span class="text-blue-400">Registry</span></h2>
+            <input type="search" data-registry-search="teachers" placeholder="Search teacher..." class="input-mobile-ultra !py-2 !pl-4 w-full sm:w-64">
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[560px]">
+                <thead class="text-slate-500 text-[10px] uppercase border-b border-white/5">
+                    <tr><th class="pb-4">Email</th><th class="pb-4">Full Name</th><th class="pb-4">Joined</th><th class="pb-4 text-right">Action</th></tr>
+                </thead>
+                <tbody class="text-sm font-rajdhani text-white">
+                    @forelse($teachers as $p)
+                        <tr class="border-b border-white/5 hover:bg-white/5 registry-row" data-registry="teachers">
+                            <td class="py-4 font-mono text-blue-400">{{ $p['email'] ?? substr($p['id'],0,8) }}</td>
+                            <td class="py-4">{{ $p['last_name'] ?? '—' }}, {{ $p['first_name'] ?? '—' }}</td>
+                            <td class="py-4 text-slate-400">{{ isset($p['created_at']) ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y') : 'N/A' }}</td>
+                            <td class="py-4 text-right">
+                                <button onclick='confirmDelete(@json($p["id"]), @json(trim(($p["first_name"] ?? "") . " " . ($p["last_name"] ?? ""))))'
+                                        class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No teachers registered.</td></tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
@@ -405,43 +401,16 @@
 
 @section('modals')
 
-<div id="editUserModal" class="modal-overlay hidden">
-    <div class="portal-frame !p-10 w-full max-w-sm text-center border-cyan-500/30">
-        <i class="fas fa-user-edit text-4xl text-cyan-400 mb-4"></i>
-        <h3 class="font-orbitron font-bold mb-6 uppercase text-white">
-            Edit <span class="text-cyan-400">User</span>
-        </h3>
-        <div class="space-y-4 text-left">
-            <div class="form-group">
-                <label class="input-label">Username</label>
-                <input type="text" id="edit-u-name" class="input-mobile-ultra !pl-4" disabled>
-            </div>
-            <div class="form-group">
-                <label class="input-label">System Role</label>
-                <select id="edit-u-role" class="input-mobile-ultra !pl-4 bg-slate-900 text-white">
-                    <option value="student">Student</option>
-                    <option value="teacher">Teacher</option>
-                    <option value="pending_teacher">Pending Teacher</option>
-                </select>
-            </div>
-        </div>
-        <div class="flex flex-col gap-2 mt-8">
-            <button onclick="saveEditUser()"
-                    class="btn-rect-primary !bg-cyan-500 !text-black uppercase text-xs">Save Changes</button>
-            <button onclick="closeModal('editUserModal')"
-                    class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
-        </div>
-    </div>
-</div>
-
 <div id="deleteUserModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">
         <i class="fas fa-user-minus text-4xl text-red-600 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Delete User?</h3>
+        <p id="delete-user-name" class="text-xs text-slate-400 mb-2"></p>
         <p class="text-[10px] text-slate-500 mb-8 uppercase">This removes the account permanently.</p>
         <div class="flex flex-col gap-2">
-            <button onclick="executeDelete()"
-                    class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Purge User Data</button>
+            <form id="deleteUserForm" method="POST">@csrf @method('DELETE')
+                <button class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Purge User Data</button>
+            </form>
             <button onclick="closeModal('deleteUserModal')"
                     class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
         </div>

@@ -298,6 +298,18 @@ class SupabaseService
         return $this->responseRows($response);
     }
 
+    public function adminInsert(string $table, array $data): array
+    {
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type'  => 'application/json',
+            'Prefer'        => 'return=representation',
+        ])->post("{$this->url}/rest/v1/{$table}", $data);
+
+        return $this->responseRows($response);
+    }
+
     public function adminDelete(string $table, array $filters): bool
     {
         $query = http_build_query(

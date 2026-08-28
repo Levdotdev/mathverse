@@ -46,7 +46,7 @@
     <tbody>
         @forelse($rows as $i => $r)
         @php
-            $accColor = $r['avg_acc'] >= 75 ? '#22c55e' : ($r['avg_acc'] >= 50 ? '#f97316' : '#ef4444');
+            $accColor = $r['avg_acc'] >= 75 ? '#22c55e' : '#ef4444';
         @endphp
         <tr>
             <td class="text-center"><strong>#{{ $i + 1 }}</strong></td>

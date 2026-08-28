@@ -11,10 +11,25 @@ class AdminController extends Controller
 {
     public function __construct(private SupabaseService $supabase) {}
 
-    public function index()
+    public function index(Request $request)
     {
-        $user     = session('supabase_user');
-        $profiles = $this->supabase->adminSelect('profiles', '*', ['order' => 'role.asc']);
+        $user = session('supabase_user');
+        $profiles = $this->supabase->adminSelect('profiles', '*', ['order' => 'last_name.asc,first_name.asc']);
+
+        $selectedGrade = (int) $request->query('grade', 0);
+        if ($selectedGrade < 1 || $selectedGrade > 6) {
+            $selectedGrade = 0;
+        }
+
+        $students = array_values(array_filter(
+            $profiles,
+            fn (array $profile): bool => $profile['role'] === 'student'
+                && ($selectedGrade === 0 || (int) ($profile['grade_level'] ?? 0) === $selectedGrade)
+        ));
+        $teachers = array_values(array_filter(
+            $profiles,
+            fn (array $profile): bool => $profile['role'] === 'teacher'
+        ));
 
         $totalUsers     = count($profiles) - 1;
         $totalTeachers  = count(array_filter($profiles, fn($p) => $p['role'] === 'teacher'));
@@ -25,21 +40,19 @@ class AdminController extends Controller
         $totalQuizzes  = count($quizCountResp);
 
         return view('admin.dashboard', compact(
-            'user', 'profiles', 'totalUsers', 'totalTeachers',
+            'user', 'students', 'teachers', 'selectedGrade', 'totalUsers', 'totalTeachers',
             'totalStudents', 'totalQuizzes', 'pendingTeachers'
         ));
     }
 
-    public function updateUser(Request $request, string $id)
-    {
-        $this->supabase->adminUpdate('profiles', [
-            'username' => $request->username,
-            'role'     => $request->role,
-        ], ['id' => $id]);
-    }
-
     public function deleteUser(string $id)
     {
+        $profile = $this->supabase->adminSelect('profiles', 'role', ['id' => $id])[0] ?? null;
+        if (!$profile || !in_array($profile['role'], ['student', 'teacher'], true)) {
+            return redirect('/admin/dashboard')->with('error', 'Only student and teacher accounts can be deleted here.');
+        }
+        $section = $profile['role'] === 'student' ? 'students' : 'teachers';
+
         // Delete from auth.users — this cascades to profiles automatically
         $response = Http::withHeaders([
             'apikey'        => config('services.supabase.anon_key'),
@@ -48,13 +61,11 @@ class AdminController extends Controller
         ])->delete(config('services.supabase.url') . "/auth/v1/admin/users/{$id}");
 
         if ($response->failed()) {
-            return response()->json([
-                'success' => false,
-                'error'   => $response->json()['msg'] ?? 'Failed to delete user.'
-            ], 500);
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', $response->json()['msg'] ?? 'Failed to delete user.');
         }
 
-        return redirect('/admin/dashboard?section=user-lists')
+        return redirect("/admin/dashboard?section={$section}")
             ->with('success', 'User deleted.');
     }
 
@@ -131,7 +142,11 @@ class AdminController extends Controller
     public function stats()
     {
         // All 3 calls happen as fast as possible — no loops making extra calls
-        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,created_at,session_id');
+        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+            'quiz_results',
+            'correct_answers,total_questions,created_at,session_id,student_id',
+            ['order' => 'created_at.asc']
+        ));
         $quizzes    = $this->supabase->adminSelect('quizzes', 'id,topic,teacher_id,created_at');
         $profiles   = $this->supabase->adminSelect('profiles', 'id,role,created_at');
 
@@ -269,7 +284,11 @@ class AdminController extends Controller
         $format     = $request->query('format', 'pdf');
         $profiles   = $this->supabase->adminSelect('profiles', '*');
         $quizzes    = $this->supabase->adminSelect('quizzes', 'id');
-        $allResults = $this->supabase->adminSelect('quiz_results', 'correct_answers,total_questions,student_id');
+        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+            'quiz_results',
+            'correct_answers,total_questions,student_id,session_id,created_at',
+            ['order' => 'created_at.asc']
+        ));
 
         $students = array_values(array_filter($profiles, fn($p) => $p['role'] === 'student'));
         $teachers = array_values(array_filter($profiles, fn($p) => $p['role'] === 'teacher'));
@@ -329,6 +348,21 @@ class AdminController extends Controller
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('platform-summary-report.pdf');
+    }
+
+    private function firstAttempts(array $results): array
+    {
+        $first = [];
+        foreach ($results as $result) {
+            $sessionId = $result['session_id'] ?? null;
+            $studentId = $result['student_id'] ?? null;
+            if (!$sessionId || !$studentId) {
+                continue;
+            }
+            $first[$sessionId . ':' . $studentId] ??= $result;
+        }
+
+        return array_values($first);
     }
 
     private function downloadCsv(array $rows, array $headers, array $keys, string $filename): \Symfony\Component\HttpFoundation\StreamedResponse

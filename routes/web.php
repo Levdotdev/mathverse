@@ -8,6 +8,7 @@ use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\TeacherClassController;
 use App\Http\Controllers\TeacherQuizController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminQuizController;
 
 Route::pattern('id', '[0-9a-fA-F-]{36}');
 Route::pattern('classId', '[0-9a-fA-F-]{36}');
@@ -29,6 +30,7 @@ Route::middleware('auth.supabase:student')->group(function () {
     Route::get('/student/dashboard', [StudentController::class, 'index']);
     Route::post('/student/classes/join', [StudentClassController::class, 'join']);
     Route::get('/student/classes/{id}', [StudentClassController::class, 'show']);
+    Route::get('/student/classes/{classId}/quizzes/{sessionId}/review', [StudentClassController::class, 'review']);
     Route::post('/student/profile', [StudentController::class, 'updateProfile']);
 });
 
@@ -49,6 +51,8 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::get('/teacher/classes/{id}/settings', [TeacherClassController::class, 'settings']);
     Route::put('/teacher/classes/{id}/settings', [TeacherClassController::class, 'updateSettings']);
     Route::post('/teacher/classes/{id}/regenerate-code', [TeacherClassController::class, 'regenerateCode']);
+    Route::post('/teacher/classes/{id}/archive', [TeacherClassController::class, 'archive']);
+    Route::post('/teacher/classes/{id}/restore', [TeacherClassController::class, 'restore']);
     Route::delete('/teacher/classes/{id}', [TeacherClassController::class, 'destroy']);
     Route::delete('/teacher/classes/{classId}/students/{studentId}', [TeacherClassController::class, 'removeStudent']);
     Route::get('/teacher/classes/{classId}/quizzes/{sessionId}/lobby', [TeacherClassController::class, 'lobby']);
@@ -63,8 +67,10 @@ Route::middleware('auth.supabase:teacher')->group(function () {
 // Admin routes
 Route::middleware('auth.supabase:admin')->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'index']);
-    Route::put('/admin/user/{id}', [AdminController::class, 'updateUser']);
     Route::delete('/admin/user/{id}', [AdminController::class, 'deleteUser']);
+    Route::get('/admin/quizzes', [AdminQuizController::class, 'index']);
+    Route::post('/admin/quizzes', [AdminQuizController::class, 'store']);
+    Route::delete('/admin/quizzes/{id}', [AdminQuizController::class, 'destroy']);
     Route::post('/admin/approve-teacher/{id}', [AdminController::class, 'approveTeacher']);
     Route::delete('/admin/deny-teacher/{id}', [AdminController::class, 'denyTeacher']);
     Route::post('/admin/profile', [AdminController::class, 'updateProfile']);

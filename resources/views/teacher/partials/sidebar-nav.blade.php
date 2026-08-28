@@ -2,7 +2,6 @@
     $activePage = $activePage ?? match (request()->query('section', 'overview')) {
         'classes' => 'classes',
         'stats' => 'analytics',
-        'reports' => 'reports',
         default => 'dashboard',
     };
 @endphp
@@ -29,9 +28,4 @@
    id="btn-stats"
    class="nav-link w-full {{ $activePage === 'analytics' ? 'active' : '' }}">
     <i class="fas fa-chart-bar mr-3 w-5 text-pink-400"></i> Analytics
-</a>
-<a href="/teacher/dashboard?section=reports"
-   id="btn-reports"
-   class="nav-link w-full {{ $activePage === 'reports' ? 'active' : '' }}">
-    <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports
 </a>

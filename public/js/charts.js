@@ -215,7 +215,7 @@ async function loadTeacherStats() {
 
         // Draw charts after content is painted
         requestAnimationFrame(() => requestAnimationFrame(() => {
-            destroyCharts(['chart-attempts', 'chart-distribution', 'chart-quiz-accuracy']);
+            destroyCharts(['chart-attempts', 'chart-distribution', 'chart-class-accuracy']);
 
             buildLineChart(
                 'chart-attempts',
@@ -237,18 +237,18 @@ async function loadTeacherStats() {
                 ]
             );
 
-            if (data.quizAccuracy && data.quizAccuracy.length > 0) {
+            if (data.classAccuracy && data.classAccuracy.length > 0) {
                 buildBarChart(
-                    'chart-quiz-accuracy',
-                    data.quizAccuracy.map(q => q.topic),
-                    data.quizAccuracy.map(q => q.accuracy),
+                    'chart-class-accuracy',
+                    data.classAccuracy.map(item => item.class_name),
+                    data.classAccuracy.map(item => item.accuracy),
                     'Avg Accuracy %',
                     CHART_DEFAULTS.color.purple
                 );
             } else {
-                const canvas = document.getElementById('chart-quiz-accuracy');
+                const canvas = document.getElementById('chart-class-accuracy');
                 if (canvas) canvas.insertAdjacentHTML('afterend',
-                    '<p class="text-slate-500 text-xs text-center mt-4 uppercase tracking-widest">No quiz attempts yet.</p>'
+                    '<p class="text-slate-500 text-xs text-center mt-4 uppercase tracking-widest">No active class attempts yet.</p>'
                 );
             }
         }));

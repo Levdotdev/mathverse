@@ -53,7 +53,10 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         @forelse($openSessions as $session)
-            @php $isActive = ($session['status'] ?? 'waiting') === 'active'; @endphp
+            @php
+                $isActive = ($session['status'] ?? 'waiting') === 'active';
+                $alreadyTaken = !empty($session['result']);
+            @endphp
             <article class="portal-frame !p-6 border-l-4 {{ $isActive ? 'border-green-500' : 'border-yellow-500' }}">
                 <div class="flex items-start justify-between gap-4">
                     <div>
@@ -65,6 +68,12 @@
                     </div>
                     <i class="fas fa-vr-cardboard text-2xl {{ $isActive ? 'text-green-400' : 'text-yellow-400' }} opacity-70"></i>
                 </div>
+                @if($alreadyTaken)
+                    <div class="mt-6 p-4 rounded bg-green-500/10 border border-green-500/30">
+                        <p class="text-xs text-green-400 font-bold uppercase"><i class="fas fa-check-circle mr-2"></i>Attempt recorded</p>
+                        <p class="text-[10px] text-slate-400 mt-1">Only your first attempt counts for this assignment.</p>
+                    </div>
+                @else
                 <div class="mt-6 p-4 rounded bg-black/40 border border-cyan-500/20 flex items-center justify-between gap-4">
                     <div>
                         <p class="text-[9px] text-slate-500 uppercase tracking-widest">VR Quiz Code</p>
@@ -74,6 +83,7 @@
                             class="w-11 h-11 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-black transition-all"
                             title="Copy VR code"><i class="fas fa-copy"></i></button>
                 </div>
+                @endif
             </article>
         @empty
             <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase tracking-widest lg:col-span-2">
@@ -85,7 +95,7 @@
 
 <section class="mb-10">
     <h2 class="text-lg font-orbitron font-bold uppercase mb-5">My Class <span class="text-cyan-400">Analytics</span></h2>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <div class="portal-frame !p-5 border-l-2 border-purple-500">
             <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Quizzes Taken</p>
             <p class="text-2xl font-orbitron mt-1">{{ $analytics['attempts'] }}</p>
@@ -98,6 +108,39 @@
             <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Best Accuracy</p>
             <p class="text-2xl font-orbitron mt-1">{{ $analytics['best'] }}%</p>
         </div>
+        <div class="portal-frame !p-5 border-l-2 border-red-500">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Missed</p>
+            <p class="text-2xl font-orbitron mt-1">{{ $analytics['missed'] }}</p>
+        </div>
+        <div class="portal-frame !p-5 border-l-2 border-emerald-500">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Passed</p>
+            <p class="text-2xl font-orbitron mt-1">{{ $analytics['passed'] }}</p>
+        </div>
+        <div class="portal-frame !p-5 border-l-2 border-orange-500">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Failed</p>
+            <p class="text-2xl font-orbitron mt-1">{{ $analytics['failed'] }}</p>
+        </div>
+    </div>
+</section>
+
+<section class="mb-10">
+    <h2 class="text-lg font-orbitron font-bold uppercase mb-5">Class <span class="text-yellow-400">Leaderboard</span></h2>
+    <div class="portal-frame !p-5 overflow-x-auto">
+        <table class="w-full min-w-[520px] text-left">
+            <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Rank</th><th class="pb-4">Student</th><th class="pb-4">Quizzes</th><th class="pb-4">Average Accuracy</th></tr></thead>
+            <tbody class="text-sm">
+                @forelse($leaderboard as $row)
+                    <tr class="border-b border-white/5 {{ $row['student_id'] === $user['id'] ? 'bg-cyan-500/5' : '' }}">
+                        <td class="py-4 font-mono text-yellow-400">#{{ $row['rank'] }}</td>
+                        <td class="py-4 font-bold">{{ $row['name'] }} {{ $row['student_id'] === $user['id'] ? '(You)' : '' }}</td>
+                        <td class="py-4 text-slate-400">{{ $row['quizzes'] }}</td>
+                        <td class="py-4 {{ $row['average'] >= 75 ? 'text-green-400' : 'text-red-400' }} font-bold">{{ $row['average'] }}%</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No quiz results yet.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
     </div>
 </section>
 
@@ -108,7 +151,7 @@
             @php
                 $result = $session['result'];
                 $accuracy = $result['accuracy'] ?? null;
-                $accuracyColor = $accuracy === null ? 'text-slate-500' : ($accuracy >= 75 ? 'text-green-400' : ($accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'));
+                $accuracyColor = $accuracy === null ? 'text-slate-500' : ($accuracy >= 75 ? 'text-green-400' : 'text-red-400');
             @endphp
             <article class="portal-frame !p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -116,15 +159,18 @@
                     <h3 class="font-bold text-lg text-white mt-1">{{ $session['topic'] }}</h3>
                     <p class="text-[10px] text-slate-500 mt-1">{{ $session['time_limit'] }} seconds per question</p>
                 </div>
+                <div class="flex items-center gap-4">
                 @if($result)
                     <div class="text-left sm:text-right">
                         <p class="font-bold text-cyan-400">{{ $result['correct_answers'] }} / {{ $result['total_questions'] }}</p>
-                        <p class="text-sm font-black {{ $accuracyColor }}">{{ $accuracy }}% Accuracy</p>
+                        <p class="text-sm font-black {{ $accuracyColor }}">{{ $accuracy >= 75 ? 'Passed' : 'Failed' }} · {{ $accuracy }}%</p>
                         <p class="text-[9px] text-slate-600 mt-1">{{ \Carbon\Carbon::parse($result['created_at'])->format('M d, Y') }}</p>
                     </div>
                 @else
-                    <p class="text-xs text-slate-500 uppercase font-bold">No attempt recorded</p>
+                    <p class="text-xs text-red-400 uppercase font-bold">Missed</p>
                 @endif
+                    <a href="/student/classes/{{ $class['id'] }}/quizzes/{{ $session['id'] }}/review" class="btn-rect-secondary !py-2 !px-3 !w-auto text-[9px]">Review</a>
+                </div>
             </article>
         @empty
             <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase tracking-widest">No past quizzes yet.</div>

@@ -67,13 +67,14 @@ async function openResults(classId, sessionId, topic) {
             const total = Number(result.total_questions ?? 0);
             const correct = Number(result.correct_answers ?? 0);
             const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-            const color = accuracy >= 75 ? 'text-green-400' : (accuracy >= 50 ? 'text-yellow-400' : 'text-red-400');
+            const color = accuracy >= 75 ? 'text-green-400' : 'text-red-400';
+            const status = accuracy >= 75 ? 'Passed' : 'Failed';
             const name = `${profile.last_name ?? 'Unknown'}, ${profile.first_name ?? 'Unknown'}`;
 
             return `<tr class="border-b border-white/5">
                 <td class="py-4 font-bold">${escapeClassroomHtml(name)}</td>
                 <td class="py-4 text-cyan-400 font-mono">${correct} / ${total}</td>
-                <td class="py-4 font-bold ${color}">${accuracy}%</td>
+                <td class="py-4 font-bold ${color}">${status} · ${accuracy}%</td>
                 <td class="py-4 text-slate-500 text-xs">${new Date(result.created_at).toLocaleDateString()}</td>
             </tr>`;
         }).join('');

@@ -185,6 +185,29 @@
     </div>
 </section>
 
+<section class="mb-10">
+    <h2 class="text-lg font-orbitron font-bold uppercase mb-5">Class <span class="text-yellow-400">Leaderboard</span></h2>
+    <p class="text-xs text-slate-500 mb-4">Ranked by average quiz accuracy, then total correct answers. Trophies are not used.</p>
+    <div class="portal-frame !p-5 overflow-x-auto">
+        <table class="w-full min-w-[560px] text-left">
+            <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Rank</th><th class="pb-4">Student</th><th class="pb-4">Quizzes</th><th class="pb-4">Avg Accuracy</th><th class="pb-4">Total Correct</th></tr></thead>
+            <tbody class="text-sm">
+                @forelse($leaderboard as $row)
+                    <tr class="border-b border-white/5">
+                        <td class="py-4 font-mono text-yellow-400">#{{ $row['rank'] }}</td>
+                        <td class="py-4 font-bold">{{ $row['name'] }}</td>
+                        <td class="py-4 text-slate-400">{{ $row['quizzes'] }}</td>
+                        <td class="py-4 {{ $row['average'] >= 75 ? 'text-green-400' : 'text-red-400' }} font-bold">{{ $row['average'] }}%</td>
+                        <td class="py-4 text-cyan-400">{{ $row['correct'] }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs uppercase">No student quiz results yet.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</section>
+
 <section>
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <div>
