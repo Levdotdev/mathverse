@@ -1,8 +1,8 @@
 let editingQuizId = null;
 let questionIndex = 0;
 
-function quizBasePath() {
-    return window.quizBasePath || '/teacher/quizzes';
+function getQuizBasePath() {
+    return window.quizRoutesBasePath || '/teacher/quizzes';
 }
 
 async function loadQuizBuilder(quizId = null) {
@@ -19,13 +19,13 @@ async function loadQuizBuilder(quizId = null) {
     builder.innerHTML = '';
 
     if (quizId) {
-        form.action = `${quizBasePath()}/${quizId}`;
+        form.action = `${getQuizBasePath()}/${quizId}`;
         method.innerHTML = '<input type="hidden" name="_method" value="PUT">';
         title.innerHTML = 'Edit <span class="text-purple-400">Quiz</span>';
         saveButton.innerHTML = '<i class="fas fa-check-circle mr-2"></i> Update Quiz';
 
         try {
-            const response = await fetch(`${quizBasePath()}/${quizId}`);
+            const response = await fetch(`${getQuizBasePath()}/${quizId}`);
             if (!response.ok) throw new Error('Quiz could not be loaded.');
             const data = await response.json();
 
@@ -48,7 +48,7 @@ async function loadQuizBuilder(quizId = null) {
             return;
         }
     } else {
-        form.action = quizBasePath();
+        form.action = getQuizBasePath();
         method.innerHTML = '';
         title.innerHTML = 'Create <span class="text-purple-400">Quiz</span>';
         saveButton.innerHTML = '<i class="fas fa-save mr-2"></i> Save Quiz';
@@ -177,7 +177,7 @@ function openAssignQuiz(quizId, topic, grade) {
 }
 
 function openDeleteQuizModal(quizId, topic) {
-    document.getElementById('deleteQuizForm').action = `${quizBasePath()}/${quizId}`;
+    document.getElementById('deleteQuizForm').action = `${getQuizBasePath()}/${quizId}`;
     document.getElementById('delete-quiz-topic').textContent = topic;
     openModal('deleteQuizModal');
 }

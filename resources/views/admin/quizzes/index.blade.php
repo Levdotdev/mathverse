@@ -111,7 +111,7 @@
 @endsection
 
 @push('scripts')
-<script>window.quizBasePath = '/admin/quizzes';</script>
+<script>window.quizRoutesBasePath = '/admin/quizzes';</script>
 <script src="{{ asset('js/teacher-quizzes.js') }}"></script>
 @if($errors->any())<script>document.addEventListener('DOMContentLoaded', () => loadQuizBuilder());</script>@endif
 @endpush
