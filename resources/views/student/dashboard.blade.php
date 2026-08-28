@@ -263,8 +263,8 @@
                                 <i class="fas fa-upload mr-2"></i> Choose Photo
                             </label>
                             <input type="file" id="avatar-input" name="avatar"
-                                accept="image/*" class="hidden" onchange="previewAvatar(this)">
-                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • Less than 5 MB</p>
+                                accept="image/*" class="hidden">
+                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • Less than 3 MB</p>
                         </div>
                     </div>
                 </div>

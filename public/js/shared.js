@@ -98,7 +98,8 @@ document.addEventListener('DOMContentLoaded', () => {
     showSection(section || fallback);
 });
 
-const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_AVATAR_SIZE_BYTES = 3_000_000;
+const AVATAR_SIZE_ERROR = 'The selected image must be less than 3 MB.';
 let oversizedAvatarInput = null;
 
 function avatarExceedsSizeLimit(file) {
@@ -113,7 +114,7 @@ function showAvatarSizeModal(input) {
     const fileDetails = document.getElementById('image-size-file');
 
     if (fileDetails) {
-        const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
+        const sizeInMb = (file.size / 1_000_000).toFixed(2);
         fileDetails.innerText = `${file.name} (${sizeInMb} MB)`;
     }
 
@@ -125,6 +126,7 @@ function validateAvatarSize(input) {
 
     if (!file || !avatarExceedsSizeLimit(file)) {
         input.removeAttribute('aria-invalid');
+        input.setCustomValidity('');
         if (oversizedAvatarInput === input) {
             oversizedAvatarInput = null;
         }
@@ -132,6 +134,7 @@ function validateAvatarSize(input) {
     }
 
     input.setAttribute('aria-invalid', 'true');
+    input.setCustomValidity(AVATAR_SIZE_ERROR);
     showAvatarSizeModal(input);
     return false;
 }
@@ -148,6 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('input[type="file"][name="avatar"]').forEach(input => {
         const form = input.closest('form');
         if (!form) return;
+
+        input.addEventListener('change', () => previewAvatar(input));
 
         form.addEventListener('submit', event => {
             if (!validateAvatarSize(input)) {

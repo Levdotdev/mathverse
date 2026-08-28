@@ -1,31 +1,30 @@
 @extends('layouts.dashboard')
 
 @section('title', 'Shared Quiz Library')
-@section('sidebar-subtitle', 'Instructional Hub')
+@section('sidebar-border', 'border-red-500/20')
+@section('sidebar-subtitle', 'System Administrator')
+@section('sidebar-subtitle-color', 'text-red-500/60')
+@section('accent-color', 'text-red-500')
 @section('mobile-title', 'Quiz Library')
 
 @section('sidebar-nav')
-    @include('teacher.partials.sidebar-nav', ['activePage' => 'library'])
+    @include('admin.partials.sidebar-nav', ['activePage' => 'library'])
 @endsection
 
 @section('dashboard-content')
 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
     <div>
-        <h2 class="text-xl md:text-2xl font-orbitron font-bold uppercase">
+        <h1 class="text-xl md:text-2xl font-orbitron font-bold uppercase">
             Shared Quiz <span class="text-blue-400">Library</span>
-        </h2>
-        <p class="text-xs text-slate-500 mt-2">Search reusable quizzes created by other MathVerse teachers.</p>
+        </h1>
+        <p class="text-xs text-slate-500 mt-2">Review or delete quizzes shared by teachers. Admin-authored quizzes remain on the separate VR Quiz Bees page.</p>
     </div>
-    <a href="/teacher/quizzes{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
-       class="btn-rect-secondary !py-3 !px-5 text-center lg:!w-auto">
+    <a href="/admin/quizzes" class="btn-rect-secondary !py-3 !px-5 text-center lg:!w-auto">
         <i class="fas fa-arrow-left mr-2"></i> My Quizzes
     </a>
 </div>
 
-<form method="GET" action="/teacher/quiz-library" class="portal-frame !p-5 mb-8">
-    @if($preferredClassId)
-        <input type="hidden" name="class_id" value="{{ $preferredClassId }}">
-    @endif
+<form method="GET" action="/admin/quiz-library" class="portal-frame !p-5 mb-8">
     <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto] gap-4 items-end">
         <div class="form-group">
             <label class="input-label">Search Topic Keywords</label>
@@ -45,7 +44,7 @@
                 @endfor
             </select>
         </div>
-        <button type="submit" class="btn-rect-primary !py-3 md:mb-0">
+        <button type="submit" class="btn-rect-primary !bg-red-600 !text-white !py-3">
             <i class="fas fa-search mr-2"></i> Search
         </button>
     </div>
@@ -56,7 +55,7 @@
         {{ number_format($total) }} {{ Str::plural('quiz', $total) }} found
     </p>
     @if($search !== '' || $grade !== null)
-        <a href="/teacher/quiz-library{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
+        <a href="/admin/quiz-library"
            class="text-[10px] text-blue-400 uppercase font-bold hover:text-white">Clear Filters</a>
     @endif
 </div>
@@ -71,7 +70,7 @@
                     {{ $groupGrade }}
                 </span>
                 <div>
-                    <h3 class="font-orbitron font-bold uppercase">Grade {{ $groupGrade }}</h3>
+                    <h2 class="font-orbitron font-bold uppercase">Grade {{ $groupGrade }}</h2>
                     <p class="text-[10px] text-slate-500">{{ count($quizzesByGrade[$groupGrade]) }} on this page</p>
                 </div>
             </div>
@@ -79,7 +78,7 @@
                 @foreach($quizzesByGrade[$groupGrade] as $quiz)
                     <article class="portal-frame !p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-500/50 transition-colors">
                         <div class="min-w-0">
-                            <h4 class="font-bold text-lg text-white truncate">{{ $quiz['topic'] }}</h4>
+                            <h3 class="font-bold text-lg text-white truncate">{{ $quiz['topic'] }}</h3>
                             <p class="text-[10px] text-slate-500 mt-1">
                                 By {{ $quiz['creator_name'] }} · {{ $quiz['question_count'] }} questions
                             </p>
@@ -87,9 +86,9 @@
                                 Updated {{ \Carbon\Carbon::parse($quiz['updated_at'] ?? $quiz['created_at'])->format('M d, Y') }}
                             </p>
                         </div>
-                        <button onclick='openAssignQuiz(@json($quiz["id"]), @json($quiz["topic"]), {{ $quiz["grade_level"] }})'
-                                class="btn-rect-primary !py-2 !px-4 sm:!w-auto shrink-0">
-                            <i class="fas fa-chalkboard-teacher mr-2"></i> Assign
+                        <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
+                                class="btn-rect-secondary !py-2 !px-4 sm:!w-auto shrink-0 !border-red-500/30 text-red-400">
+                            <i class="fas fa-trash-alt mr-2"></i> Delete
                         </button>
                     </article>
                 @endforeach
@@ -101,7 +100,7 @@
 @if($visibleCount === 0)
     <div class="portal-frame !p-12 text-center">
         <i class="fas fa-search text-4xl text-slate-700 mb-4"></i>
-        <p class="text-slate-400 font-bold">No matching quizzes found.</p>
+        <p class="text-slate-400 font-bold">No matching shared quizzes found.</p>
         <p class="text-xs text-slate-600 mt-2">Try a different topic keyword or grade.</p>
     </div>
 @endif
@@ -111,17 +110,16 @@
         $baseQuery = array_filter([
             'search' => $search ?: null,
             'grade' => $grade,
-            'class_id' => $preferredClassId,
         ], fn($value) => $value !== null && $value !== '');
     @endphp
-    <nav class="flex items-center justify-center gap-4 mt-10" aria-label="Quiz library pages">
+    <nav class="flex items-center justify-center gap-4 mt-10" aria-label="Admin quiz library pages">
         @if($page > 1)
-            <a href="/teacher/quiz-library?{{ http_build_query($baseQuery + ['page' => $page - 1]) }}"
+            <a href="/admin/quiz-library?{{ http_build_query($baseQuery + ['page' => $page - 1]) }}"
                class="btn-rect-secondary !py-2 !px-5 !w-auto"><i class="fas fa-chevron-left mr-2"></i> Previous</a>
         @endif
         <span class="text-[10px] text-slate-500 uppercase tracking-widest">Page {{ $page }} of {{ $totalPages }}</span>
         @if($page < $totalPages)
-            <a href="/teacher/quiz-library?{{ http_build_query($baseQuery + ['page' => $page + 1]) }}"
+            <a href="/admin/quiz-library?{{ http_build_query($baseQuery + ['page' => $page + 1]) }}"
                class="btn-rect-secondary !py-2 !px-5 !w-auto">Next <i class="fas fa-chevron-right ml-2"></i></a>
         @endif
     </nav>
@@ -129,10 +127,36 @@
 @endsection
 
 @section('modals')
-    @include('teacher.quizzes.assign-modal')
-    @include('teacher.partials.logout-modal')
+<div id="deleteQuizModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
+        <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
+        <h3 class="font-orbitron font-bold uppercase">Delete Shared Quiz?</h3>
+        <p id="delete-quiz-topic" class="text-xs text-slate-400 my-4"></p>
+        <p class="text-[10px] text-slate-500 mb-8">Existing class assignments and results remain available.</p>
+        <form id="deleteQuizForm" method="POST">
+            @csrf
+            @method('DELETE')
+            <input type="hidden" name="return_to" value="library">
+            <input type="hidden" name="search" value="{{ $search }}">
+            <input type="hidden" name="grade" value="{{ $grade ?? '' }}">
+            <input type="hidden" name="page" value="{{ $page }}">
+            <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz</button>
+        </form>
+        <button onclick="closeModal('deleteQuizModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+    </div>
+</div>
+
+<div id="logoutModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/30">
+        <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
+        <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
+        <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
+        <button onclick="closeModal('logoutModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
+<script>window.quizRoutesBasePath = '/admin/quizzes';</script>
 <script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
 @endpush

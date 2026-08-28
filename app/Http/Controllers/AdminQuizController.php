@@ -12,32 +12,76 @@ class AdminQuizController extends Controller
     public function index(Request $request)
     {
         $user = session('supabase_user');
-        $search = trim(mb_substr((string) $request->query('search', ''), 0, 80));
-        $grade = (int) $request->query('grade', 0);
-        $grade = ($grade >= 1 && $grade <= 6) ? $grade : null;
+        [$search, $grade, $safeSearch] = $this->quizFilters($request);
 
-        $filters = ['order' => 'grade_level.asc,created_at.desc'];
+        $filters = [
+            'teacher_id' => $user['id'],
+            'order' => 'grade_level.asc,created_at.desc',
+        ];
         if ($grade !== null) {
             $filters['grade_level'] = $grade;
         }
-
-        $safeSearch = trim(str_replace(['*', '%'], '', $search));
         if ($safeSearch !== '') {
             $filters['topic'] = ['operator' => 'ilike', 'value' => "*{$safeSearch}*"];
         }
 
         $quizzes = $this->supabase->adminSelect('quizzes', '*', $filters);
-        $creatorNames = $this->creatorNames(array_column($quizzes, 'teacher_id'));
         $questionCounts = $this->questionCounts(array_column($quizzes, 'id'));
 
         foreach ($quizzes as &$quiz) {
-            $quiz['creator_name'] = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
             $quiz['question_count'] = $questionCounts[$quiz['id']] ?? 0;
-            $quiz['owned_by_admin'] = $quiz['teacher_id'] === $user['id'];
         }
         unset($quiz);
 
         return view('admin.quizzes.index', compact('user', 'quizzes', 'search', 'grade'));
+    }
+
+    public function library(Request $request)
+    {
+        $user = session('supabase_user');
+        [$search, $grade, $safeSearch] = $this->quizFilters($request);
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = 24;
+
+        $filters = [
+            'teacher_id' => ['operator' => 'neq', 'value' => $user['id']],
+            'order' => 'grade_level.asc,created_at.desc',
+        ];
+        if ($grade !== null) {
+            $filters['grade_level'] = $grade;
+        }
+        if ($safeSearch !== '') {
+            $filters['topic'] = ['operator' => 'ilike', 'value' => "*{$safeSearch}*"];
+        }
+
+        $result = $this->supabase->adminSelectPage(
+            'quizzes',
+            '*',
+            $filters,
+            $perPage,
+            ($page - 1) * $perPage
+        );
+        $quizzes = $result['data'];
+        $total = $result['total'];
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        if ($page > $totalPages && $total > 0) {
+            return redirect()->to($request->fullUrlWithQuery(['page' => $totalPages]));
+        }
+
+        $creatorNames = $this->creatorNames(array_column($quizzes, 'teacher_id'));
+        $questionCounts = $this->questionCounts(array_column($quizzes, 'id'));
+        $quizzesByGrade = array_fill(1, 6, []);
+
+        foreach ($quizzes as &$quiz) {
+            $quiz['creator_name'] = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
+            $quiz['question_count'] = $questionCounts[$quiz['id']] ?? 0;
+            $quizzesByGrade[(int) $quiz['grade_level']][] = $quiz;
+        }
+        unset($quiz);
+
+        return view('admin.quizzes.library', compact(
+            'user', 'quizzesByGrade', 'search', 'grade', 'page', 'total', 'totalPages'
+        ));
     }
 
     public function store(Request $request)
@@ -85,18 +129,19 @@ class AdminQuizController extends Controller
         return redirect('/admin/quizzes')->with('success', 'Admin quiz created in the shared library.');
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
+        $destination = $this->quizDestination($request);
         $quiz = $this->supabase->adminSelect('quizzes', 'id', ['id' => $id])[0] ?? null;
         if (!$quiz) {
-            return redirect('/admin/quizzes')->with('error', 'Quiz not found.');
+            return redirect($destination)->with('error', 'Quiz not found.');
         }
 
         if (!$this->supabase->adminDelete('quizzes', ['id' => $id])) {
-            return redirect('/admin/quizzes')->with('error', 'The quiz could not be deleted.');
+            return redirect($destination)->with('error', 'The quiz could not be deleted.');
         }
 
-        return redirect('/admin/quizzes')
+        return redirect($destination)
             ->with('success', 'Quiz removed from the shared library. Existing class assignments were preserved.');
     }
 
@@ -111,6 +156,33 @@ class AdminQuizController extends Controller
             'questions.*.options.*' => 'required|string|max:500',
             'questions.*.correct' => 'required|integer|between:0,3',
         ]);
+    }
+
+    private function quizFilters(Request $request): array
+    {
+        $search = trim(mb_substr((string) $request->query('search', ''), 0, 80));
+        $grade = (int) $request->query('grade', 0);
+        $grade = ($grade >= 1 && $grade <= 6) ? $grade : null;
+        $safeSearch = trim(str_replace(['*', '%'], '', $search));
+
+        return [$search, $grade, $safeSearch];
+    }
+
+    private function quizDestination(Request $request): string
+    {
+        $base = $request->input('return_to') === 'library'
+            ? '/admin/quiz-library'
+            : '/admin/quizzes';
+        $search = trim(mb_substr((string) $request->input('search', ''), 0, 80));
+        $grade = (int) $request->input('grade', 0);
+        $page = max(1, (int) $request->input('page', 1));
+        $query = array_filter([
+            'search' => $search,
+            'grade' => ($grade >= 1 && $grade <= 6) ? $grade : null,
+            'page' => $page > 1 ? $page : null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        return $base . ($query === [] ? '' : '?' . http_build_query($query));
     }
 
     private function creatorNames(array $ids): array

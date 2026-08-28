@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Http;
 
 class SupabaseService
 {
+    private const MAX_AVATAR_SIZE_BYTES = 3_000_000;
+
     private string $url;
     private string $anonKey;
     private string $serviceKey;
@@ -71,7 +73,10 @@ class SupabaseService
 
     public function uploadAvatar(string $userId, $file): ?string
     {
-        if (!$file) return null;
+        if (!$file || !$file->isValid()) return null;
+
+        $size = $file->getSize();
+        if (!is_int($size) || $size >= self::MAX_AVATAR_SIZE_BYTES) return null;
 
         $ext      = $file->getClientOriginalExtension();
         $mime     = $file->getMimeType();

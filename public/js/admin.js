@@ -6,6 +6,28 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll(`.registry-row[data-registry="${registry}"]`).forEach(row => {
                 row.style.display = row.innerText.toLowerCase().includes(term) ? '' : 'none';
             });
+            syncRegistryClearButton(registry);
+        });
+    });
+
+    document.querySelectorAll('[data-registry-clear]').forEach(button => {
+        button.addEventListener('click', () => {
+            const registry = button.dataset.registryClear;
+            const search = document.querySelector(`[data-registry-search="${registry}"]`);
+            const grade = registry === 'students'
+                ? document.getElementById('student-grade-filter')
+                : null;
+
+            if (grade?.value) {
+                window.location.href = '/admin/dashboard?section=students';
+                return;
+            }
+
+            if (search) {
+                search.value = '';
+                search.dispatchEvent(new Event('input'));
+            }
+            syncRegistryClearButton(registry);
         });
     });
 
@@ -27,7 +49,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (requested === 'stats' && typeof loadAdminStats === 'function') {
         requestAnimationFrame(() => requestAnimationFrame(() => loadAdminStats()));
     }
+
+    syncRegistryClearButton('students');
+    syncRegistryClearButton('teachers');
 });
+
+function syncRegistryClearButton(registry) {
+    const search = document.querySelector(`[data-registry-search="${registry}"]`);
+    const grade = registry === 'students'
+        ? document.getElementById('student-grade-filter')
+        : null;
+    const button = document.querySelector(`[data-registry-clear="${registry}"]`);
+    const hasFilters = Boolean(search?.value.trim() || grade?.value);
+
+    button?.classList.toggle('hidden', !hasFilters);
+}
 
 function confirmDelete(id, name) {
     document.getElementById('deleteUserForm').action = `/admin/user/${id}`;

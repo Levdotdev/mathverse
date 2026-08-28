@@ -28,6 +28,45 @@
         </div>
     </div>
 
+    <form method="GET" action="/teacher/quizzes" class="portal-frame !p-5 mb-6">
+        @if($preferredClassId)
+            <input type="hidden" name="class_id" value="{{ $preferredClassId }}">
+        @endif
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto] gap-4 items-end">
+            <div class="form-group">
+                <label class="input-label">Search Topic Keywords</label>
+                <div class="relative">
+                    <i class="fas fa-search input-icon"></i>
+                    <input type="search" name="search" value="{{ $search }}" maxlength="80"
+                           placeholder="e.g. fractions, geometry, multiplication"
+                           class="input-mobile-ultra">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="input-label">Grade Level</label>
+                <select name="grade" class="input-mobile-ultra !pl-4 bg-slate-900 text-white">
+                    <option value="">All Grades</option>
+                    @for($itemGrade = 1; $itemGrade <= 6; $itemGrade++)
+                        <option value="{{ $itemGrade }}" {{ $grade === $itemGrade ? 'selected' : '' }}>Grade {{ $itemGrade }}</option>
+                    @endfor
+                </select>
+            </div>
+            <button type="submit" class="btn-rect-primary !py-3">
+                <i class="fas fa-search mr-2"></i> Search
+            </button>
+        </div>
+    </form>
+
+    <div class="flex justify-between items-center gap-4 mb-5">
+        <p class="text-[10px] text-slate-500 uppercase tracking-widest">
+            {{ count($quizzes) }} {{ Str::plural('quiz', count($quizzes)) }} found
+        </p>
+        @if($search !== '' || $grade !== null)
+            <a href="/teacher/quizzes{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
+               class="text-[10px] text-purple-400 uppercase font-bold hover:text-white">Clear Filters</a>
+        @endif
+    </div>
+
     <div class="space-y-4">
         @forelse($quizzes as $quiz)
             <article class="portal-frame !p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-5 hover:border-purple-500/50 transition-colors">
@@ -61,8 +100,10 @@
             </article>
         @empty
             <div class="portal-frame !p-10 text-center">
-                <i class="fas fa-scroll text-4xl text-slate-700 mb-4"></i>
-                <p class="text-slate-500 uppercase text-xs tracking-widest">You have not created a quiz yet.</p>
+                <i class="fas fa-search text-4xl text-slate-700 mb-4"></i>
+                <p class="text-slate-500 uppercase text-xs tracking-widest">
+                    {{ $search !== '' || $grade !== null ? 'No quizzes match these filters.' : 'You have not created a quiz yet.' }}
+                </p>
             </div>
         @endforelse
     </div>
@@ -138,7 +179,7 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/teacher-quizzes.js') }}"></script>
+<script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
 @if($errors->any())
 <script>document.addEventListener('DOMContentLoaded', () => loadQuizBuilder());</script>
 @endif

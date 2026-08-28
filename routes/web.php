@@ -69,6 +69,7 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'index']);
     Route::delete('/admin/user/{id}', [AdminController::class, 'deleteUser']);
     Route::get('/admin/quizzes', [AdminQuizController::class, 'index']);
+    Route::get('/admin/quiz-library', [AdminQuizController::class, 'library']);
     Route::post('/admin/quizzes', [AdminQuizController::class, 'store']);
     Route::delete('/admin/quizzes/{id}', [AdminQuizController::class, 'destroy']);
     Route::post('/admin/approve-teacher/{id}', [AdminController::class, 'approveTeacher']);

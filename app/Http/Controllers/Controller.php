@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 abstract class Controller
 {
-    protected const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+    protected const MAX_AVATAR_SIZE_BYTES = 3_000_000;
 
     protected function rejectOversizedAvatar(Request $request, ?string $redirectTo = null): ?RedirectResponse
     {
@@ -24,7 +24,7 @@ abstract class Controller
 
             return $redirect->with(
                 'image_size_error',
-                'The selected image must be less than 5 MB. Please choose a smaller image.'
+                'The selected image must be less than 3 MB. Please choose a smaller image.'
             );
         }
 

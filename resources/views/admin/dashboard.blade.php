@@ -125,7 +125,7 @@
             <h2 class="text-xl font-orbitron font-bold uppercase">
                 Student <span class="text-cyan-400">Registry</span>
             </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-[220px_190px] gap-3 w-full lg:w-auto">
+            <div class="grid grid-cols-1 sm:grid-cols-[220px_190px_auto] gap-3 w-full lg:w-auto">
                 <input type="search" data-registry-search="students" placeholder="Search student..." class="input-mobile-ultra !py-2 !pl-4">
                 <select id="student-grade-filter" class="input-mobile-ultra !py-2 !pl-4 bg-slate-900 text-white">
                     <option value="">All grade levels</option>
@@ -133,6 +133,10 @@
                         <option value="{{ $g }}" {{ $selectedGrade === $g ? 'selected' : '' }}>Grade {{ $g }}</option>
                     @endfor
                 </select>
+                <button type="button" data-registry-clear="students"
+                        class="btn-rect-secondary !py-2 !px-4 !text-[10px] {{ $selectedGrade === 0 ? 'hidden' : '' }}">
+                    Clear Filters
+                </button>
             </div>
         </div>
         <div class="overflow-x-auto">
@@ -165,7 +169,13 @@
     <div class="portal-frame !p-6 md:!p-8">
         <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4">
             <h2 class="text-xl font-orbitron font-bold uppercase">Teacher <span class="text-blue-400">Registry</span></h2>
-            <input type="search" data-registry-search="teachers" placeholder="Search teacher..." class="input-mobile-ultra !py-2 !pl-4 w-full sm:w-64">
+            <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <input type="search" data-registry-search="teachers" placeholder="Search teacher..." class="input-mobile-ultra !py-2 !pl-4 w-full sm:w-64">
+                <button type="button" data-registry-clear="teachers"
+                        class="btn-rect-secondary !py-2 !px-4 !text-[10px] hidden">
+                    Clear Filters
+                </button>
+            </div>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-left min-w-[560px]">
@@ -308,8 +318,8 @@
                                 <i class="fas fa-upload mr-2"></i> Choose Photo
                             </label>
                             <input type="file" id="avatar-input" name="avatar"
-                                accept="image/*" class="hidden" onchange="previewAvatar(this)">
-                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • Less than 5 MB</p>
+                                accept="image/*" class="hidden">
+                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • Less than 3 MB</p>
                         </div>
                     </div>
                 </div>
@@ -436,7 +446,7 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="{{ asset('js/admin.js') }}"></script>
+<script src="{{ asset('js/admin.js') }}?v={{ filemtime(public_path('js/admin.js')) }}"></script>
 <script src="{{ asset('js/charts.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {

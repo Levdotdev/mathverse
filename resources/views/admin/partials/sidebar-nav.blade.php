@@ -10,7 +10,11 @@
 </a>
 <a href="/admin/quizzes"
    class="nav-link w-full {{ $activePage === 'quizzes' ? 'active' : '' }}">
-    <i class="fas fa-book-open mr-3 w-5 text-purple-400"></i> Shared Quizzes
+    <i class="fas fa-vr-cardboard mr-3 w-5 text-purple-400"></i> VR Quiz Bees
+</a>
+<a href="/admin/quiz-library"
+   class="nav-link w-full {{ $activePage === 'library' ? 'active' : '' }}">
+    <i class="fas fa-book-open mr-3 w-5 text-blue-400"></i> Quiz Library
 </a>
 <a href="/admin/dashboard?section=students" id="btn-students"
    class="nav-link w-full {{ $activePage === 'students' ? 'active' : '' }}">

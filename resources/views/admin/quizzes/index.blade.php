@@ -1,11 +1,11 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Shared Quiz Administration')
+@section('title', 'Admin VR Quiz Bees')
 @section('sidebar-border', 'border-red-500/20')
 @section('sidebar-subtitle', 'System Administrator')
 @section('sidebar-subtitle-color', 'text-red-500/60')
 @section('accent-color', 'text-red-500')
-@section('mobile-title', 'Shared Quizzes')
+@section('mobile-title', 'My Quizzes')
 
 @section('sidebar-nav')
     @include('admin.partials.sidebar-nav', ['activePage' => 'quizzes'])
@@ -15,24 +15,50 @@
 <div id="quiz-list-container">
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
         <div>
-            <h1 class="text-xl md:text-2xl font-orbitron font-bold uppercase">Shared Quiz <span class="text-purple-400">Database</span></h1>
-            <p class="text-xs text-slate-500 mt-2">Create admin-authored quizzes or remove any quiz from the shared library. Admins cannot assign quizzes.</p>
+            <h1 class="text-xl md:text-2xl font-orbitron font-bold uppercase">My VR Quiz <span class="text-purple-400">Bees</span></h1>
+            <p class="text-xs text-slate-500 mt-2">Create and manage admin-authored quizzes. Admin quizzes cannot be assigned to classes by an admin.</p>
         </div>
-        <button onclick="loadQuizBuilder()" class="btn-rect-primary !py-3 sm:!w-auto px-6 !bg-red-600 !text-white">
-            <i class="fas fa-plus mr-2"></i> Add Quiz
-        </button>
+        <div class="flex flex-col sm:flex-row gap-3">
+            <a href="/admin/quiz-library" class="btn-rect-secondary !py-3 !px-5 text-center sm:!w-auto">
+                <i class="fas fa-book-open mr-2"></i> Shared Library
+            </a>
+            <button onclick="loadQuizBuilder()" class="btn-rect-primary !py-3 sm:!w-auto px-6 !bg-red-600 !text-white">
+                <i class="fas fa-plus mr-2"></i> Create Quiz
+            </button>
+        </div>
     </div>
 
-    <form method="GET" action="/admin/quizzes" class="portal-frame !p-4 mb-6 grid grid-cols-1 sm:grid-cols-[1fr_190px_auto] gap-3">
-        <input type="search" name="search" value="{{ $search }}" placeholder="Search quiz topic..." class="input-mobile-ultra !pl-4">
-        <select name="grade" class="input-mobile-ultra !pl-4 bg-slate-900 text-white">
-            <option value="">All grade levels</option>
-            @for($g = 1; $g <= 6; $g++)
-                <option value="{{ $g }}" {{ $grade === $g ? 'selected' : '' }}>Grade {{ $g }}</option>
-            @endfor
-        </select>
-        <button class="btn-rect-secondary !py-3 !px-5"><i class="fas fa-search mr-2"></i> Filter</button>
+    <form method="GET" action="/admin/quizzes" class="portal-frame !p-5 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto] gap-4 items-end">
+            <div class="form-group">
+                <label class="input-label">Search Topic Keywords</label>
+                <div class="relative">
+                    <i class="fas fa-search input-icon"></i>
+                    <input type="search" name="search" value="{{ $search }}" maxlength="80"
+                           placeholder="e.g. fractions, geometry, multiplication" class="input-mobile-ultra">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="input-label">Grade Level</label>
+                <select name="grade" class="input-mobile-ultra !pl-4 bg-slate-900 text-white">
+                    <option value="">All Grades</option>
+                    @for($g = 1; $g <= 6; $g++)
+                        <option value="{{ $g }}" {{ $grade === $g ? 'selected' : '' }}>Grade {{ $g }}</option>
+                    @endfor
+                </select>
+            </div>
+            <button class="btn-rect-primary !bg-red-600 !text-white !py-3 !px-5"><i class="fas fa-search mr-2"></i> Search</button>
+        </div>
     </form>
+
+    <div class="flex justify-between items-center gap-4 mb-5">
+        <p class="text-[10px] text-slate-500 uppercase tracking-widest">
+            {{ count($quizzes) }} {{ Str::plural('quiz', count($quizzes)) }} found
+        </p>
+        @if($search !== '' || $grade !== null)
+            <a href="/admin/quizzes" class="text-[10px] text-purple-400 uppercase font-bold hover:text-white">Clear Filters</a>
+        @endif
+    </div>
 
     <div class="space-y-4">
         @forelse($quizzes as $quiz)
@@ -42,7 +68,7 @@
                     <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold uppercase tracking-widest">
                         <span class="text-purple-300 bg-purple-500/10 px-2 py-1 rounded">Grade {{ $quiz['grade_level'] }}</span>
                         <span class="text-slate-400 bg-white/5 px-2 py-1 rounded">{{ $quiz['question_count'] }} Questions</span>
-                        <span class="{{ $quiz['owned_by_admin'] ? 'text-red-300' : 'text-cyan-400' }} px-1 py-1">By {{ $quiz['creator_name'] }}</span>
+                        <span class="text-slate-500 px-1 py-1">{{ \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y') }}</span>
                     </div>
                 </div>
                 <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
@@ -51,7 +77,9 @@
                 </button>
             </article>
         @empty
-            <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase tracking-widest">No quizzes match these filters.</div>
+            <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase tracking-widest">
+                {{ $search !== '' || $grade !== null ? 'No quizzes match these filters.' : 'You have not created an admin quiz yet.' }}
+            </div>
         @endforelse
     </div>
 </div>
@@ -90,10 +118,13 @@
 <div id="deleteQuizModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
         <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
-        <h3 class="font-orbitron font-bold uppercase">Delete Shared Quiz?</h3>
+        <h3 class="font-orbitron font-bold uppercase">Delete Your Quiz?</h3>
         <p id="delete-quiz-topic" class="text-xs text-slate-400 my-4"></p>
         <p class="text-[10px] text-slate-500 mb-8">Existing class assignments and results remain available.</p>
         <form id="deleteQuizForm" method="POST">@csrf @method('DELETE')
+            <input type="hidden" name="return_to" value="quizzes">
+            <input type="hidden" name="search" value="{{ $search }}">
+            <input type="hidden" name="grade" value="{{ $grade ?? '' }}">
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz</button>
         </form>
         <button onclick="closeModal('deleteQuizModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
@@ -112,6 +143,6 @@
 
 @push('scripts')
 <script>window.quizRoutesBasePath = '/admin/quizzes';</script>
-<script src="{{ asset('js/teacher-quizzes.js') }}"></script>
+<script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
 @if($errors->any())<script>document.addEventListener('DOMContentLoaded', () => loadQuizBuilder());</script>@endif
 @endpush

@@ -12,10 +12,23 @@ class TeacherQuizController extends Controller
     public function index(Request $request)
     {
         $user = session('supabase_user');
+        [$search, $grade, $safeSearch] = $this->quizFilters($request);
+        $filters = [
+            'teacher_id' => $user['id'],
+            'order' => 'grade_level.asc,created_at.desc',
+        ];
+
+        if ($grade !== null) {
+            $filters['grade_level'] = $grade;
+        }
+        if ($safeSearch !== '') {
+            $filters['topic'] = ['operator' => 'ilike', 'value' => "*{$safeSearch}*"];
+        }
+
         $quizzes = $this->supabase->adminSelect(
             'quizzes',
             '*',
-            ['teacher_id' => $user['id'], 'order' => 'created_at.desc']
+            $filters
         );
 
         $questionCounts = $this->questionCounts(array_column($quizzes, 'id'));
@@ -28,16 +41,14 @@ class TeacherQuizController extends Controller
         $preferredClassId = $this->preferredClassId($request, $classes);
 
         return view('teacher.quizzes.index', compact(
-            'user', 'quizzes', 'classes', 'preferredClassId'
+            'user', 'quizzes', 'classes', 'preferredClassId', 'search', 'grade'
         ));
     }
 
     public function library(Request $request)
     {
         $user = session('supabase_user');
-        $search = trim(mb_substr((string) $request->query('search', ''), 0, 80));
-        $grade = (int) $request->query('grade', 0);
-        $grade = ($grade >= 1 && $grade <= 6) ? $grade : null;
+        [$search, $grade, $safeSearch] = $this->quizFilters($request);
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 24;
 
@@ -50,7 +61,6 @@ class TeacherQuizController extends Controller
             $filters['grade_level'] = $grade;
         }
 
-        $safeSearch = trim(str_replace(['*', '%'], '', $search));
         if ($safeSearch !== '') {
             $filters['topic'] = ['operator' => 'ilike', 'value' => "*{$safeSearch}*"];
         }
@@ -302,6 +312,16 @@ class TeacherQuizController extends Controller
             'questions.*.options.*' => 'required|string|max:500',
             'questions.*.correct' => 'required|integer|between:0,3',
         ]);
+    }
+
+    private function quizFilters(Request $request): array
+    {
+        $search = trim(mb_substr((string) $request->query('search', ''), 0, 80));
+        $grade = (int) $request->query('grade', 0);
+        $grade = ($grade >= 1 && $grade <= 6) ? $grade : null;
+        $safeSearch = trim(str_replace(['*', '%'], '', $search));
+
+        return [$search, $grade, $safeSearch];
     }
 
     private function saveTemplateQuestions(
