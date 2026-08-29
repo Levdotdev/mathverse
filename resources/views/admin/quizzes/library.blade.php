@@ -17,7 +17,7 @@
         <h1 class="text-xl md:text-2xl font-orbitron font-bold uppercase">
             Shared Quiz <span class="text-blue-400">Library</span>
         </h1>
-        <p class="text-xs text-slate-500 mt-2">Review or delete quizzes shared by teachers.</p>
+        <p class="text-xs text-slate-500 mt-2">Review, edit, verify, or delete quizzes shared by teachers.</p>
     </div>
     <a href="/admin/quizzes" class="btn-rect-secondary !py-3 !px-5 text-center lg:!w-auto">
         <i class="fas fa-arrow-left mr-2"></i> My Quizzes
@@ -25,7 +25,7 @@
 </div>
 
 <form method="GET" action="/admin/quiz-library" class="portal-frame !p-5 mb-8">
-    <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto] gap-4 items-end">
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto_auto_auto] gap-4 items-end">
         <div class="form-group">
             <label class="input-label">Search Topic Keywords</label>
             <div class="relative">
@@ -35,6 +35,14 @@
                        class="input-mobile-ultra">
             </div>
         </div>
+        <label class="flex items-center gap-3 min-h-[48px] px-4 rounded border border-white/10 bg-black/20 cursor-pointer">
+            <input type="checkbox" name="verified" value="1" class="w-4 h-4 accent-green-500" {{ $verifiedOnly ? 'checked' : '' }}>
+            <span class="text-[10px] text-slate-300 uppercase font-bold whitespace-nowrap">Verified only</span>
+        </label>
+        <label class="flex items-center gap-3 min-h-[48px] px-4 rounded border border-white/10 bg-black/20 cursor-pointer">
+            <input type="checkbox" name="reported" value="1" class="w-4 h-4 accent-red-500" {{ $reportedOnly ? 'checked' : '' }}>
+            <span class="text-[10px] text-slate-300 uppercase font-bold whitespace-nowrap">Active reports</span>
+        </label>
         <div class="form-group">
             <label class="input-label">Grade Level</label>
             <select name="grade" class="input-mobile-ultra !pl-4 bg-slate-900 text-white">
@@ -54,7 +62,7 @@
     <p class="text-[10px] text-slate-500 uppercase tracking-widest">
         {{ number_format($total) }} {{ Str::plural('quiz', $total) }} found
     </p>
-    @if($search !== '' || $grade !== null)
+    @if($search !== '' || $grade !== null || $verifiedOnly || $reportedOnly)
         <a href="/admin/quiz-library"
            class="text-[10px] text-blue-400 uppercase font-bold hover:text-white">Clear Filters</a>
     @endif
@@ -89,7 +97,7 @@
                                     <span class="text-slate-500"><i class="far fa-circle mr-1"></i>Unverified</span>
                                 @endif
                                 <span class="text-yellow-400"><i class="fas fa-star mr-1"></i>{{ number_format((float) ($quiz['rating_average'] ?? 0), 1) }} ({{ (int) ($quiz['rating_count'] ?? 0) }})</span>
-                                <span class="text-cyan-400"><i class="fas fa-layer-group mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} uses</span>
+                                <span class="text-cyan-400"><i class="fas fa-users mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} class uses</span>
                                 @if(($quiz['pending_report_count'] ?? 0) > 0)
                                     <span class="text-red-400"><i class="fas fa-flag mr-1"></i>{{ $quiz['pending_report_count'] }} pending</span>
                                 @endif
@@ -129,6 +137,8 @@
         $baseQuery = array_filter([
             'search' => $search ?: null,
             'grade' => $grade,
+            'verified' => $verifiedOnly ? 1 : null,
+            'reported' => $reportedOnly ? 1 : null,
         ], fn($value) => $value !== null && $value !== '');
     @endphp
     <nav class="flex items-center justify-center gap-4 mt-10" aria-label="Admin quiz library pages">
@@ -159,6 +169,8 @@
             <input type="hidden" name="search" value="{{ $search }}">
             <input type="hidden" name="grade" value="{{ $grade ?? '' }}">
             <input type="hidden" name="page" value="{{ $page }}">
+            <input type="hidden" name="verified" value="{{ $verifiedOnly ? 1 : '' }}">
+            <input type="hidden" name="reported" value="{{ $reportedOnly ? 1 : '' }}">
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz</button>
         </form>
         <button onclick="closeModal('deleteQuizModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>

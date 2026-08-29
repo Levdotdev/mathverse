@@ -15,6 +15,7 @@ Route::pattern('classId', '[0-9a-fA-F-]{36}');
 Route::pattern('studentId', '[0-9a-fA-F-]{36}');
 Route::pattern('sessionId', '[0-9a-fA-F-]{36}');
 Route::pattern('reportId', '[0-9a-fA-F-]{36}');
+Route::pattern('version', '[1-9][0-9]*');
 
 // Auth routes
 Route::get('/',       [AuthController::class, 'showLogin'])->name('login');
@@ -42,12 +43,13 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::get('/teacher/quizzes', [TeacherQuizController::class, 'index']);
     Route::get('/teacher/quiz-library', [TeacherQuizController::class, 'library']);
     Route::get('/teacher/quiz-library/{id}/review', [TeacherQuizController::class, 'review']);
-    Route::post('/teacher/quiz-library/{id}/copy-and-assign', [TeacherQuizController::class, 'copyAndAssign']);
+    Route::post('/teacher/quiz-library/{id}/assign', [TeacherQuizController::class, 'assignShared']);
     Route::post('/teacher/quiz-library/{id}/bookmark', [TeacherQuizController::class, 'toggleBookmark']);
     Route::post('/teacher/quiz-library/{id}/rating', [TeacherQuizController::class, 'rate']);
     Route::post('/teacher/quiz-library/{id}/report', [TeacherQuizController::class, 'report']);
     Route::post('/teacher/quizzes', [TeacherQuizController::class, 'store']);
     Route::get('/teacher/quizzes/{id}/versions', [TeacherQuizController::class, 'versions']);
+    Route::post('/teacher/quizzes/{id}/versions/{version}/restore', [TeacherQuizController::class, 'restoreVersion']);
     Route::get('/teacher/quizzes/{id}', [TeacherQuizController::class, 'show']);
     Route::put('/teacher/quizzes/{id}', [TeacherQuizController::class, 'update']);
     Route::delete('/teacher/quizzes/{id}', [TeacherQuizController::class, 'destroy']);
@@ -62,9 +64,9 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::post('/teacher/classes/{id}/restore', [TeacherClassController::class, 'restore']);
     Route::delete('/teacher/classes/{id}', [TeacherClassController::class, 'destroy']);
     Route::delete('/teacher/classes/{classId}/students/{studentId}', [TeacherClassController::class, 'removeStudent']);
-    Route::put('/teacher/classes/{classId}/students/{studentId}/accommodation', [TeacherClassController::class, 'updateAccommodation']);
     Route::get('/teacher/classes/{classId}/quizzes/{sessionId}/lobby', [TeacherClassController::class, 'lobby']);
     Route::get('/teacher/classes/{classId}/quizzes/{sessionId}/results', [TeacherClassController::class, 'results']);
+    Route::put('/teacher/classes/{classId}/quizzes/{sessionId}', [TeacherClassController::class, 'updateAssignment']);
     Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/start', [TeacherClassController::class, 'start']);
     Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/end', [TeacherClassController::class, 'end']);
     Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/students/{studentId}/retake', [TeacherClassController::class, 'grantRetake']);
@@ -83,10 +85,12 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::get('/admin/quizzes', [AdminQuizController::class, 'index']);
     Route::get('/admin/quiz-library', [AdminQuizController::class, 'library']);
     Route::get('/admin/quiz-library/{id}/review', [AdminQuizController::class, 'review']);
+    Route::put('/admin/quiz-library/{id}', [AdminQuizController::class, 'updateReviewed']);
     Route::post('/admin/quiz-library/{id}/verify', [AdminQuizController::class, 'toggleVerified']);
     Route::post('/admin/quiz-library/{id}/reports/{reportId}', [AdminQuizController::class, 'resolveReport']);
     Route::post('/admin/quizzes', [AdminQuizController::class, 'store']);
     Route::get('/admin/quizzes/{id}/versions', [AdminQuizController::class, 'versions']);
+    Route::post('/admin/quizzes/{id}/versions/{version}/restore', [AdminQuizController::class, 'restoreVersion']);
     Route::get('/admin/quizzes/{id}', [AdminQuizController::class, 'show']);
     Route::put('/admin/quizzes/{id}', [AdminQuizController::class, 'update']);
     Route::delete('/admin/quizzes/{id}', [AdminQuizController::class, 'destroy']);

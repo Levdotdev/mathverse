@@ -277,16 +277,25 @@ class AdminController extends Controller
             return $avatarSizeError;
         }
 
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+        ]);
+
         $user  = session('supabase_user');
         $token = session('supabase_token');
         $userId = $user['id'];
 
         // ── UPDATE BASIC INFO
-        $this->supabase->update('profiles', [
-            'first_name'  => $request->first_name,
-            'last_name'   => $request->last_name,
+        $profileUpdated = $this->supabase->update('profiles', [
+            'first_name'  => $validated['first_name'],
+            'last_name'   => $validated['last_name'],
             'grade_level' => 0,
         ], ['id' => $userId], $token);
+        if (!isset($profileUpdated[0]['id'])) {
+            return redirect('/admin/dashboard?section=profile')
+                ->with('error', 'The profile could not be updated.');
+        }
 
         // ── UPLOAD AVATAR (USE SAME USER ID)
         $avatarUrl = null;
@@ -304,8 +313,8 @@ class AdminController extends Controller
 
         // ── UPDATE SESSION
         $updated = session('supabase_user');
-        $updated['first_name']  = $request->first_name;
-        $updated['last_name']   = $request->last_name;
+        $updated['first_name']  = $validated['first_name'];
+        $updated['last_name']   = $validated['last_name'];
         $updated['grade_level'] = 0;
 
         if ($avatarUrl) {
@@ -313,6 +322,10 @@ class AdminController extends Controller
         }
 
         session(['supabase_user' => $updated]);
+
+        $this->supabase->audit($updated, 'profile.updated', 'profile', $userId, [
+            'avatar_changed' => $avatarUrl !== null,
+        ]);
 
         return redirect('/admin/dashboard?section=profile')->with('success', 'Profile updated successfully!');
     }

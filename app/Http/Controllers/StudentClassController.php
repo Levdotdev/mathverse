@@ -61,7 +61,7 @@ class StudentClassController extends Controller
             return redirect('/student/dashboard?section=class')->with('error', 'This class has been archived by the teacher.');
         }
 
-        $this->expirePastDueSessions($id);
+        $this->advanceScheduledSessions($id);
 
         $customization = $this->supabase->adminSelect(
             'class_customizations', '*', ['class_id' => $id]
@@ -92,7 +92,7 @@ class StudentClassController extends Controller
 
         $eligibilityRows = empty($sessionIds) ? [] : $this->supabase->adminSelect(
             'quiz_session_students',
-            'session_id,eligibility_status,allowed_attempts,additional_time_seconds,excuse_reason,retake_due_at',
+            'session_id,eligibility_status,allowed_attempts,excuse_reason,retake_due_at',
             [
                 'student_id' => $user['id'],
                 'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
@@ -338,8 +338,32 @@ class StudentClassController extends Controller
         return $rows;
     }
 
-    private function expirePastDueSessions(string $classId): void
+    private function advanceScheduledSessions(string $classId): void
     {
+        $scheduled = $this->supabase->adminSelect(
+            'quiz_sessions',
+            'id,topic,available_at,status',
+            [
+                'class_id' => $classId,
+                'status' => 'waiting',
+                'available_at' => ['operator' => 'lte', 'value' => now()->utc()->toIso8601String()],
+            ]
+        );
+        foreach ($scheduled as $session) {
+            $updated = $this->supabase->adminUpdate('quiz_sessions', [
+                'status' => 'active',
+                'is_active' => true,
+                'started_at' => $session['available_at'] ?? now()->toIso8601String(),
+            ], ['id' => $session['id'], 'status' => 'waiting']);
+            if (isset($updated[0]['id'])) {
+                $this->supabase->audit(['role' => 'system'], 'quiz.auto_started', 'quiz_session', $session['id'], [
+                    'class_id' => $classId,
+                    'topic' => $session['topic'] ?? null,
+                    'available_at' => $session['available_at'] ?? null,
+                ]);
+            }
+        }
+
         $sessions = $this->supabase->adminSelect('quiz_sessions', 'id,topic,due_at,status', [
             'class_id' => $classId,
             'due_at' => ['operator' => 'lte', 'value' => now()->utc()->toIso8601String()],

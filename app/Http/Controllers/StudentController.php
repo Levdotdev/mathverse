@@ -264,6 +264,12 @@ class StudentController extends Controller
         }
         session(['supabase_user' => $updated]);
 
+        $this->supabase->audit($updated, 'profile.updated', 'profile', $userId, [
+            'grade_before' => $user['grade_level'] ?? null,
+            'grade_after' => $newGrade,
+            'avatar_changed' => $avatarUrl !== null,
+        ]);
+
         return redirect('/student/dashboard?section=profile')->with('success', 'Profile updated successfully!');
     }
 }

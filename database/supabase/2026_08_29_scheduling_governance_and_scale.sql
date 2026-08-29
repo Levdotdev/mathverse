@@ -1,5 +1,5 @@
 -- MathVerse assignment scheduling, fair attempts, library governance, audit,
--- accessibility preferences, and scale indexes.
+-- version restoration, and scale indexes.
 -- Run after 2026_08_28_archived_classes_and_single_attempts.sql.
 
 begin;
@@ -20,7 +20,11 @@ alter table public.quiz_sessions
 
 update public.quiz_sessions
 set assigned_at = coalesce(assigned_at, created_at, timezone('utc', now())),
-    available_at = coalesce(available_at, created_at, timezone('utc', now())),
+    available_at = case
+        when status in ('active', 'completed')
+            then coalesce(available_at, created_at, timezone('utc', now()))
+        else available_at
+    end,
     started_at = case
         when status = 'active' then coalesce(started_at, created_at, timezone('utc', now()))
         when status = 'completed' then coalesce(started_at, created_at, timezone('utc', now()))
@@ -39,21 +43,13 @@ set assigned_at = coalesce(assigned_at, created_at, timezone('utc', now())),
 alter table public.quiz_sessions
     alter column assigned_at set default timezone('utc', now()),
     alter column assigned_at set not null,
-    alter column available_at set default timezone('utc', now());
+    alter column available_at drop default;
 
-do $$
-begin
-    if not exists (
-        select 1 from pg_constraint
-        where conname = 'quiz_sessions_schedule_check'
-          and conrelid = 'public.quiz_sessions'::regclass
-    ) then
-        alter table public.quiz_sessions
-            add constraint quiz_sessions_schedule_check
-            check (due_at is null or due_at > coalesce(available_at, assigned_at));
-    end if;
-end
-$$;
+alter table public.quiz_sessions
+    drop constraint if exists quiz_sessions_schedule_check;
+alter table public.quiz_sessions
+    add constraint quiz_sessions_schedule_check
+    check (due_at is null or due_at > coalesce(available_at, assigned_at));
 
 alter table public.quizzes
     add column if not exists visibility text not null default 'shared',
@@ -203,21 +199,19 @@ end
 $$;
 
 -- -------------------------------------------------------------------------
--- Per-student eligibility, accommodations, and retained retake history
+-- Per-student eligibility and retained retake history
 -- -------------------------------------------------------------------------
 
-create table if not exists public.class_member_accommodations (
-    class_id uuid not null references public.classes(id) on delete cascade,
-    student_id uuid not null references public.profiles(id) on delete cascade,
-    additional_time_seconds integer not null default 0
-        check (additional_time_seconds between 0 and 3600),
-    notes text check (notes is null or char_length(notes) <= 500),
-    updated_by uuid references public.profiles(id) on delete set null,
-    updated_at timestamp with time zone not null default timezone('utc', now()),
-    primary key (class_id, student_id),
-    foreign key (student_id, class_id)
-        references public.class_members(student_id, class_id) on delete cascade
-);
+-- Remove the former extended-time feature on reruns of an earlier draft.
+do $$
+begin
+    if to_regclass('public.class_member_accommodations') is not null then
+        execute 'drop trigger if exists class_member_accommodation_propagation on public.class_member_accommodations';
+    end if;
+end
+$$;
+drop function if exists public.propagate_member_accommodation();
+drop table if exists public.class_member_accommodations;
 
 create table if not exists public.quiz_session_students (
     session_id uuid not null references public.quiz_sessions(id) on delete cascade,
@@ -225,8 +219,6 @@ create table if not exists public.quiz_session_students (
     eligibility_status text not null default 'eligible'
         check (eligibility_status in ('eligible', 'excused')),
     allowed_attempts integer not null default 1 check (allowed_attempts >= 0),
-    additional_time_seconds integer not null default 0
-        check (additional_time_seconds between 0 and 3600),
     eligible_at timestamp with time zone not null default timezone('utc', now()),
     excused_at timestamp with time zone,
     excused_by uuid references public.profiles(id) on delete set null,
@@ -237,6 +229,9 @@ create table if not exists public.quiz_session_students (
     retake_reason text check (retake_reason is null or char_length(retake_reason) <= 500),
     primary key (session_id, student_id)
 );
+
+alter table public.quiz_session_students
+    drop column if exists additional_time_seconds;
 
 alter table public.quiz_results
     add column if not exists attempt_number integer,
@@ -279,8 +274,7 @@ create unique index if not exists quiz_results_one_counted_attempt_idx
 -- Existing completed assignments are frozen at the number of attempts already
 -- stored. Open assignments allow one initial attempt.
 insert into public.quiz_session_students (
-    session_id, student_id, eligibility_status, allowed_attempts,
-    additional_time_seconds, eligible_at
+    session_id, student_id, eligibility_status, allowed_attempts, eligible_at
 )
 select
     qs.id,
@@ -296,12 +290,9 @@ select
             where qr.session_id = qs.id and qr.student_id = cm.student_id
         ))
     end,
-    coalesce(cma.additional_time_seconds, 0),
     greatest(cm.joined_at, qs.assigned_at)
 from public.quiz_sessions qs
 join public.class_members cm on cm.class_id = qs.class_id
-left join public.class_member_accommodations cma
-    on cma.class_id = cm.class_id and cma.student_id = cm.student_id
 where cm.joined_at <= coalesce(qs.ended_at, qs.due_at, timezone('utc', now()))
 on conflict (session_id, student_id) do nothing;
 
@@ -334,17 +325,12 @@ begin
         return new;
     end if;
 
-    insert into public.quiz_session_students (
-        session_id, student_id, additional_time_seconds, eligible_at
-    )
+    insert into public.quiz_session_students (session_id, student_id, eligible_at)
     select
         new.id,
         cm.student_id,
-        coalesce(cma.additional_time_seconds, 0),
         coalesce(new.assigned_at, timezone('utc', now()))
     from public.class_members cm
-    left join public.class_member_accommodations cma
-        on cma.class_id = cm.class_id and cma.student_id = cm.student_id
     where cm.class_id = new.class_id
     on conflict (session_id, student_id) do nothing;
 
@@ -364,17 +350,12 @@ security definer
 set search_path = public
 as $$
 begin
-    insert into public.quiz_session_students (
-        session_id, student_id, additional_time_seconds, eligible_at
-    )
+    insert into public.quiz_session_students (session_id, student_id, eligible_at)
     select
         qs.id,
         new.student_id,
-        coalesce(cma.additional_time_seconds, 0),
         coalesce(new.joined_at, timezone('utc', now()))
     from public.quiz_sessions qs
-    left join public.class_member_accommodations cma
-        on cma.class_id = new.class_id and cma.student_id = new.student_id
     where qs.class_id = new.class_id
       and qs.status in ('waiting', 'active')
       and (qs.due_at is null or qs.due_at > timezone('utc', now()))
@@ -447,31 +428,6 @@ create trigger class_members_revoke_quiz_eligibility
 after delete on public.class_members
 for each row execute function public.revoke_member_open_quiz_eligibility();
 
-create or replace function public.propagate_member_accommodation()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-    update public.quiz_session_students qss
-    set additional_time_seconds = new.additional_time_seconds
-    from public.quiz_sessions qs
-    where qss.session_id = qs.id
-      and qs.class_id = new.class_id
-      and qss.student_id = new.student_id
-      and qs.status in ('waiting', 'active');
-    return new;
-end;
-$$;
-
-drop trigger if exists class_member_accommodation_propagation
-    on public.class_member_accommodations;
-create trigger class_member_accommodation_propagation
-after insert or update of additional_time_seconds
-on public.class_member_accommodations
-for each row execute function public.propagate_member_accommodation();
-
 create or replace function public.freeze_completed_assignment_attempts()
 returns trigger
 language plpgsql
@@ -511,10 +467,29 @@ declare
 begin
     select * into assignment
     from public.quiz_sessions
-    where id = new.session_id;
+    where id = new.session_id
+    for update;
 
-    if assignment.id is null or assignment.status <> 'active' or not assignment.is_active then
-        raise exception 'This quiz assignment is not active';
+    if assignment.id is null then
+        raise exception 'This quiz assignment does not exist';
+    end if;
+
+    if assignment.status = 'waiting'
+       and assignment.available_at is not null
+       and assignment.available_at <= timezone('utc', now())
+       and (assignment.due_at is null or assignment.due_at > timezone('utc', now())) then
+        update public.quiz_sessions
+        set status = 'active',
+            is_active = true,
+            started_at = coalesce(started_at, available_at, timezone('utc', now()))
+        where id = assignment.id;
+        assignment.status := 'active';
+        assignment.is_active := true;
+        assignment.started_at := coalesce(
+            assignment.started_at,
+            assignment.available_at,
+            timezone('utc', now())
+        );
     end if;
 
     if exists (
@@ -532,6 +507,10 @@ begin
     if assignment.due_at is not null
        and assignment.due_at <= timezone('utc', now()) then
         raise exception 'This quiz assignment is past due';
+    end if;
+
+    if assignment.status <> 'active' or not assignment.is_active then
+        raise exception 'This quiz assignment is not active';
     end if;
 
     select * into eligibility
@@ -725,6 +704,37 @@ create trigger quiz_ratings_refresh_summary
 after insert or update or delete on public.quiz_ratings
 for each row execute function public.refresh_quiz_rating_summary();
 
+create or replace function public.auto_verify_admin_quiz()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if exists (
+        select 1 from public.profiles
+        where id = new.teacher_id and role = 'admin'
+    ) then
+        new.verified_at := coalesce(new.verified_at, timezone('utc', now()));
+        new.verified_by := coalesce(new.verified_by, new.teacher_id);
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists quizzes_auto_verify_admin on public.quizzes;
+create trigger quizzes_auto_verify_admin
+before insert or update of teacher_id, verified_at, verified_by on public.quizzes
+for each row execute function public.auto_verify_admin_quiz();
+
+update public.quizzes quizzes
+set verified_at = coalesce(quizzes.verified_at, timezone('utc', now())),
+    verified_by = coalesce(quizzes.verified_by, quizzes.teacher_id)
+where exists (
+    select 1 from public.profiles
+    where profiles.id = quizzes.teacher_id and profiles.role = 'admin'
+);
+
 create or replace function public.refresh_source_quiz_usage()
 returns trigger
 language plpgsql
@@ -735,16 +745,20 @@ begin
     if tg_op in ('UPDATE', 'DELETE') and old.source_quiz_id is not null then
         update public.quizzes
         set usage_count = (
-            select count(*)::integer from public.quizzes copies
-            where copies.source_quiz_id = old.source_quiz_id
+            select count(*)::integer
+            from public.quiz_sessions assignments
+            where assignments.source_quiz_id = old.source_quiz_id
+              and assignments.class_id is not null
         )
         where id = old.source_quiz_id;
     end if;
     if tg_op in ('INSERT', 'UPDATE') and new.source_quiz_id is not null then
         update public.quizzes
         set usage_count = (
-            select count(*)::integer from public.quizzes copies
-            where copies.source_quiz_id = new.source_quiz_id
+            select count(*)::integer
+            from public.quiz_sessions assignments
+            where assignments.source_quiz_id = new.source_quiz_id
+              and assignments.class_id is not null
         )
         where id = new.source_quiz_id;
     end if;
@@ -755,15 +769,28 @@ begin
 end;
 $$;
 
+-- Older drafts created personal quiz copies before assignment. Attribute those
+-- existing class sessions to the original shared quiz without changing their
+-- frozen session questions.
+update public.quiz_sessions assignments
+set source_quiz_id = copies.source_quiz_id
+from public.quizzes copies
+where assignments.source_quiz_id = copies.id
+  and assignments.class_id is not null
+  and copies.source_quiz_id is not null;
+
 update public.quizzes originals
 set usage_count = (
-    select count(*)::integer from public.quizzes copies
-    where copies.source_quiz_id = originals.id
+    select count(*)::integer
+    from public.quiz_sessions assignments
+    where assignments.source_quiz_id = originals.id
+      and assignments.class_id is not null
 );
 
 drop trigger if exists quizzes_refresh_source_usage on public.quizzes;
-create trigger quizzes_refresh_source_usage
-after insert or update of source_quiz_id or delete on public.quizzes
+drop trigger if exists quiz_sessions_refresh_source_usage on public.quiz_sessions;
+create trigger quiz_sessions_refresh_source_usage
+after insert or update of source_quiz_id, class_id or delete on public.quiz_sessions
 for each row execute function public.refresh_source_quiz_usage();
 
 create table if not exists public.audit_logs (
@@ -776,6 +803,189 @@ create table if not exists public.audit_logs (
     metadata jsonb not null default '{}'::jsonb,
     created_at timestamp with time zone not null default timezone('utc', now())
 );
+
+-- Restore an exact snapshot atomically. The chosen snapshot becomes current,
+-- while every later snapshot is permanently removed.
+create or replace function public.restore_quiz_version(
+    p_quiz_id uuid,
+    p_version integer,
+    p_actor_id uuid
+)
+returns table (quiz_id uuid, restored_version integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    current_quiz public.quizzes%rowtype;
+    target_version public.quiz_versions%rowtype;
+    actor_role text;
+    owner_role text;
+begin
+    select * into current_quiz
+    from public.quizzes
+    where id = p_quiz_id
+    for update;
+
+    select role into actor_role from public.profiles where id = p_actor_id;
+    if current_quiz.id is null
+       or actor_role is null
+       or (
+            current_quiz.teacher_id is distinct from p_actor_id
+            and not (actor_role = 'admin' and current_quiz.visibility = 'shared')
+       ) then
+        raise exception 'Quiz restore is not permitted';
+    end if;
+
+    select * into target_version
+    from public.quiz_versions
+    where quiz_versions.quiz_id = p_quiz_id
+      and quiz_versions.version = p_version
+    for update;
+    if target_version.id is null then
+        raise exception 'Quiz version not found';
+    end if;
+
+    select role into owner_role
+    from public.profiles
+    where id = current_quiz.teacher_id;
+
+    update public.quizzes
+    set topic = target_version.topic,
+        grade_level = target_version.grade_level,
+        visibility = case
+            when current_quiz.teacher_id is distinct from p_actor_id
+                then current_quiz.visibility
+            else target_version.visibility
+        end,
+        version = p_version,
+        verified_at = case
+            when owner_role = 'admin' then timezone('utc', now())
+            else null
+        end,
+        verified_by = case
+            when owner_role = 'admin' then p_actor_id
+            else null
+        end,
+        updated_at = timezone('utc', now())
+    where id = p_quiz_id;
+
+    delete from public.quiz_questions where quiz_questions.quiz_id = p_quiz_id;
+    insert into public.quiz_questions (
+        quiz_id, position, grade, type, question,
+        choice1, choice2, choice3, choice4, choice5, choice6,
+        correct_answer
+    )
+    select
+        p_quiz_id,
+        coalesce(nullif(item.question_data ->> 'position', '')::integer, item.ordinality::integer),
+        target_version.grade_level,
+        coalesce(nullif(item.question_data ->> 'type', ''), 'multiple_choice'),
+        item.question_data ->> 'question',
+        item.question_data ->> 'choice1',
+        item.question_data ->> 'choice2',
+        item.question_data ->> 'choice3',
+        item.question_data ->> 'choice4',
+        item.question_data ->> 'choice5',
+        item.question_data ->> 'choice6',
+        coalesce(item.question_data ->> 'correct_answer', '0')
+    from jsonb_array_elements(target_version.questions)
+        with ordinality as item(question_data, ordinality)
+    order by item.ordinality;
+
+    delete from public.quiz_versions
+    where quiz_versions.quiz_id = p_quiz_id
+      and quiz_versions.version > p_version;
+
+    return query select p_quiz_id, p_version;
+end;
+$$;
+
+revoke all on function public.restore_quiz_version(uuid, integer, uuid)
+from public, anon, authenticated;
+grant execute on function public.restore_quiz_version(uuid, integer, uuid)
+to service_role;
+
+-- Advance due and scheduled assignments during normal application traffic.
+-- The result guard independently promotes a scheduled quiz before accepting a
+-- score, so a due/start boundary is also enforced inside the database.
+create or replace function public.advance_quiz_session_schedule(
+    p_session_id uuid default null
+)
+returns table (changed_session_id uuid, transition_name text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    changed record;
+begin
+    for changed in
+        update public.quiz_sessions
+        set status = 'completed',
+            is_active = false,
+            retake_mode = false,
+            ended_at = coalesce(ended_at, due_at, timezone('utc', now()))
+        where status in ('waiting', 'active')
+          and due_at is not null
+          and due_at <= timezone('utc', now())
+          and (p_session_id is null or id = p_session_id)
+        returning id, class_id, topic, due_at
+    loop
+        insert into public.audit_logs (
+            actor_role, action, target_type, target_id, metadata
+        ) values (
+            'system',
+            'quiz.auto_ended',
+            'quiz_session',
+            changed.id::text,
+            jsonb_build_object(
+                'class_id', changed.class_id,
+                'topic', changed.topic,
+                'due_at', changed.due_at
+            )
+        );
+        changed_session_id := changed.id;
+        transition_name := 'ended';
+        return next;
+    end loop;
+
+    for changed in
+        update public.quiz_sessions
+        set status = 'active',
+            is_active = true,
+            started_at = coalesce(started_at, available_at, timezone('utc', now()))
+        where status = 'waiting'
+          and available_at is not null
+          and available_at <= timezone('utc', now())
+          and (due_at is null or due_at > timezone('utc', now()))
+          and (p_session_id is null or id = p_session_id)
+        returning id, class_id, topic, available_at
+    loop
+        insert into public.audit_logs (
+            actor_role, action, target_type, target_id, metadata
+        ) values (
+            'system',
+            'quiz.auto_started',
+            'quiz_session',
+            changed.id::text,
+            jsonb_build_object(
+                'class_id', changed.class_id,
+                'topic', changed.topic,
+                'available_at', changed.available_at
+            )
+        );
+        changed_session_id := changed.id;
+        transition_name := 'started';
+        return next;
+    end loop;
+end;
+$$;
+
+revoke all on function public.advance_quiz_session_schedule(uuid)
+from public, anon, authenticated;
+grant execute on function public.advance_quiz_session_schedule(uuid)
+to service_role;
 
 -- Query indexes for growing registries, reports, schedules, and moderation.
 create index if not exists quiz_sessions_schedule_idx
@@ -792,6 +1002,10 @@ create index if not exists quiz_bookmarks_user_created_idx
     on public.quiz_bookmarks (user_id, created_at desc);
 create index if not exists quizzes_visibility_grade_idx
     on public.quizzes (visibility, grade_level, created_at desc);
+create index if not exists quizzes_library_verified_idx
+    on public.quizzes (visibility, verified_at desc nulls last, grade_level, created_at desc);
+create index if not exists quiz_sessions_source_quiz_usage_idx
+    on public.quiz_sessions (source_quiz_id) where class_id is not null;
 create index if not exists profiles_role_grade_name_idx
     on public.profiles (role, grade_level, last_name, first_name);
 create index if not exists profiles_email_search_idx
@@ -815,7 +1029,6 @@ grant select, insert, update, delete on
     public.quiz_bookmarks,
     public.quiz_ratings,
     public.quiz_reports,
-    public.class_member_accommodations,
     public.quiz_session_students
 to authenticated, service_role;
 
@@ -828,7 +1041,6 @@ alter table public.quiz_versions enable row level security;
 alter table public.quiz_bookmarks enable row level security;
 alter table public.quiz_ratings enable row level security;
 alter table public.quiz_reports enable row level security;
-alter table public.class_member_accommodations enable row level security;
 alter table public.quiz_session_students enable row level security;
 alter table public.audit_logs enable row level security;
 
@@ -930,20 +1142,6 @@ with check (
     )
 );
 
-drop policy if exists class_accommodations_teacher_all on public.class_member_accommodations;
-create policy class_accommodations_teacher_all
-on public.class_member_accommodations for all to authenticated
-using (exists (
-    select 1 from public.classes
-    where classes.id = class_member_accommodations.class_id
-      and classes.teacher_id = auth.uid()
-))
-with check (exists (
-    select 1 from public.classes
-    where classes.id = class_member_accommodations.class_id
-      and classes.teacher_id = auth.uid()
-));
-
 drop policy if exists quiz_session_students_self_read on public.quiz_session_students;
 create policy quiz_session_students_self_read
 on public.quiz_session_students for select to authenticated
@@ -972,8 +1170,19 @@ using (exists (
 ));
 
 -- Recovery tables contain old scores and answer keys. Keep them outside normal
--- client visibility while they are retained for rollback verification.
-revoke all on public.rollback_quiz_session_state_20260827 from anon, authenticated;
-revoke all on public.rollback_duplicate_quiz_results_20260828 from anon, authenticated;
+-- client visibility while they are retained for rollback verification. These
+-- archives are optional because an administrator may already have removed them
+-- after verifying an earlier migration or rollback.
+do $$
+begin
+    if to_regclass('public.rollback_quiz_session_state_20260827') is not null then
+        execute 'revoke all on table public.rollback_quiz_session_state_20260827 from anon, authenticated';
+    end if;
+
+    if to_regclass('public.rollback_duplicate_quiz_results_20260828') is not null then
+        execute 'revoke all on table public.rollback_duplicate_quiz_results_20260828 from anon, authenticated';
+    end if;
+end
+$$;
 
 commit;

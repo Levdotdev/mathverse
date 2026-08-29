@@ -253,7 +253,7 @@
 <section id="sec-audit" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-8">
         <div class="flex items-center justify-between gap-4 mb-6">
-            <div><h2 class="text-xl font-orbitron font-bold uppercase">Accountability <span class="text-red-400">Audit Log</span></h2><p class="text-[10px] text-slate-500 mt-2">Append-only history of sensitive administrator and teacher actions.</p></div>
+            <div><h2 class="text-xl font-orbitron font-bold uppercase">Accountability <span class="text-red-400">Audit Log</span></h2><p class="text-[10px] text-slate-500 mt-2">Append-only history of logins, page views, profile changes, quiz edits, and administrative actions.</p></div>
             <span class="text-[10px] text-slate-500 uppercase">{{ number_format($auditTotal) }} events</span>
         </div>
         <div class="overflow-x-auto">

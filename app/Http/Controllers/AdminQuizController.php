@@ -40,13 +40,15 @@ class AdminQuizController extends Controller
     {
         $user = session('supabase_user');
         [$search, $grade, $safeSearch] = $this->quizFilters($request);
+        $verifiedOnly = $request->boolean('verified');
+        $reportedOnly = $request->boolean('reported');
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 24;
 
         $filters = [
             'teacher_id' => ['operator' => 'neq', 'value' => $user['id']],
             'visibility' => 'shared',
-            'order' => 'grade_level.asc,created_at.desc',
+            'order' => 'verified_at.desc.nullslast,grade_level.asc,created_at.desc',
         ];
         if ($grade !== null) {
             $filters['grade_level'] = $grade;
@@ -55,7 +57,28 @@ class AdminQuizController extends Controller
             $filters['topic'] = ['operator' => 'ilike', 'value' => "*{$safeSearch}*"];
         }
 
-        $result = $this->supabase->adminSelectPage(
+        if ($verifiedOnly) {
+            $filters['verified_at'] = ['operator' => 'not.is', 'value' => 'null'];
+        }
+
+        if ($reportedOnly) {
+            $pendingReports = $this->supabase->adminSelect(
+                'quiz_reports', 'quiz_id', ['status' => 'pending']
+            );
+            $reportedQuizIds = array_values(array_unique(array_filter(
+                array_column($pendingReports, 'quiz_id')
+            )));
+            if (empty($reportedQuizIds)) {
+                $result = ['data' => [], 'total' => 0];
+            } else {
+                $filters['id'] = [
+                    'operator' => 'in',
+                    'value' => '(' . implode(',', $reportedQuizIds) . ')',
+                ];
+            }
+        }
+
+        $result ??= $this->supabase->adminSelectPage(
             'quizzes',
             '*',
             $filters,
@@ -83,7 +106,8 @@ class AdminQuizController extends Controller
         unset($quiz);
 
         return view('admin.quizzes.library', compact(
-            'user', 'quizzesByGrade', 'search', 'grade', 'page', 'total', 'totalPages'
+            'user', 'quizzesByGrade', 'search', 'grade', 'page', 'total', 'totalPages',
+            'verifiedOnly', 'reportedOnly'
         ));
     }
 
@@ -97,6 +121,8 @@ class AdminQuizController extends Controller
             'topic' => trim($validated['topic']),
             'grade_level' => (int) $validated['grade_level'],
             'visibility' => $validated['visibility'],
+            'verified_at' => now()->toIso8601String(),
+            'verified_by' => $user['id'],
             'updated_at' => now()->toIso8601String(),
         ]);
 
@@ -155,16 +181,13 @@ class AdminQuizController extends Controller
             ['quiz_id' => $id, 'order' => 'position.asc']
         );
         $currentVersion = max(1, (int) ($quiz['version'] ?? 1));
-        $snapshot = $this->supabase->adminInsert('quiz_versions', [
-            'quiz_id' => $id,
-            'version' => $currentVersion,
-            'topic' => $quiz['topic'],
-            'grade_level' => (int) $quiz['grade_level'],
-            'visibility' => $quiz['visibility'] ?? 'shared',
-            'questions' => $oldQuestions,
-            'created_by' => $user['id'],
-        ]);
-        if (!isset($snapshot[0]['id'])) {
+        $snapshot = $this->preserveVersionSnapshot(
+            $quiz,
+            $oldQuestions,
+            $currentVersion,
+            $user['id']
+        );
+        if (!$snapshot) {
             return redirect('/admin/quizzes')->with('error', 'The current quiz version could not be preserved.');
         }
 
@@ -173,13 +196,15 @@ class AdminQuizController extends Controller
             'grade_level' => (int) $validated['grade_level'],
             'visibility' => $validated['visibility'],
             'version' => $currentVersion + 1,
-            'verified_at' => null,
-            'verified_by' => null,
+            'verified_at' => now()->toIso8601String(),
+            'verified_by' => $user['id'],
             'updated_at' => now()->toIso8601String(),
         ], ['id' => $id, 'teacher_id' => $user['id']]);
 
         if (!isset($updated[0]['id'])) {
-            $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot[0]['id']]);
+            if ($snapshot['created']) {
+                $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot['row']['id']]);
+            }
             return redirect('/admin/quizzes')->with('error', 'The quiz could not be updated.');
         }
 
@@ -200,11 +225,21 @@ class AdminQuizController extends Controller
             ], ['id' => $id, 'teacher_id' => $user['id']]);
             $this->supabase->adminDelete('quiz_questions', ['quiz_id' => $id]);
             $this->restoreTemplateQuestions($oldQuestions);
-            $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot[0]['id']]);
+            if ($snapshot['created']) {
+                $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot['row']['id']]);
+            }
 
             return redirect('/admin/quizzes')
                 ->with('error', 'The new questions could not be saved, so the previous quiz was restored.');
         }
+
+        $this->supabase->audit($user, 'quiz.edited', 'quiz', $id, [
+            'creator_id' => $quiz['teacher_id'] ?? null,
+            'topic_before' => $quiz['topic'] ?? null,
+            'topic_after' => trim($validated['topic']),
+            'version_before' => $currentVersion,
+            'version_after' => $currentVersion + 1,
+        ]);
 
         return redirect('/admin/quizzes')
             ->with('success', 'Quiz updated. Existing class assignments were not changed.');
@@ -223,11 +258,13 @@ class AdminQuizController extends Controller
             return redirect('/admin/quizzes')->with('error', 'Open your quiz from My Quizzes to edit it.');
         }
 
-        $questions = $this->reviewQuestions($this->supabase->adminSelect(
+        $questionRows = $this->supabase->adminSelect(
             'quiz_questions',
             '*',
             ['quiz_id' => $id, 'order' => 'position.asc']
-        ));
+        );
+        $questions = $this->reviewQuestions($questionRows);
+        $questionsForForm = $this->questionsForForm($questionRows);
         $creatorNames = $this->creatorNames([$quiz['teacher_id']]);
         $creatorName = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
         $reports = $this->supabase->adminSelect(
@@ -247,7 +284,91 @@ class AdminQuizController extends Controller
         }
         unset($report);
 
-        return view('admin.quizzes.review', compact('user', 'quiz', 'questions', 'creatorName', 'reports'));
+        return view('admin.quizzes.review', compact(
+            'user', 'quiz', 'questions', 'questionsForForm', 'creatorName', 'reports'
+        ));
+    }
+
+    public function updateReviewed(Request $request, string $id)
+    {
+        $admin = session('supabase_user');
+        $quiz = $this->supabase->adminSelect('quizzes', '*', [
+            'id' => $id,
+            'visibility' => 'shared',
+        ])[0] ?? null;
+
+        if (!$quiz || ($quiz['teacher_id'] ?? null) === ($admin['id'] ?? null)) {
+            return redirect('/admin/quiz-library')
+                ->with('error', 'That teacher quiz is no longer available for review.');
+        }
+
+        $validated = $this->validateQuiz($request);
+        $oldQuestions = $this->supabase->adminSelect(
+            'quiz_questions', '*', ['quiz_id' => $id, 'order' => 'position.asc']
+        );
+        $currentVersion = max(1, (int) ($quiz['version'] ?? 1));
+        $snapshot = $this->preserveVersionSnapshot(
+            $quiz,
+            $oldQuestions,
+            $currentVersion,
+            $admin['id']
+        );
+        if (!$snapshot) {
+            return back()->withInput()->with('error', 'The current quiz version could not be preserved.');
+        }
+
+        $updated = $this->supabase->adminUpdate('quizzes', [
+            'topic' => trim($validated['topic']),
+            'grade_level' => (int) $validated['grade_level'],
+            'visibility' => $validated['visibility'],
+            'version' => $currentVersion + 1,
+            'verified_at' => null,
+            'verified_by' => null,
+            'updated_at' => now()->toIso8601String(),
+        ], ['id' => $id]);
+        if (!isset($updated[0]['id'])) {
+            if ($snapshot['created']) {
+                $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot['row']['id']]);
+            }
+            return back()->withInput()->with('error', 'The teacher quiz could not be updated.');
+        }
+
+        $this->supabase->adminDelete('quiz_questions', ['quiz_id' => $id]);
+        if (!$this->saveTemplateQuestions(
+            $id,
+            $validated['questions'],
+            (int) $validated['grade_level']
+        )) {
+            $this->supabase->adminUpdate('quizzes', [
+                'topic' => $quiz['topic'],
+                'grade_level' => $quiz['grade_level'],
+                'visibility' => $quiz['visibility'] ?? 'shared',
+                'version' => $currentVersion,
+                'verified_at' => $quiz['verified_at'] ?? null,
+                'verified_by' => $quiz['verified_by'] ?? null,
+                'updated_at' => $quiz['updated_at'] ?? $quiz['created_at'],
+            ], ['id' => $id]);
+            $this->supabase->adminDelete('quiz_questions', ['quiz_id' => $id]);
+            $this->restoreTemplateQuestions($oldQuestions);
+            if ($snapshot['created']) {
+                $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot['row']['id']]);
+            }
+
+            return back()->withInput()
+                ->with('error', 'The new questions could not be saved, so the previous quiz was restored.');
+        }
+
+        $this->supabase->audit($admin, 'quiz.edited', 'quiz', $id, [
+            'creator_id' => $quiz['teacher_id'] ?? null,
+            'topic_before' => $quiz['topic'] ?? null,
+            'topic_after' => trim($validated['topic']),
+            'version_before' => $currentVersion,
+            'version_after' => $currentVersion + 1,
+            'admin_review_edit' => true,
+        ]);
+
+        return redirect("/admin/quiz-library/{$id}/review")
+            ->with('success', 'Teacher quiz updated. Existing class assignments were not changed.');
     }
 
     public function toggleVerified(string $id)
@@ -258,6 +379,13 @@ class AdminQuizController extends Controller
         ])[0] ?? null;
         if (!$quiz) {
             return back()->with('error', 'Only a shared quiz can be verified.');
+        }
+
+        $creator = $this->supabase->adminSelect('profiles', 'role', [
+            'id' => $quiz['teacher_id'],
+        ])[0] ?? null;
+        if (($creator['role'] ?? '') === 'admin' && !empty($quiz['verified_at'])) {
+            return back()->with('error', 'Admin-created quizzes are always verified.');
         }
 
         $verify = empty($quiz['verified_at']);
@@ -311,14 +439,48 @@ class AdminQuizController extends Controller
     public function versions(string $id)
     {
         $user = session('supabase_user');
-        $quiz = $this->ownedQuiz($id, $user['id']);
-        if (!$quiz) {
-            return redirect('/admin/quizzes')->with('error', 'Quiz not found.');
+        $quiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
+        $isOwnQuiz = $quiz && ($quiz['teacher_id'] ?? null) === $user['id'];
+        if (!$quiz || (!$isOwnQuiz && ($quiz['visibility'] ?? '') !== 'shared')) {
+            return redirect('/admin/quiz-library')->with('error', 'Quiz not found.');
         }
         $versions = $this->supabase->adminSelect(
             'quiz_versions', '*', ['quiz_id' => $id, 'order' => 'version.desc']
         );
-        return view('admin.quizzes.versions', compact('user', 'quiz', 'versions'));
+        $creatorNames = $this->creatorNames([$quiz['teacher_id']]);
+        $creatorName = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
+        return view('admin.quizzes.versions', compact(
+            'user', 'quiz', 'versions', 'isOwnQuiz', 'creatorName'
+        ));
+    }
+
+    public function restoreVersion(string $id, int $version)
+    {
+        $admin = session('supabase_user');
+        $quiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
+        $isOwnQuiz = $quiz && ($quiz['teacher_id'] ?? null) === $admin['id'];
+        if (!$quiz || (!$isOwnQuiz && ($quiz['visibility'] ?? '') !== 'shared')) {
+            return redirect('/admin/quiz-library')->with('error', 'Quiz not found.');
+        }
+
+        $restored = $this->supabase->adminRpc('restore_quiz_version', [
+            'p_quiz_id' => $id,
+            'p_version' => $version,
+            'p_actor_id' => $admin['id'],
+        ]);
+        if (!isset($restored[0]['quiz_id'])) {
+            return redirect("/admin/quizzes/{$id}/versions")
+                ->with('error', 'That quiz version could not be restored.');
+        }
+
+        $this->supabase->audit($admin, 'quiz.version_restored', 'quiz', $id, [
+            'creator_id' => $quiz['teacher_id'] ?? null,
+            'restored_version' => $version,
+            'discarded_after_version' => $version,
+        ]);
+
+        return redirect("/admin/quizzes/{$id}/versions")
+            ->with('success', "Version {$version} restored. Later versions were removed.");
     }
 
     public function destroy(Request $request, string $id)
@@ -406,6 +568,33 @@ class AdminQuizController extends Controller
         }
     }
 
+    private function preserveVersionSnapshot(
+        array $quiz,
+        array $questions,
+        int $version,
+        string $actorId
+    ): ?array {
+        $existing = $this->supabase->adminSelect('quiz_versions', '*', [
+            'quiz_id' => $quiz['id'],
+            'version' => $version,
+        ])[0] ?? null;
+        if ($existing) {
+            return ['row' => $existing, 'created' => false];
+        }
+
+        $created = $this->supabase->adminInsert('quiz_versions', [
+            'quiz_id' => $quiz['id'],
+            'version' => $version,
+            'topic' => $quiz['topic'],
+            'grade_level' => (int) $quiz['grade_level'],
+            'visibility' => $quiz['visibility'] ?? 'shared',
+            'questions' => $questions,
+            'created_by' => $actorId,
+        ])[0] ?? null;
+
+        return $created ? ['row' => $created, 'created' => true] : null;
+    }
+
     private function reviewQuestions(array $questions): array
     {
         return array_map(function (array $question): array {
@@ -427,6 +616,29 @@ class AdminQuizController extends Controller
                 'question' => $question['question'],
                 'choices' => $choices,
                 'correct_index' => $correctIndex,
+            ];
+        }, $questions);
+    }
+
+    private function questionsForForm(array $questions): array
+    {
+        return array_map(function (array $question): array {
+            $options = [
+                $question['choice1'],
+                $question['choice2'],
+                $question['choice3'],
+                $question['choice4'],
+            ];
+            $correctIndex = filter_var($question['correct_answer'], FILTER_VALIDATE_INT);
+            if ($correctIndex === false || $correctIndex < 0 || $correctIndex > 3) {
+                $correctIndex = array_search($question['correct_answer'], $options, true);
+                $correctIndex = $correctIndex === false ? 0 : $correctIndex;
+            }
+
+            return [
+                'question' => $question['question'],
+                'options' => $options,
+                'correct' => $correctIndex,
             ];
         }, $questions);
     }
@@ -457,9 +669,13 @@ class AdminQuizController extends Controller
         $search = trim(mb_substr((string) $request->input('search', ''), 0, 80));
         $grade = (int) $request->input('grade', 0);
         $page = max(1, (int) $request->input('page', 1));
+        $verified = $request->boolean('verified');
+        $reported = $request->boolean('reported');
         $query = array_filter([
             'search' => $search,
             'grade' => ($grade >= 1 && $grade <= 6) ? $grade : null,
+            'verified' => $verified ? 1 : null,
+            'reported' => $reported ? 1 : null,
             'page' => $page > 1 ? $page : null,
         ], fn ($value) => $value !== null && $value !== '');
 

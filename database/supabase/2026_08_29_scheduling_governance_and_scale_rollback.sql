@@ -67,11 +67,14 @@ insert into public.rollback_quiz_session_students_20260829
 select * from public.quiz_session_students
 on conflict (session_id, student_id) do nothing;
 
-create table if not exists public.rollback_class_member_accommodations_20260829
-    (like public.class_member_accommodations including all);
-insert into public.rollback_class_member_accommodations_20260829
-select * from public.class_member_accommodations
-on conflict (class_id, student_id) do nothing;
+do $$
+begin
+    if to_regclass('public.class_member_accommodations') is not null then
+        execute 'create table if not exists public.rollback_class_member_accommodations_20260829 (like public.class_member_accommodations including all)';
+        execute 'insert into public.rollback_class_member_accommodations_20260829 select * from public.class_member_accommodations on conflict (class_id, student_id) do nothing';
+    end if;
+end
+$$;
 
 create table if not exists public.rollback_audit_logs_20260829
     (like public.audit_logs including all);
@@ -85,7 +88,13 @@ drop policy if exists quiz_bookmarks_own_all on public.quiz_bookmarks;
 drop policy if exists quiz_ratings_own_all on public.quiz_ratings;
 drop policy if exists quiz_reports_own_read on public.quiz_reports;
 drop policy if exists quiz_reports_own_insert on public.quiz_reports;
-drop policy if exists class_accommodations_teacher_all on public.class_member_accommodations;
+do $$
+begin
+    if to_regclass('public.class_member_accommodations') is not null then
+        execute 'drop policy if exists class_accommodations_teacher_all on public.class_member_accommodations';
+    end if;
+end
+$$;
 drop policy if exists quiz_session_students_self_read on public.quiz_session_students;
 drop policy if exists quiz_session_students_teacher_all on public.quiz_session_students;
 drop policy if exists audit_logs_admin_read on public.audit_logs;
@@ -120,10 +129,17 @@ drop trigger if exists quiz_sessions_freeze_attempts on public.quiz_sessions;
 drop trigger if exists quiz_sessions_seed_students on public.quiz_sessions;
 drop trigger if exists class_members_open_quiz_eligibility on public.class_members;
 drop trigger if exists class_members_revoke_quiz_eligibility on public.class_members;
-drop trigger if exists class_member_accommodation_propagation
-    on public.class_member_accommodations;
+do $$
+begin
+    if to_regclass('public.class_member_accommodations') is not null then
+        execute 'drop trigger if exists class_member_accommodation_propagation on public.class_member_accommodations';
+    end if;
+end
+$$;
 drop trigger if exists quiz_ratings_refresh_summary on public.quiz_ratings;
 drop trigger if exists quizzes_refresh_source_usage on public.quizzes;
+drop trigger if exists quiz_sessions_refresh_source_usage on public.quiz_sessions;
+drop trigger if exists quizzes_auto_verify_admin on public.quizzes;
 
 drop function if exists public.enforce_quiz_result_attempt();
 drop function if exists public.freeze_completed_assignment_attempts();
@@ -133,6 +149,9 @@ drop function if exists public.revoke_member_open_quiz_eligibility();
 drop function if exists public.propagate_member_accommodation();
 drop function if exists public.refresh_quiz_rating_summary();
 drop function if exists public.refresh_source_quiz_usage();
+drop function if exists public.auto_verify_admin_quiz();
+drop function if exists public.restore_quiz_version(uuid, integer, uuid);
+drop function if exists public.advance_quiz_session_schedule(uuid);
 drop function if exists public.grant_quiz_retake(uuid, uuid, uuid, text, timestamp with time zone);
 
 drop index if exists public.quiz_results_attempt_number_idx;
@@ -178,6 +197,8 @@ drop index if exists public.quiz_session_students_student_idx;
 drop index if exists public.quiz_reports_status_created_idx;
 drop index if exists public.quiz_bookmarks_user_created_idx;
 drop index if exists public.quizzes_visibility_grade_idx;
+drop index if exists public.quizzes_library_verified_idx;
+drop index if exists public.quiz_sessions_source_quiz_usage_idx;
 drop index if exists public.profiles_role_grade_name_idx;
 drop index if exists public.profiles_email_search_idx;
 drop index if exists public.profiles_first_name_search_idx;

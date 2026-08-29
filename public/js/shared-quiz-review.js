@@ -18,11 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const gradeSelect = document.getElementById('q-grade');
     const classOptions = [...document.querySelectorAll('[data-class-option]')];
     const noMatchingClass = document.getElementById('review-no-matching-class');
-    const submitLabel = document.getElementById('copy-assign-label');
+    const submitLabel = document.getElementById('shared-assign-label');
     const timeLimitGroup = document.getElementById('review-time-limit');
     const timeLimitInput = document.getElementById('review-time-limit-input');
     const scheduleGroup = document.getElementById('review-schedule');
-    const form = document.getElementById('shared-quiz-copy-form');
+    const form = document.getElementById('shared-quiz-assignment-form');
     const confirmTitle = document.getElementById('confirm-shared-quiz-title');
     const confirmSummary = document.getElementById('confirm-shared-quiz-summary');
     const confirmMeta = document.getElementById('confirm-shared-quiz-meta');
@@ -41,25 +41,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateSubmissionMode() {
         const selectedCount = selectedClassOptions().length;
-        const willAssign = selectedCount > 0;
 
         if (submitLabel) {
-            submitLabel.textContent = willAssign ? 'Save Copy & Assign' : 'Save Copy';
+            submitLabel.textContent = selectedCount > 0
+                ? `Assign to ${selectedCount === 1 ? '1 Class' : `${selectedCount} Classes`}`
+                : 'Select a Class to Assign';
         }
         if (timeLimitInput) {
-            timeLimitInput.disabled = !willAssign;
-            timeLimitInput.required = willAssign;
+            timeLimitInput.disabled = false;
+            timeLimitInput.required = true;
         }
-        timeLimitGroup?.classList.toggle('opacity-40', !willAssign);
-        scheduleGroup?.classList.toggle('opacity-40', !willAssign);
-        scheduleGroup?.querySelectorAll('input').forEach(input => {
-            input.disabled = !willAssign;
-        });
+        timeLimitGroup?.classList.remove('opacity-40');
+        scheduleGroup?.classList.remove('opacity-40');
+        scheduleGroup?.querySelectorAll('input').forEach(input => { input.disabled = false; });
     }
 
     function showSaveConfirmation() {
         const selectedClasses = selectedClassOptions();
-        const willAssign = selectedClasses.length > 0;
+        if (selectedClasses.length === 0) {
+            if (noMatchingClass) {
+                noMatchingClass.textContent = 'Select at least one matching class before assigning this quiz.';
+                noMatchingClass.classList.remove('hidden');
+            }
+            noMatchingClass?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
         const topic = document.getElementById('q-topic')?.value.trim() || 'this quiz';
         const grade = gradeSelect?.value || '—';
         const questionCount = document.querySelectorAll('.question-block').length;
@@ -67,20 +73,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const classLabel = selectedClasses.length === 1 ? '1 class' : `${selectedClasses.length} classes`;
 
         if (confirmTitle) {
-            confirmTitle.textContent = willAssign ? 'Save Copy & Assign?' : 'Save Quiz Copy?';
+            confirmTitle.textContent = 'Assign Quiz to Classes?';
         }
         if (confirmSummary) {
-            confirmSummary.textContent = willAssign
-                ? `A personal copy of “${topic}” will be saved and assigned to ${classLabel}.`
-                : `A personal copy of “${topic}” will be saved to My Quizzes without a class assignment.`;
+            confirmSummary.textContent = `“${topic}” will be assigned to ${classLabel}. The shared original will not change.`;
         }
         if (confirmMeta) {
-            confirmMeta.textContent = willAssign
-                ? `Grade ${grade} · ${questionCount} questions · ${timeLimit} seconds per question`
-                : `Grade ${grade} · ${questionCount} questions · No class assignment`;
+            confirmMeta.textContent = `Grade ${grade} · ${questionCount} questions · ${timeLimit} seconds per question`;
         }
         if (confirmButtonLabel) {
-            confirmButtonLabel.textContent = willAssign ? 'Save Copy & Assign' : 'Save Copy';
+            confirmButtonLabel.textContent = 'Assign to Classes';
         }
 
         if (confirmClassList) {
@@ -92,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmClassList.appendChild(item);
             });
         }
-        confirmClasses?.classList.toggle('hidden', !willAssign);
+        confirmClasses?.classList.remove('hidden');
         openModal('confirmSharedQuizModal');
     }
 

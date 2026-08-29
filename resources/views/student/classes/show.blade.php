@@ -66,10 +66,7 @@
                             {{ $isScheduled ? 'Scheduled' : ($isActive ? (($session['retake_mode'] ?? false) ? 'Retake Active' : 'Active Now') : 'Assigned') }}
                         </span>
                         <h3 class="font-bold text-xl text-white mt-4">{{ $session['topic'] }}</h3>
-                        <p class="text-[10px] text-slate-500 mt-1">{{ $session['time_limit'] + ($session['eligibility']['additional_time_seconds'] ?? 0) }} seconds per question</p>
-                        @if(($session['eligibility']['additional_time_seconds'] ?? 0) > 0)
-                            <p class="text-[10px] text-purple-300 mt-1"><i class="fas fa-universal-access mr-1"></i>Includes +{{ $session['eligibility']['additional_time_seconds'] }} seconds per-question accommodation</p>
-                        @endif
+                        <p class="text-[10px] text-slate-500 mt-1">{{ $session['time_limit'] }} seconds per question</p>
                         @if(!empty($session['available_at']))
                             <p class="text-[9px] text-slate-500 mt-2">Available {{ \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('M d, Y h:i A') }}</p>
                         @endif

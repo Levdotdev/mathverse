@@ -46,6 +46,11 @@ class AuthController extends Controller
             'supabase_user'  => array_merge($profile, ['email' => $result['user']['email']]),
         ]);
 
+        $this->supabase->audit($profile, 'user.logged_in', 'profile', $profile['id'], [
+            'ip' => $request->ip(),
+            'user_agent' => mb_substr((string) $request->userAgent(), 0, 250),
+        ]);
+
         return $this->redirectByRole($profile['role']);
     }
 

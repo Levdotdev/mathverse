@@ -21,8 +21,8 @@
         <div class="value">{{ $summary['total_questions'] }}</div>
     </div>
     <div class="summary-card">
-        <div class="label">Total Attempts</div>
-        <div class="value">{{ $summary['total_attempts'] }}</div>
+        <div class="label">Class Students</div>
+        <div class="value">{{ $summary['total_students'] }}</div>
     </div>
     <div class="summary-card">
         <div class="label">Avg Accuracy</div>
@@ -33,12 +33,24 @@
         <div class="value" style="color:#22c55e;">{{ $summary['pass_rate'] }}%</div>
     </div>
     <div class="summary-card">
-        <div class="label">Passed</div>
+        <div class="label">Passed / Excused</div>
         <div class="value" style="color:#22c55e;">{{ $summary['passed'] }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Completed Attempts</div>
+        <div class="value" style="color:#00f2ff;">{{ $summary['total_attempts'] }}</div>
     </div>
     <div class="summary-card">
         <div class="label">Failed (&lt;75%)</div>
         <div class="value" style="color:#ef4444;">{{ $summary['failed'] }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Missed</div>
+        <div class="value" style="color:#ef4444;">{{ $summary['missed'] }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Excused (100%)</div>
+        <div class="value" style="color:#a78bfa;">{{ $summary['excused'] }}</div>
     </div>
 </div>
 
@@ -82,7 +94,9 @@
     <tbody>
         @forelse($rows as $i => $r)
         @php
-            $statusColor = $r['accuracy'] >= 75 ? '#22c55e' : '#ef4444';
+            $statusColor = $r['status'] === 'Excused'
+                ? '#a78bfa'
+                : ($r['accuracy'] >= 75 ? '#22c55e' : '#ef4444');
         @endphp
         <tr>
             <td class="text-center"><strong>#{{ $i + 1 }}</strong></td>
@@ -94,7 +108,7 @@
             <td style="font-size:9px;">{{ $r['date'] }}</td>
         </tr>
         @empty
-        <tr><td colspan="7" class="text-center">No attempts recorded yet.</td></tr>
+        <tr><td colspan="7" class="text-center">No students are currently enrolled in this class.</td></tr>
         @endforelse
     </tbody>
 </table>

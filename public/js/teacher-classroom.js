@@ -229,12 +229,16 @@ function openRemoveStudent(classId, studentId, name) {
     openModal('removeStudentModal');
 }
 
-function openAccommodation(classId, studentId, name, seconds, notes) {
-    document.getElementById('accommodationForm').action = `/teacher/classes/${classId}/students/${studentId}/accommodation`;
-    document.getElementById('accommodation-student-name').textContent = name;
-    document.getElementById('accommodation-seconds').value = Number(seconds ?? 0);
-    document.getElementById('accommodation-notes').value = notes ?? '';
-    openModal('accommodationModal');
+function openAssignmentSettings(classId, sessionId, topic, timeLimit, startAt, dueAt, isActive) {
+    document.getElementById('assignmentSettingsForm').action = `/teacher/classes/${classId}/quizzes/${sessionId}`;
+    document.getElementById('assignment-settings-topic').textContent = topic;
+    document.getElementById('assignment-time-limit').value = Number(timeLimit ?? 20);
+    document.getElementById('assignment-start-at').value = startAt ?? '';
+    document.getElementById('assignment-due-at').value = dueAt ?? '';
+    document.getElementById('assignment-start-tip').textContent = isActive
+        ? 'This quiz is already active. Its start date cannot be moved into the future.'
+        : 'If set, the assignment starts automatically. If blank, start it manually.';
+    openModal('assignmentSettingsModal');
 }
 
 function escapeClassroomHtml(value) {

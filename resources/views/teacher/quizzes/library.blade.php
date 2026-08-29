@@ -26,7 +26,7 @@
     @if($preferredClassId)
         <input type="hidden" name="class_id" value="{{ $preferredClassId }}">
     @endif
-    <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto_auto] gap-4 items-end">
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto_auto_auto] gap-4 items-end">
         <div class="form-group">
             <label class="input-label">Search Topic Keywords</label>
             <div class="relative">
@@ -49,6 +49,10 @@
             <input type="checkbox" name="bookmarked" value="1" class="w-4 h-4 accent-blue-500" {{ $bookmarkedOnly ? 'checked' : '' }}>
             <span class="text-[10px] text-slate-300 uppercase font-bold whitespace-nowrap">Bookmarked only</span>
         </label>
+        <label class="flex items-center gap-3 min-h-[48px] px-4 rounded border border-white/10 bg-black/20 cursor-pointer">
+            <input type="checkbox" name="verified" value="1" class="w-4 h-4 accent-green-500" {{ $verifiedOnly ? 'checked' : '' }}>
+            <span class="text-[10px] text-slate-300 uppercase font-bold whitespace-nowrap">Verified only</span>
+        </label>
         <button type="submit" class="btn-rect-primary !py-3 md:mb-0">
             <i class="fas fa-search mr-2"></i> Search
         </button>
@@ -59,7 +63,7 @@
     <p class="text-[10px] text-slate-500 uppercase tracking-widest">
         {{ number_format($total) }} {{ Str::plural('quiz', $total) }} found
     </p>
-    @if($search !== '' || $grade !== null || $bookmarkedOnly)
+    @if($search !== '' || $grade !== null || $bookmarkedOnly || $verifiedOnly)
         <a href="/teacher/quiz-library{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
            class="text-[10px] text-blue-400 uppercase font-bold hover:text-white">Clear Filters</a>
     @endif
@@ -92,7 +96,7 @@
                                     <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i>Verified</span>
                                 @endif
                                 <span class="text-yellow-400"><i class="fas fa-star mr-1"></i>{{ number_format((float) ($quiz['rating_average'] ?? 0), 1) }} ({{ (int) ($quiz['rating_count'] ?? 0) }})</span>
-                                <span class="text-cyan-400"><i class="fas fa-layer-group mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} uses</span>
+                                <span class="text-cyan-400"><i class="fas fa-users mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} class uses</span>
                                 <span class="text-slate-500">v{{ (int) ($quiz['version'] ?? 1) }}</span>
                             </div>
                             <p class="text-[9px] text-slate-600 mt-2 uppercase tracking-widest">
@@ -134,6 +138,7 @@
             'grade' => $grade,
             'class_id' => $preferredClassId,
             'bookmarked' => $bookmarkedOnly ? 1 : null,
+            'verified' => $verifiedOnly ? 1 : null,
         ], fn($value) => $value !== null && $value !== '');
     @endphp
     <nav class="flex items-center justify-center gap-4 mt-10" aria-label="Quiz library pages">

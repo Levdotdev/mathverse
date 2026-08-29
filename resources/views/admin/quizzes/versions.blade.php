@@ -8,18 +8,19 @@
 @section('mobile-title', 'Quiz History')
 
 @section('sidebar-nav')
-    @include('admin.partials.sidebar-nav', ['activePage' => 'quizzes'])
+    @include('admin.partials.sidebar-nav', ['activePage' => $isOwnQuiz ? 'quizzes' : 'library'])
 @endsection
 
 @section('dashboard-content')
-<a href="/admin/quizzes" class="inline-block text-xs text-slate-400 hover:text-white font-bold uppercase mb-6">
-    <i class="fas fa-arrow-left mr-2"></i> Back to My Quizzes
+<a href="{{ $isOwnQuiz ? '/admin/quizzes' : '/admin/quiz-library/' . $quiz['id'] . '/review' }}" class="inline-block text-xs text-slate-400 hover:text-white font-bold uppercase mb-6">
+    <i class="fas fa-arrow-left mr-2"></i> Back to {{ $isOwnQuiz ? 'My Quizzes' : 'Quiz Review' }}
 </a>
 
 <header class="portal-frame !p-6 md:!p-8 mb-7 border-l-4 border-cyan-500">
     <p class="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">Version History</p>
     <h1 class="text-2xl font-orbitron font-bold mt-2">{{ $quiz['topic'] }}</h1>
-    <p class="text-xs text-slate-400 mt-3">Current version: {{ (int) ($quiz['version'] ?? 1) }}. Older versions are read-only snapshots saved before each update.</p>
+    <p class="text-[10px] text-slate-500 uppercase mt-2">Created by {{ $creatorName }}</p>
+    <p class="text-xs text-slate-400 mt-3">Current version: {{ (int) ($quiz['version'] ?? 1) }}. Restoring a snapshot replaces the current quiz and permanently removes every later version.</p>
 </header>
 
 <div class="space-y-4">
@@ -70,6 +71,12 @@
                         </div>
                     </div>
                 @endforeach
+                <div class="flex justify-end pt-2">
+                    <button type="button" onclick='openRestoreQuizVersion(@json((int) $version["version"]), @json($version["topic"]))'
+                            class="btn-rect-secondary !py-2 !px-4 !w-auto text-yellow-400 !border-yellow-500/30">
+                        <i class="fas fa-undo-alt mr-2"></i>Restore Version {{ $version['version'] }}
+                    </button>
+                </div>
             </div>
         </details>
     @empty
@@ -79,6 +86,20 @@
 @endsection
 
 @section('modals')
+<div id="restoreQuizVersionModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="restore-version-title">
+    <div class="portal-frame !p-9 w-full max-w-sm text-center border-yellow-500/40">
+        <i class="fas fa-history text-4xl text-yellow-400 mb-4"></i>
+        <h3 id="restore-version-title" class="font-orbitron font-bold uppercase">Restore Quiz Version?</h3>
+        <p id="restore-version-summary" class="text-xs text-slate-400 my-5"></p>
+        <p class="text-[10px] text-red-400 mb-6">The selected snapshot becomes current, and all later snapshots are deleted.</p>
+        <form id="restoreQuizVersionForm" method="POST">
+            @csrf
+            <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black">Restore Version</button>
+        </form>
+        <button type="button" onclick="closeModal('restoreQuizVersionModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+    </div>
+</div>
+
 <div id="logoutModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/30">
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
@@ -88,3 +109,13 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function openRestoreQuizVersion(version, topic) {
+    document.getElementById('restoreQuizVersionForm').action = `/admin/quizzes/{{ $quiz['id'] }}/versions/${version}/restore`;
+    document.getElementById('restore-version-summary').textContent = `Restore version ${version} of “${topic}”?`;
+    openModal('restoreQuizVersionModal');
+}
+</script>
+@endpush

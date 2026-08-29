@@ -60,7 +60,7 @@ class TeacherClassController extends Controller
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
         }
 
-        $this->expirePastDueSessions($id, $user);
+        $this->advanceScheduledSessions($id, $user);
 
         $customization = $this->customization($id);
         $members = $this->supabase->adminSelect(
@@ -68,11 +68,6 @@ class TeacherClassController extends Controller
             'student_id,joined_at,profiles(id,username,last_name,email,first_name,grade_level,level)',
             ['class_id' => $id, 'order' => 'joined_at.asc']
         );
-        $accommodations = $this->supabase->adminSelect(
-            'class_member_accommodations', '*', ['class_id' => $id]
-        );
-        $accommodationMap = array_column($accommodations, null, 'student_id');
-
         $mismatchedMembers = 0;
         foreach ($members as &$member) {
             $member['grade_mismatch'] = (int) ($member['profiles']['grade_level'] ?? 0)
@@ -80,10 +75,6 @@ class TeacherClassController extends Controller
             if ($member['grade_mismatch']) {
                 $mismatchedMembers++;
             }
-            $member['accommodation'] = $accommodationMap[$member['student_id']] ?? [
-                'additional_time_seconds' => 0,
-                'notes' => null,
-            ];
         }
         unset($member);
 
@@ -428,7 +419,7 @@ class TeacherClassController extends Controller
 
         $eligibility = $this->supabase->adminSelect(
             'quiz_session_students',
-            'student_id,eligibility_status,allowed_attempts,additional_time_seconds,excuse_reason,retake_due_at,profiles!quiz_session_students_student_id_fkey(first_name,last_name,email)',
+            'student_id,eligibility_status,allowed_attempts,excuse_reason,retake_due_at,profiles!quiz_session_students_student_id_fkey(first_name,last_name,email)',
             ['session_id' => $sessionId]
         );
 
@@ -471,6 +462,78 @@ class TeacherClassController extends Controller
         return response()->json($rows);
     }
 
+    public function updateAssignment(Request $request, string $classId, string $sessionId)
+    {
+        $validated = $request->validate([
+            'time_limit' => 'required|integer|between:5,300',
+            'available_at' => 'nullable|date',
+            'due_at' => 'nullable|date',
+        ]);
+        $teacher = session('supabase_user');
+        $session = $this->ownedSession($classId, $sessionId);
+        if (!$session || !in_array($session['status'] ?? '', ['waiting', 'active'], true)) {
+            return redirect("/teacher/classes/{$classId}")
+                ->with('error', 'Only an assigned or active quiz can be updated.');
+        }
+        if (!empty($session['retake_mode'])) {
+            return redirect("/teacher/classes/{$classId}")
+                ->with('error', 'Finish the current retake window before changing assignment settings.');
+        }
+
+        $startAt = !empty($validated['available_at'])
+            ? \Carbon\Carbon::parse($validated['available_at'], config('app.timezone'))->utc()
+            : null;
+        $dueAt = !empty($validated['due_at'])
+            ? \Carbon\Carbon::parse($validated['due_at'], config('app.timezone'))->utc()
+            : null;
+        $now = now()->utc();
+
+        if (($session['status'] ?? '') === 'active' && $startAt !== null && $startAt->isFuture()) {
+            return back()->withInput()->with('error', 'An active quiz cannot be moved to a future start date.');
+        }
+        if ($dueAt !== null && $dueAt->lessThanOrEqualTo($now)) {
+            return back()->withInput()->with('error', 'The due date must be in the future.');
+        }
+        if ($dueAt !== null && $startAt !== null && $dueAt->lessThanOrEqualTo($startAt)) {
+            return back()->withInput()->with('error', 'The due date must be later than the start date.');
+        }
+
+        $isWaiting = ($session['status'] ?? '') === 'waiting';
+        $startsNow = $isWaiting && $startAt !== null && $startAt->lessThanOrEqualTo($now);
+        $data = [
+            'time_limit' => (int) $validated['time_limit'],
+            'available_at' => $startAt?->toIso8601String(),
+            'due_at' => $dueAt?->toIso8601String(),
+        ];
+        if ($startsNow) {
+            $data['status'] = 'active';
+            $data['is_active'] = true;
+            $data['started_at'] = $startAt->toIso8601String();
+        } elseif ($isWaiting) {
+            $data['status'] = 'waiting';
+            $data['started_at'] = null;
+        }
+
+        $updated = $this->supabase->adminUpdate('quiz_sessions', $data, [
+            'id' => $sessionId,
+            'class_id' => $classId,
+            'teacher_id' => $teacher['id'],
+        ]);
+        if (!isset($updated[0]['id'])) {
+            return back()->withInput()->with('error', 'The assignment settings could not be updated.');
+        }
+
+        $this->supabase->audit($teacher, 'quiz.assignment_updated', 'quiz_session', $sessionId, [
+            'class_id' => $classId,
+            'time_limit' => (int) $validated['time_limit'],
+            'available_at' => $startAt?->toIso8601String(),
+            'due_at' => $dueAt?->toIso8601String(),
+        ]);
+
+        return redirect("/teacher/classes/{$classId}")
+            ->with('success', $startsNow ? 'Assignment updated and started.' : 'Assignment settings updated.');
+    }
+
     public function start(string $classId, string $sessionId)
     {
         $session = $this->ownedSession($classId, $sessionId);
@@ -484,9 +547,6 @@ class TeacherClassController extends Controller
         if (($session['status'] ?? 'waiting') !== 'waiting') {
             return response()->json(['message' => 'Only an assigned quiz can be started.'], 422);
         }
-        if (!empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at']))) {
-            return response()->json(['message' => 'This quiz is scheduled for a later time.'], 422);
-        }
         if (!empty($session['due_at']) && now()->gte(\Carbon\Carbon::parse($session['due_at']))) {
             return response()->json(['message' => 'This quiz assignment is already past due.'], 422);
         }
@@ -494,12 +554,22 @@ class TeacherClassController extends Controller
         $updated = $this->supabase->update('quiz_sessions', [
             'status' => 'active',
             'is_active' => true,
-            'started_at' => $session['started_at'] ?? now()->toIso8601String(),
+            'available_at' => now()->toIso8601String(),
+            'started_at' => now()->toIso8601String(),
         ], ['id' => $sessionId], session('supabase_token'));
 
-        return isset($updated[0]['id'])
-            ? response()->json(['success' => true])
-            : response()->json(['message' => 'The quiz could not be started.'], 500);
+        if (!isset($updated[0]['id'])) {
+            return response()->json(['message' => 'The quiz could not be started.'], 500);
+        }
+
+        $this->supabase->audit(session('supabase_user'), 'quiz.started', 'quiz_session', $sessionId, [
+            'class_id' => $classId,
+            'topic' => $session['topic'] ?? null,
+            'started_early' => !empty($session['available_at'])
+                && now()->lt(\Carbon\Carbon::parse($session['available_at'])),
+        ]);
+
+        return response()->json(['success' => true]);
     }
 
     public function end(string $classId, string $sessionId)
@@ -604,44 +674,6 @@ class TeacherClassController extends Controller
         ]);
 
         return response()->json(['success' => true, 'message' => 'Student marked excused for this quiz.']);
-    }
-
-    public function updateAccommodation(Request $request, string $classId, string $studentId)
-    {
-        $validated = $request->validate([
-            'additional_time_seconds' => 'required|integer|between:0,300',
-            'notes' => 'nullable|string|max:500',
-        ]);
-        $teacher = session('supabase_user');
-        if (!$this->ownedClass($classId, $teacher['id'])) {
-            return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
-        }
-        $member = $this->supabase->adminSelect('class_members', 'student_id', [
-            'class_id' => $classId, 'student_id' => $studentId,
-        ]);
-        if (!$member) {
-            return redirect("/teacher/classes/{$classId}")->with('error', 'That student is not in this class.');
-        }
-
-        $additionalTimeSeconds = (int) $validated['additional_time_seconds'];
-        $saved = $this->supabase->adminUpsert('class_member_accommodations', [
-            'class_id' => $classId,
-            'student_id' => $studentId,
-            'additional_time_seconds' => $additionalTimeSeconds,
-            'notes' => trim((string) ($validated['notes'] ?? '')) ?: null,
-            'updated_by' => $teacher['id'],
-            'updated_at' => now()->toIso8601String(),
-        ], 'class_id,student_id');
-        if (!isset($saved[0]['student_id'])) {
-            return redirect("/teacher/classes/{$classId}")->with('error', 'The accommodation could not be saved.');
-        }
-
-        $this->supabase->audit($teacher, 'class.accommodation_updated', 'profile', $studentId, [
-            'class_id' => $classId,
-            'additional_time_seconds' => $additionalTimeSeconds,
-        ]);
-
-        return redirect("/teacher/classes/{$classId}")->with('success', 'Student accommodation updated.');
     }
 
     private function ownedClass(string $classId, string $teacherId): ?array
@@ -815,8 +847,33 @@ class TeacherClassController extends Controller
         return $rows;
     }
 
-    private function expirePastDueSessions(string $classId, array $teacher): void
+    private function advanceScheduledSessions(string $classId, array $teacher): void
     {
+        $scheduled = $this->supabase->adminSelect(
+            'quiz_sessions',
+            'id,topic,available_at,status',
+            [
+                'class_id' => $classId,
+                'teacher_id' => $teacher['id'],
+                'status' => 'waiting',
+                'available_at' => ['operator' => 'lte', 'value' => now()->utc()->toIso8601String()],
+            ]
+        );
+        foreach ($scheduled as $session) {
+            $updated = $this->supabase->adminUpdate('quiz_sessions', [
+                'status' => 'active',
+                'is_active' => true,
+                'started_at' => $session['available_at'] ?? now()->toIso8601String(),
+            ], ['id' => $session['id'], 'teacher_id' => $teacher['id'], 'status' => 'waiting']);
+            if (isset($updated[0]['id'])) {
+                $this->supabase->audit($teacher, 'quiz.auto_started', 'quiz_session', $session['id'], [
+                    'class_id' => $classId,
+                    'topic' => $session['topic'] ?? null,
+                    'available_at' => $session['available_at'] ?? null,
+                ]);
+            }
+        }
+
         $sessions = $this->supabase->adminSelect('quiz_sessions', 'id,topic,due_at,status', [
             'class_id' => $classId,
             'teacher_id' => $teacher['id'],

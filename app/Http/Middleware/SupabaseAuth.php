@@ -47,6 +47,27 @@ class SupabaseAuth
             return redirect('/')->with('error', 'Access denied.');
         }
 
-        return $next($request);
+        // Advance scheduled starts and due dates on normal application traffic.
+        // The database function is idempotent and returns an empty result before
+        // the scheduling migration has been installed.
+        $this->supabase->adminRpc('advance_quiz_session_schedule');
+
+        $response = $next($request);
+
+        $contentType = (string) $response->headers->get('Content-Type', '');
+        if ($request->isMethod('GET')
+            && $response->getStatusCode() === 200
+            && str_contains($contentType, 'text/html')) {
+            $route = $request->route();
+            $routeName = $route?->getName();
+            $routeUri = $route?->uri() ?? ltrim($request->path(), '/');
+            $this->supabase->audit($user, 'page.viewed', 'page', $routeName ?: $routeUri, [
+                'path' => $request->getRequestUri(),
+                'route' => $routeName,
+                'status' => $response->getStatusCode(),
+            ]);
+        }
+
+        return $response;
     }
 }

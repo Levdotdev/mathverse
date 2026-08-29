@@ -16,14 +16,14 @@
 
 <header class="portal-frame !p-6 md:!p-8 mb-7 border-l-4 border-blue-500">
     <p class="text-[10px] text-blue-400 uppercase tracking-widest font-bold">Shared by {{ $creatorName }}</p>
-    <h1 class="text-2xl font-orbitron font-bold mt-2">Review and use this quiz</h1>
-    <p class="text-xs text-slate-400 mt-3">Edit and save a personal copy, with the option to assign it to matching classes. The shared original will stay unchanged.</p>
+    <h1 class="text-2xl font-orbitron font-bold mt-2">Review and assign this quiz</h1>
+    <p class="text-xs text-slate-400 mt-3">Adjust the questions for this assignment and select one or more matching classes. No personal quiz copy is created, and the shared original stays unchanged.</p>
     <div class="flex flex-wrap items-center gap-3 mt-5 text-[10px] uppercase font-bold">
         @if(!empty($quiz['verified_at']))
             <span class="px-3 py-2 rounded bg-green-500/10 text-green-400"><i class="fas fa-check-circle mr-1"></i>Admin Verified</span>
         @endif
         <span class="px-3 py-2 rounded bg-yellow-500/10 text-yellow-400"><i class="fas fa-star mr-1"></i>{{ number_format((float) ($quiz['rating_average'] ?? 0), 1) }} from {{ (int) ($quiz['rating_count'] ?? 0) }}</span>
-        <span class="px-3 py-2 rounded bg-cyan-500/10 text-cyan-400"><i class="fas fa-layer-group mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} uses</span>
+        <span class="px-3 py-2 rounded bg-cyan-500/10 text-cyan-400"><i class="fas fa-users mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} class uses</span>
         <span class="px-3 py-2 rounded bg-white/5 text-slate-400">Version {{ (int) ($quiz['version'] ?? 1) }}</span>
     </div>
     <div class="flex flex-col lg:flex-row gap-3 mt-5">
@@ -55,13 +55,13 @@
     $initialQuestions = old('questions', $questionsForForm);
 @endphp
 
-<form id="shared-quiz-copy-form" method="POST"
-      action="/teacher/quiz-library/{{ $quiz['id'] }}/copy-and-assign" class="space-y-7">
+<form id="shared-quiz-assignment-form" method="POST"
+      action="/teacher/quiz-library/{{ $quiz['id'] }}/assign" class="space-y-7">
     @csrf
 
     <section class="portal-frame !p-6 md:!p-8">
-        <h2 class="font-orbitron font-bold uppercase mb-6">Quiz <span class="text-purple-400">Copy</span></h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <h2 class="font-orbitron font-bold uppercase mb-6">Assignment <span class="text-purple-400">Content</span></h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div class="form-group">
                 <label class="input-label">Quiz Topic</label>
                 <div class="relative">
@@ -69,13 +69,6 @@
                     <input type="text" name="topic" id="q-topic" maxlength="150"
                            value="{{ old('topic', $quiz['topic']) }}" class="input-mobile-ultra" required>
                 </div>
-            </div>
-            <div class="form-group">
-                <label class="input-label">Your Copy Visibility</label>
-                <select name="visibility" class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
-                    <option value="private" {{ old('visibility', 'private') === 'private' ? 'selected' : '' }}>Private</option>
-                    <option value="shared" {{ old('visibility') === 'shared' ? 'selected' : '' }}>Shared with teachers</option>
-                </select>
             </div>
             <div class="form-group">
                 <label class="input-label">Grade Level</label>
@@ -95,7 +88,7 @@
     <section class="portal-frame !p-6 md:!p-8">
         <div class="mb-6">
             <h2 class="font-orbitron font-bold uppercase">Questions</h2>
-            <p class="text-[10px] text-slate-500 mt-1">Changes apply only to your new copy.</p>
+            <p class="text-[10px] text-slate-500 mt-1">Changes apply only to the new class assignments.</p>
         </div>
         <div id="questions-builder" class="space-y-6"></div>
         <div class="mt-6 flex justify-end">
@@ -108,8 +101,8 @@
 
     <section class="portal-frame !p-6 md:!p-8">
         <div class="mb-6">
-            <h2 class="font-orbitron font-bold uppercase">Assign to <span class="text-yellow-400">Classes</span> <span class="text-slate-600">(Optional)</span></h2>
-            <p class="text-[10px] text-slate-500 mt-1">Select one or more matching classes, or leave all unchecked to save only a personal copy.</p>
+            <h2 class="font-orbitron font-bold uppercase">Assign to <span class="text-yellow-400">Classes</span></h2>
+            <p class="text-[10px] text-slate-500 mt-1">Select at least one class with the same grade level.</p>
         </div>
 
         <div id="review-class-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -127,7 +120,7 @@
             @endforeach
         </div>
         <p id="review-no-matching-class" class="hidden text-xs text-yellow-400 text-center py-6">
-            You do not have an active class with this grade level, but you can still save a copy.
+            You do not have an active class with this grade level. Choose another grade or create a matching class before assigning.
         </p>
 
         <div id="review-time-limit" class="form-group mt-6 max-w-sm transition-opacity">
@@ -139,16 +132,18 @@
             </div>
             <p class="text-[9px] text-slate-500 mt-1">5–300 seconds for every selected class.</p>
         </div>
-        <div id="review-schedule" class="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-6 transition-opacity">
+        <div id="review-schedule" class="space-y-5 mt-6 transition-opacity max-w-xl">
             <div class="form-group">
-                <label class="input-label">Available From <span class="text-slate-600">(Optional)</span></label>
+                <label class="input-label">Start Date <span class="text-slate-600">(Optional)</span></label>
                 <input type="datetime-local" name="available_at" value="{{ old('available_at') }}"
                        class="input-mobile-ultra !pl-4">
+                <p class="text-[9px] text-slate-500 mt-2">If set, the assignment starts automatically at this time. If blank, start it manually from the classroom.</p>
             </div>
             <div class="form-group">
                 <label class="input-label">Due Date <span class="text-slate-600">(Optional)</span></label>
                 <input type="datetime-local" name="due_at" value="{{ old('due_at') }}"
                        class="input-mobile-ultra !pl-4">
+                <p class="text-[9px] text-slate-500 mt-2">If set, the assignment ends automatically at this time. If blank, end it manually from the classroom.</p>
             </div>
         </div>
     </section>
@@ -156,9 +151,9 @@
     <div class="flex flex-col sm:flex-row justify-end gap-3">
         <button type="button" onclick="openModal('cancelSharedQuizModal')"
                 class="btn-rect-secondary !py-3 !px-6 sm:!w-auto text-center">Cancel</button>
-        <button type="submit" id="copy-assign-submit"
+        <button type="submit" id="shared-assign-submit"
                 class="btn-rect-primary !py-3 !px-6 sm:!w-auto">
-            <i class="fas fa-copy mr-2"></i><span id="copy-assign-label">Save Copy</span>
+            <i class="fas fa-paper-plane mr-2"></i><span id="shared-assign-label">Assign to Classes</span>
         </button>
     </div>
 </form>
@@ -211,7 +206,7 @@
         <div class="portal-frame !p-8 w-full max-w-sm text-center border-red-500/40">
             <i class="fas fa-exclamation-triangle text-4xl text-red-400 mb-4"></i>
             <h3 id="cancel-shared-quiz-title" class="font-orbitron font-bold uppercase text-white">Discard Changes?</h3>
-            <p class="text-xs text-slate-400 my-5">Your edits to this quiz copy have not been saved.</p>
+            <p class="text-xs text-slate-400 my-5">Your assignment edits have not been saved.</p>
             <div class="flex flex-col gap-3">
                 <a href="/teacher/quiz-library{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
                    class="btn-rect-primary !bg-red-600 !text-white text-center">
@@ -226,7 +221,7 @@
     <div id="confirmSharedQuizModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-shared-quiz-title">
         <div class="portal-frame !p-8 w-full max-w-md text-center border-purple-500/40">
             <i class="fas fa-clipboard-check text-4xl text-purple-400 mb-4"></i>
-            <h3 id="confirm-shared-quiz-title" class="font-orbitron font-bold uppercase text-white">Confirm Quiz Copy</h3>
+            <h3 id="confirm-shared-quiz-title" class="font-orbitron font-bold uppercase text-white">Confirm Class Assignment</h3>
             <p id="confirm-shared-quiz-summary" class="text-xs text-slate-300 mt-4"></p>
 
             <div class="bg-black/40 border border-white/10 rounded p-4 my-5 text-left">
@@ -240,7 +235,7 @@
             <div class="flex flex-col gap-3">
                 <button type="button" id="confirm-shared-quiz-submit"
                         class="btn-rect-primary !bg-purple-600 !text-white">
-                    <i class="fas fa-check-circle mr-2"></i><span id="confirm-shared-quiz-button-label">Save Copy</span>
+                    <i class="fas fa-check-circle mr-2"></i><span id="confirm-shared-quiz-button-label">Assign to Classes</span>
                 </button>
                 <button type="button" onclick="closeModal('confirmSharedQuizModal')"
                         class="btn-rect-secondary">Review Again</button>

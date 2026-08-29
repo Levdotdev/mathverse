@@ -123,7 +123,7 @@
                         <h3 class="font-bold text-lg text-white truncate">{{ $session['topic'] }}</h3>
                         <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] text-slate-400">
                             @if(!empty($session['available_at']))
-                                <span><i class="far fa-calendar-check mr-1 text-purple-400"></i>Available {{ \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
+                                <span><i class="far fa-calendar-check mr-1 text-purple-400"></i>Starts {{ \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
                             @endif
                             @if(!empty($session['due_at']))
                                 <span><i class="far fa-clock mr-1 text-red-400"></i>Due {{ \Carbon\Carbon::parse($session['due_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
@@ -135,17 +135,22 @@
                             <button onclick="copyToClipboard('{{ $session['room_code'] }}')" class="text-slate-500 hover:text-white"><i class="fas fa-copy"></i></button>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 w-full xl:w-auto">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 w-full xl:w-auto">
                         <button onclick='openLobby(@json($class["id"]), @json($session["id"]), @json($session["topic"]), @json($session["room_code"]))'
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px]">
                             <i class="fas fa-users mr-1"></i> Lobby
                         </button>
                         @if(!$isActive)
                             <button onclick='openQuizAction(@json($class["id"]), @json($session["id"]), "start", @json($session["topic"]))'
-                                    @disabled($isScheduled)
-                                    title="{{ $isScheduled ? 'This quiz is not available yet.' : 'Start this quiz' }}"
-                                    class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-green-500/30 text-green-400 disabled:opacity-40 disabled:cursor-not-allowed">
+                                    title="{{ $isScheduled ? 'Start this scheduled quiz early' : 'Start this quiz' }}"
+                                    class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-green-500/30 text-green-400">
                                 <i class="fas fa-play mr-1"></i> Start Quiz
+                            </button>
+                        @endif
+                        @if(!$isRetake)
+                            <button onclick='openAssignmentSettings(@json($class["id"]), @json($session["id"]), @json($session["topic"]), @json((int) $session["time_limit"]), @json(!empty($session["available_at"]) ? \Carbon\Carbon::parse($session["available_at"])->timezone(config("app.timezone"))->format("Y-m-d\\TH:i") : ""), @json(!empty($session["due_at"]) ? \Carbon\Carbon::parse($session["due_at"])->timezone(config("app.timezone"))->format("Y-m-d\\TH:i") : ""), @json($isActive))'
+                                    class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-purple-500/30 text-purple-400">
+                                <i class="fas fa-sliders-h mr-1"></i> Edit
                             </button>
                         @endif
                         <button onclick='openQuizAction(@json($class["id"]), @json($session["id"]), "end", @json($session["topic"]))'
@@ -245,7 +250,7 @@
     <div class="portal-frame !p-5 overflow-x-auto">
         <table class="w-full min-w-[650px] text-left">
             <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10">
-                <tr><th class="pb-4">Student</th><th class="pb-4">Email</th><th class="pb-4">Grade</th><th class="pb-4">Extra Time</th><th class="pb-4 text-right">Actions</th></tr>
+                <tr><th class="pb-4">Student</th><th class="pb-4">Email</th><th class="pb-4">Grade</th><th class="pb-4 text-right">Actions</th></tr>
             </thead>
             <tbody class="text-sm">
                 @forelse($members as $member)
@@ -261,14 +266,7 @@
                             Grade {{ $student['grade_level'] ?? 'N/A' }}
                             @if($member['grade_mismatch']) <span class="text-[9px] uppercase ml-1">Mismatch</span> @endif
                         </td>
-                        <td class="py-4 text-purple-400">
-                            +{{ (int) ($member['accommodation']['additional_time_seconds'] ?? 0) }} sec/question
-                        </td>
                         <td class="py-4 text-right">
-                            <button onclick='openAccommodation(@json($class["id"]), @json($studentId), @json($studentName), @json((int) ($member["accommodation"]["additional_time_seconds"] ?? 0)), @json($member["accommodation"]["notes"] ?? ""))'
-                                    class="text-purple-400 hover:text-white text-[10px] uppercase font-bold mr-4">
-                                <i class="fas fa-universal-access mr-1"></i> Accommodations
-                            </button>
                             <button onclick='openRemoveStudent(@json($class["id"]), @json($studentId), @json($studentName))'
                                     class="text-red-400 hover:text-white text-[10px] uppercase font-bold">
                                 <i class="fas fa-user-minus mr-1"></i> Remove
@@ -276,7 +274,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs uppercase">No students have joined yet.</td></tr>
+                    <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No students have joined yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -346,30 +344,36 @@
     </div>
 </div>
 
-<div id="accommodationModal" class="modal-overlay hidden">
+<div id="assignmentSettingsModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="assignment-settings-title">
     <div class="portal-frame !p-8 w-full max-w-md text-left border-purple-500/40">
         <div class="flex items-start justify-between gap-4 mb-6">
             <div>
-                <h3 class="font-orbitron font-bold uppercase">Student <span class="text-purple-400">Accommodation</span></h3>
-                <p id="accommodation-student-name" class="text-xs text-slate-400 mt-2"></p>
+                <h3 id="assignment-settings-title" class="font-orbitron font-bold uppercase">Assignment <span class="text-purple-400">Settings</span></h3>
+                <p id="assignment-settings-topic" class="text-xs text-slate-400 mt-2"></p>
             </div>
-            <button type="button" onclick="closeModal('accommodationModal')" class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
+            <button type="button" onclick="closeModal('assignmentSettingsModal')" class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
         </div>
-        <form id="accommodationForm" method="POST" class="space-y-5">
+        <form id="assignmentSettingsForm" method="POST" class="space-y-5">
             @csrf
             @method('PUT')
             <div>
-                <label for="accommodation-seconds" class="block text-[10px] text-slate-400 uppercase font-bold mb-2">Extra Seconds Per Question</label>
-                <input id="accommodation-seconds" name="additional_time_seconds" type="number" min="0" max="300" step="1" required class="input-field w-full">
-                <p class="text-[9px] text-slate-500 mt-2">Added to the assigned per-question time for this student.</p>
+                <label for="assignment-time-limit" class="input-label">Time Limit Per Question</label>
+                <input id="assignment-time-limit" name="time_limit" type="number" min="5" max="300" required class="input-field w-full">
+                <p class="text-[9px] text-slate-500 mt-2">Choose 5–300 seconds.</p>
             </div>
             <div>
-                <label for="accommodation-notes" class="block text-[10px] text-slate-400 uppercase font-bold mb-2">Private Teacher Notes</label>
-                <textarea id="accommodation-notes" name="notes" rows="3" maxlength="500" class="input-field w-full"></textarea>
+                <label for="assignment-start-at" class="input-label">Start Date <span class="text-slate-600">(Optional)</span></label>
+                <input id="assignment-start-at" name="available_at" type="datetime-local" class="input-field w-full">
+                <p id="assignment-start-tip" class="text-[9px] text-slate-500 mt-2">If set, the assignment starts automatically. If blank, start it manually.</p>
+            </div>
+            <div>
+                <label for="assignment-due-at" class="input-label">Due Date <span class="text-slate-600">(Optional)</span></label>
+                <input id="assignment-due-at" name="due_at" type="datetime-local" class="input-field w-full">
+                <p class="text-[9px] text-slate-500 mt-2">If set, the assignment ends automatically. If blank, end it manually.</p>
             </div>
             <div class="flex flex-col-reverse sm:flex-row gap-3">
-                <button type="button" onclick="closeModal('accommodationModal')" class="btn-rect-secondary">Cancel</button>
-                <button type="submit" class="btn-rect-primary">Save Accommodation</button>
+                <button type="button" onclick="closeModal('assignmentSettingsModal')" class="btn-rect-secondary">Cancel</button>
+                <button type="submit" class="btn-rect-primary">Save Settings</button>
             </div>
         </form>
     </div>

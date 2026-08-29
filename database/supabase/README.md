@@ -30,7 +30,7 @@ To undo it, run
 back the reusable-quiz migration. The duplicate-result backup table is retained
 for verification and may be dropped manually after the rollback is confirmed.
 
-## Scheduling, retakes, quiz governance, and scale
+## Scheduling, retakes, quiz governance, version restore, and scale
 
 After the August 28 migration, run
 `2026_08_29_scheduling_governance_and_scale.sql` before deploying the matching
@@ -38,11 +38,18 @@ application code. The application reads the new lifecycle, eligibility,
 moderation, privacy, and suspension columns during normal requests, so the SQL
 migration must be applied first.
 
-This migration adds assignment availability and due dates, explicit per-student
-eligibility, retained retake history, accommodations, shared-library governance,
+This migration adds automatic assignment start/end dates, explicit per-student
+eligibility, retained retake history, class-based quiz usage counts, verified
+quiz prioritization, atomic version restoration, shared-library governance,
 account suspension, audit events, and query indexes. Existing class members are
 made eligible for open assignments. Existing results remain counted, while
-completed assignments are frozen at their current attempt count.
+completed assignments are frozen at their current attempt count. The earlier
+draft’s per-student accommodation fields are removed when this migration is
+rerun.
+
+The migration does not require the older `rollback_*_20260827` or
+`rollback_*_20260828` archive tables to still exist. If those archives were
+already removed after verification, their final permission cleanup is skipped.
 
 To undo it, first restore the application code from before this feature, then
 run `2026_08_29_scheduling_governance_and_scale_rollback.sql`. The rollback

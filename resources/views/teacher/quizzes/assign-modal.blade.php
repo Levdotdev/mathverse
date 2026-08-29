@@ -22,17 +22,16 @@
                     @endforeach
                 </select>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="form-group">
-                    <label class="input-label">Available From <span class="text-slate-600">(Optional)</span></label>
-                    <input type="datetime-local" name="available_at" class="input-mobile-ultra !pl-4">
-                </div>
-                <div class="form-group">
-                    <label class="input-label">Due Date <span class="text-slate-600">(Optional)</span></label>
-                    <input type="datetime-local" name="due_at" class="input-mobile-ultra !pl-4">
-                </div>
+            <div class="form-group">
+                <label class="input-label">Start Date <span class="text-slate-600">(Optional)</span></label>
+                <input type="datetime-local" name="available_at" class="input-mobile-ultra !pl-4">
+                <p class="text-[9px] text-slate-500 mt-2">If set, the assignment starts automatically at this time. If blank, start it manually from the classroom.</p>
             </div>
-            <p class="text-[9px] text-slate-500">Leave availability blank to make it available immediately. A due date automatically blocks late results.</p>
+            <div class="form-group">
+                <label class="input-label">Due Date <span class="text-slate-600">(Optional)</span></label>
+                <input type="datetime-local" name="due_at" class="input-mobile-ultra !pl-4">
+                <p class="text-[9px] text-slate-500 mt-2">If set, the assignment ends automatically at this time. If blank, end it manually from the classroom.</p>
+            </div>
             <div class="form-group">
                 <label class="input-label">Time Limit Per Question</label>
                 <div class="relative">

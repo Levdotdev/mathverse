@@ -350,3 +350,54 @@ input:-webkit-autofill:focus {
     transform-origin: bottom;
     transition: all 0.15s ease;
 }
+
+/* Dark form controls used by moderation and classroom exception modals. */
+.input-field {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.88);
+    color: #f8fafc;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    color-scheme: dark;
+    user-select: text;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+textarea.input-field {
+    min-height: 96px;
+    resize: vertical;
+}
+
+.input-field::placeholder {
+    color: #64748b;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    background: rgba(15, 23, 42, 1);
+    box-shadow: 0 0 0 3px rgba(0, 242, 255, 0.08), 0 0 16px rgba(0, 242, 255, 0.12);
+}
+
+.input-field option,
+.input-mobile-ultra option {
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+input[type="datetime-local"].input-field,
+input[type="datetime-local"].input-mobile-ultra {
+    color-scheme: dark;
+}
+
+input[type="datetime-local"].input-field::-webkit-calendar-picker-indicator,
+input[type="datetime-local"].input-mobile-ultra::-webkit-calendar-picker-indicator {
+    filter: invert(89%) sepia(89%) saturate(1742%) hue-rotate(123deg) brightness(102%) contrast(104%);
+    cursor: pointer;
+    opacity: 0.9;
+}

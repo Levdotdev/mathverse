@@ -82,16 +82,25 @@ class TeacherController extends Controller
             return $avatarSizeError;
         }
 
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+        ]);
+
         $user  = session('supabase_user');
         $token = session('supabase_token');
         $userId = $user['id'];
 
         // ── UPDATE BASIC INFO
-        $this->supabase->update('profiles', [
-            'first_name'  => $request->first_name,
-            'last_name'   => $request->last_name,
+        $profileUpdated = $this->supabase->update('profiles', [
+            'first_name'  => $validated['first_name'],
+            'last_name'   => $validated['last_name'],
             'grade_level' => 0,
         ], ['id' => $userId], $token);
+        if (!isset($profileUpdated[0]['id'])) {
+            return redirect('/teacher/dashboard?section=profile')
+                ->with('error', 'The profile could not be updated.');
+        }
 
         // ── UPLOAD AVATAR (USE SAME USER ID)
         $avatarUrl = null;
@@ -109,8 +118,8 @@ class TeacherController extends Controller
 
         // ── UPDATE SESSION
         $updated = session('supabase_user');
-        $updated['first_name']  = $request->first_name;
-        $updated['last_name']   = $request->last_name;
+        $updated['first_name']  = $validated['first_name'];
+        $updated['last_name']   = $validated['last_name'];
         $updated['grade_level'] = 0;
 
         if ($avatarUrl) {
@@ -118,6 +127,10 @@ class TeacherController extends Controller
         }
 
         session(['supabase_user' => $updated]);
+
+        $this->supabase->audit($updated, 'profile.updated', 'profile', $userId, [
+            'avatar_changed' => $avatarUrl !== null,
+        ]);
 
         return redirect('/teacher/dashboard?section=profile')->with('success', 'Profile updated successfully!');
     }
@@ -424,49 +437,89 @@ class TeacherController extends Controller
         // Questions
         $questions = $this->supabase->adminSelect('questions', '*', ['session_id' => $id]);
 
-        // Results with student profiles
+        // Every current class member is represented, including missed and excused students.
+        $members = $this->supabase->adminSelect(
+            'class_members',
+            'student_id,profiles(first_name,last_name,grade_level)',
+            ['class_id' => $quiz['class_id'], 'order' => 'joined_at.asc']
+        );
         $results = $this->supabase->adminSelect(
             'quiz_results',
-            'correct_answers,total_questions,created_at,student_id,session_id,profiles(first_name,last_name,grade_level)',
+            'correct_answers,total_questions,created_at,student_id,session_id',
             ['session_id' => $id, 'is_counted' => true, 'order' => 'created_at.asc']
         );
+        $resultMap = array_column($results, null, 'student_id');
+        $eligibility = $this->supabase->adminSelect(
+            'quiz_session_students',
+            'student_id,eligibility_status,excuse_reason',
+            ['session_id' => $id]
+        );
+        $eligibilityMap = array_column($eligibility, null, 'student_id');
+        $questionTotal = count($questions);
 
-        // Get student names
         $rows = [];
-        foreach ($results as $r) {
-            $p = $r['profiles'] ?? null;
-            $accuracy = $r['total_questions'] > 0
-                ? round(($r['correct_answers'] / $r['total_questions']) * 100, 1)
-                : 0;
+        foreach ($members as $member) {
+            $studentId = $member['student_id'];
+            $profile = $member['profiles'] ?? [];
+            $result = $resultMap[$studentId] ?? null;
+            $studentEligibility = $eligibilityMap[$studentId] ?? null;
+            $isExcused = !$result
+                && ($studentEligibility['eligibility_status'] ?? '') === 'excused';
+
+            if ($result) {
+                $total = (int) ($result['total_questions'] ?? 0);
+                $correct = (int) ($result['correct_answers'] ?? 0);
+                $accuracy = $total > 0 ? round(($correct / $total) * 100, 1) : 0;
+                $status = $accuracy >= 75 ? 'Passed' : 'Failed';
+                $date = \Carbon\Carbon::parse($result['created_at'])->format('M d, Y h:i A');
+            } elseif ($isExcused) {
+                $total = $questionTotal;
+                $correct = $questionTotal;
+                $accuracy = 100;
+                $status = 'Excused';
+                $date = '—';
+            } else {
+                $total = $questionTotal;
+                $correct = 0;
+                $accuracy = 0;
+                $status = 'Missed';
+                $date = '—';
+            }
 
             $rows[] = [
-                'name'     => $p ? ($p['last_name'] . ', ' . $p['first_name']) : 'Unknown',
-                'grade'    => $p ? 'Grade ' . ($p['grade_level'] ?? 'N/A') : 'N/A',
-                'score'    => $r['correct_answers'] . ' / ' . $r['total_questions'],
+                'name'     => trim(($profile['last_name'] ?? '') . ', ' . ($profile['first_name'] ?? ''), ', ') ?: 'Unknown',
+                'grade'    => 'Grade ' . ($profile['grade_level'] ?? 'N/A'),
+                'score'    => $correct . ' / ' . $total,
                 'accuracy' => $accuracy,
-                'status'   => $accuracy >= 75 ? 'Passed' : 'Failed',
-                'date'     => \Carbon\Carbon::parse($r['created_at'])->format('M d, Y h:i A'),
+                'status'   => $status,
+                'date'     => $date,
             ];
         }
 
-        usort($rows, fn($a, $b) => $b['accuracy'] <=> $a['accuracy']);
+        usort($rows, fn($a, $b) => ($b['accuracy'] <=> $a['accuracy']) ?: strcmp($a['name'], $b['name']));
 
-        $totalAttempts = count($rows);
-        $avgAccuracy   = $totalAttempts > 0
-            ? round(array_sum(array_column($rows, 'accuracy')) / $totalAttempts, 1)
+        $totalStudents = count($rows);
+        $totalAttempts = count($results);
+        $avgAccuracy   = $totalStudents > 0
+            ? round(array_sum(array_column($rows, 'accuracy')) / $totalStudents, 1)
             : 0;
         $passed  = count(array_filter($rows, fn($r) => $r['accuracy'] >= 75));
         $failed  = count(array_filter($rows, fn($r) => $r['accuracy'] < 75));
+        $missed = count(array_filter($rows, fn($r) => $r['status'] === 'Missed'));
+        $excused = count(array_filter($rows, fn($r) => $r['status'] === 'Excused'));
 
         $summary = [
             'topic'         => $quiz['topic'],
             'room_code'     => $quiz['room_code'],
             'total_questions' => count($questions),
+            'total_students'  => $totalStudents,
             'total_attempts'  => $totalAttempts,
             'avg_accuracy'    => $avgAccuracy,
             'passed'          => $passed,
             'failed'          => $failed,
-            'pass_rate'       => $totalAttempts > 0 ? round(($passed / $totalAttempts) * 100, 1) : 0,
+            'missed'          => $missed,
+            'excused'         => $excused,
+            'pass_rate'       => $totalStudents > 0 ? round(($passed / $totalStudents) * 100, 1) : 0,
             'created'         => \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y'),
             'teacher'         => ($user['last_name'] ?? '') . ', ' . ($user['first_name'] ?? ''),
         ];
@@ -481,7 +534,12 @@ class TeacherController extends Controller
                 fputcsv($out, ['Topic',           $summary['topic']]);
                 fputcsv($out, ['Room Code',        $summary['room_code']]);
                 fputcsv($out, ['Total Questions',  $summary['total_questions']]);
+                fputcsv($out, ['Total Students',   $summary['total_students']]);
                 fputcsv($out, ['Total Attempts',   $summary['total_attempts']]);
+                fputcsv($out, ['Missed',           $summary['missed']]);
+                fputcsv($out, ['Excused (100%)',   $summary['excused']]);
+                fputcsv($out, ['Passed / Excused', $summary['passed']]);
+                fputcsv($out, ['Failed / Missed',  $summary['failed']]);
                 fputcsv($out, ['Avg Accuracy',     $summary['avg_accuracy'] . '%']);
                 fputcsv($out, ['Pass Rate',        $summary['pass_rate'] . '%']);
                 fputcsv($out, ['Date Created',     $summary['created']]);
