@@ -17,7 +17,7 @@
 <header class="portal-frame !p-6 md:!p-8 mb-7 border-l-4 border-blue-500">
     <p class="text-[10px] text-blue-400 uppercase tracking-widest font-bold">Shared by {{ $creatorName }}</p>
     <h1 class="text-2xl font-orbitron font-bold mt-2">Review and use this quiz</h1>
-    <p class="text-xs text-slate-400 mt-3">Edit your copy, then assign it to one or more matching classes. The shared original will stay unchanged.</p>
+    <p class="text-xs text-slate-400 mt-3">Edit and save a personal copy, with the option to assign it to matching classes. The shared original will stay unchanged.</p>
 </header>
 
 @php
@@ -55,23 +55,23 @@
     </section>
 
     <section class="portal-frame !p-6 md:!p-8">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-            <div>
-                <h2 class="font-orbitron font-bold uppercase">Questions</h2>
-                <p class="text-[10px] text-slate-500 mt-1">Changes apply only to your new copy.</p>
-            </div>
+        <div class="mb-6">
+            <h2 class="font-orbitron font-bold uppercase">Questions</h2>
+            <p class="text-[10px] text-slate-500 mt-1">Changes apply only to your new copy.</p>
+        </div>
+        <div id="questions-builder" class="space-y-6"></div>
+        <div class="mt-6 flex justify-end">
             <button type="button" onclick="addNewQuestion()"
                     class="btn-rect-secondary !py-2 !px-4 sm:!w-auto">
                 <i class="fas fa-plus mr-2"></i> Add Question
             </button>
         </div>
-        <div id="questions-builder" class="space-y-6"></div>
     </section>
 
     <section class="portal-frame !p-6 md:!p-8">
         <div class="mb-6">
-            <h2 class="font-orbitron font-bold uppercase">Assign to <span class="text-yellow-400">Classes</span></h2>
-            <p class="text-[10px] text-slate-500 mt-1">Choose one or more active classes with the selected grade level.</p>
+            <h2 class="font-orbitron font-bold uppercase">Assign to <span class="text-yellow-400">Classes</span> <span class="text-slate-600">(Optional)</span></h2>
+            <p class="text-[10px] text-slate-500 mt-1">Select one or more matching classes, or leave all unchecked to save only a personal copy.</p>
         </div>
 
         <div id="review-class-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -88,15 +88,15 @@
                 </label>
             @endforeach
         </div>
-        <p id="review-no-matching-class" class="hidden text-xs text-red-400 text-center py-6">
-            You do not have an active class with this grade level.
+        <p id="review-no-matching-class" class="hidden text-xs text-yellow-400 text-center py-6">
+            You do not have an active class with this grade level, but you can still save a copy.
         </p>
 
-        <div class="form-group mt-6 max-w-sm">
+        <div id="review-time-limit" class="form-group mt-6 max-w-sm transition-opacity">
             <label class="input-label">Time Limit Per Question</label>
             <div class="relative">
                 <i class="fas fa-stopwatch input-icon"></i>
-                <input type="number" name="time_limit" value="{{ old('time_limit', 20) }}"
+                <input type="number" id="review-time-limit-input" name="time_limit" value="{{ old('time_limit', 20) }}"
                        min="5" max="300" class="input-mobile-ultra" required>
             </div>
             <p class="text-[9px] text-slate-500 mt-1">5–300 seconds for every selected class.</p>
@@ -108,7 +108,7 @@
            class="btn-rect-secondary !py-3 !px-6 sm:!w-auto text-center">Cancel</a>
         <button type="submit" id="copy-assign-submit"
                 class="btn-rect-primary !py-3 !px-6 sm:!w-auto">
-            <i class="fas fa-copy mr-2"></i> Save Copy & Assign
+            <i class="fas fa-copy mr-2"></i><span id="copy-assign-label">Save Copy</span>
         </button>
     </div>
 </form>

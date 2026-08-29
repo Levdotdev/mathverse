@@ -18,7 +18,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const gradeSelect = document.getElementById('q-grade');
     const classOptions = [...document.querySelectorAll('[data-class-option]')];
     const noMatchingClass = document.getElementById('review-no-matching-class');
-    const submit = document.getElementById('copy-assign-submit');
+    const submitLabel = document.getElementById('copy-assign-label');
+    const timeLimitGroup = document.getElementById('review-time-limit');
+    const timeLimitInput = document.getElementById('review-time-limit-input');
+
+    function updateSubmissionMode() {
+        const selectedCount = classOptions.filter(option => {
+            const checkbox = option.querySelector('input[type="checkbox"]');
+            return checkbox && !checkbox.disabled && checkbox.checked;
+        }).length;
+        const willAssign = selectedCount > 0;
+
+        if (submitLabel) {
+            submitLabel.textContent = willAssign ? 'Save Copy & Assign' : 'Save Copy';
+        }
+        if (timeLimitInput) {
+            timeLimitInput.disabled = !willAssign;
+            timeLimitInput.required = willAssign;
+        }
+        timeLimitGroup?.classList.toggle('opacity-40', !willAssign);
+    }
 
     function filterClassesByGrade() {
         const grade = Number(gradeSelect?.value);
@@ -37,13 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         noMatchingClass?.classList.toggle('hidden', matchingClasses > 0);
-        if (submit) {
-            submit.disabled = matchingClasses === 0;
-            submit.classList.toggle('opacity-40', matchingClasses === 0);
-            submit.classList.toggle('cursor-not-allowed', matchingClasses === 0);
-        }
+        updateSubmissionMode();
     }
 
+    classOptions.forEach(option => {
+        option.querySelector('input[type="checkbox"]')?.addEventListener('change', updateSubmissionMode);
+    });
     gradeSelect?.addEventListener('change', filterClassesByGrade);
     filterClassesByGrade();
 });

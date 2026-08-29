@@ -133,9 +133,9 @@ class TeacherQuizController extends Controller
     {
         $validated = $this->validateQuiz($request);
         $assignment = $request->validate([
-            'class_ids' => 'required|array|min:1|max:100',
-            'class_ids.*' => 'required|uuid|distinct',
-            'time_limit' => 'required|integer|between:5,300',
+            'class_ids' => 'nullable|array|max:100',
+            'class_ids.*' => 'uuid|distinct',
+            'time_limit' => 'nullable|required_with:class_ids|integer|between:5,300',
         ]);
 
         $user = session('supabase_user');
@@ -147,8 +147,8 @@ class TeacherQuizController extends Controller
                 ->with('error', 'The shared quiz is no longer available.');
         }
 
-        $classIds = array_values($assignment['class_ids']);
-        $classes = $this->supabase->adminSelect('classes', '*', [
+        $classIds = array_values($assignment['class_ids'] ?? []);
+        $classes = empty($classIds) ? [] : $this->supabase->adminSelect('classes', '*', [
             'id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')'],
             'teacher_id' => $user['id'],
         ]);
@@ -192,6 +192,11 @@ class TeacherQuizController extends Controller
             return back()->withInput()->with('error', 'The quiz copy could not be saved.');
         }
 
+        if (empty($orderedClasses)) {
+            return redirect('/teacher/quizzes')
+                ->with('success', 'Quiz copied to My Quizzes.');
+        }
+
         $copiedQuestions = $this->supabase->adminSelect(
             'quiz_questions',
             '*',
@@ -232,7 +237,7 @@ class TeacherQuizController extends Controller
 
             return back()->withInput()->with(
                 'error',
-                'Nothing was assigned because one of the class assignments could not be completed.'
+                'Nothing was saved or assigned because one of the class assignments could not be completed.'
             );
         }
 
