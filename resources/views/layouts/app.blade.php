@@ -32,7 +32,7 @@
                 Image <span class="text-red-500">Too Large</span>
             </h3>
             <p id="image-size-message" class="text-xs text-slate-400 mb-3">
-                The selected image must be less than 3 MB.
+                The selected image must be 2 MB or less.
             </p>
             <p id="image-size-file" class="text-[10px] font-mono text-red-400 break-all mb-8">
                 Please choose a smaller image.

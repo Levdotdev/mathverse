@@ -98,12 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
     showSection(section || fallback);
 });
 
-const MAX_AVATAR_SIZE_BYTES = 3_000_000;
-const AVATAR_SIZE_ERROR = 'The selected image must be less than 3 MB.';
+const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
+const AVATAR_SIZE_ERROR = 'The selected image must be 2 MB or less.';
 let oversizedAvatarInput = null;
 
 function avatarExceedsSizeLimit(file) {
-    return file && file.size >= MAX_AVATAR_SIZE_BYTES;
+    return file && file.size > MAX_AVATAR_SIZE_BYTES;
 }
 
 function showAvatarSizeModal(input) {
@@ -114,7 +114,7 @@ function showAvatarSizeModal(input) {
     const fileDetails = document.getElementById('image-size-file');
 
     if (fileDetails) {
-        const sizeInMb = (file.size / 1_000_000).toFixed(2);
+        const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
         fileDetails.innerText = `${file.name} (${sizeInMb} MB)`;
     }
 

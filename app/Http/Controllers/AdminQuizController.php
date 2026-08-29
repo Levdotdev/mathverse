@@ -101,32 +101,106 @@ class AdminQuizController extends Controller
             return redirect('/admin/quizzes')->with('error', 'The quiz could not be created.');
         }
 
-        $questions = [];
-        foreach (array_values($validated['questions']) as $index => $question) {
-            $options = array_values($question['options']);
-            $questions[] = [
-                'quiz_id' => $quizId,
-                'position' => $index + 1,
-                'grade' => (int) $validated['grade_level'],
-                'type' => 'multiple_choice',
-                'question' => trim($question['question']),
-                'choice1' => trim($options[0]),
-                'choice2' => trim($options[1]),
-                'choice3' => trim($options[2]),
-                'choice4' => trim($options[3]),
-                'choice5' => '',
-                'choice6' => '',
-                'correct_answer' => (string) ((int) $question['correct']),
-            ];
-        }
-
-        $saved = $this->supabase->adminInsert('quiz_questions', $questions);
-        if (count($saved) !== count($questions)) {
+        if (!$this->saveTemplateQuestions(
+            $quizId,
+            $validated['questions'],
+            (int) $validated['grade_level']
+        )) {
             $this->supabase->adminDelete('quizzes', ['id' => $quizId]);
             return redirect('/admin/quizzes')->with('error', 'The quiz questions could not be saved.');
         }
 
         return redirect('/admin/quizzes')->with('success', 'Admin quiz created in the shared library.');
+    }
+
+    public function show(string $id)
+    {
+        $user = session('supabase_user');
+        $quiz = $this->ownedQuiz($id, $user['id']);
+
+        if (!$quiz) {
+            return response()->json(['message' => 'Quiz not found.'], 404);
+        }
+
+        $questions = $this->supabase->adminSelect(
+            'quiz_questions',
+            '*',
+            ['quiz_id' => $id, 'order' => 'position.asc']
+        );
+
+        return response()->json(compact('quiz', 'questions'));
+    }
+
+    public function update(Request $request, string $id)
+    {
+        $user = session('supabase_user');
+        $quiz = $this->ownedQuiz($id, $user['id']);
+
+        if (!$quiz) {
+            return redirect('/admin/quizzes')->with('error', 'You can only edit quizzes you created.');
+        }
+
+        $validated = $this->validateQuiz($request);
+        $oldQuestions = $this->supabase->adminSelect(
+            'quiz_questions',
+            '*',
+            ['quiz_id' => $id, 'order' => 'position.asc']
+        );
+
+        $updated = $this->supabase->adminUpdate('quizzes', [
+            'topic' => trim($validated['topic']),
+            'grade_level' => (int) $validated['grade_level'],
+            'updated_at' => now()->toIso8601String(),
+        ], ['id' => $id, 'teacher_id' => $user['id']]);
+
+        if (!isset($updated[0]['id'])) {
+            return redirect('/admin/quizzes')->with('error', 'The quiz could not be updated.');
+        }
+
+        $this->supabase->adminDelete('quiz_questions', ['quiz_id' => $id]);
+        if (!$this->saveTemplateQuestions(
+            $id,
+            $validated['questions'],
+            (int) $validated['grade_level']
+        )) {
+            $this->supabase->adminUpdate('quizzes', [
+                'topic' => $quiz['topic'],
+                'grade_level' => $quiz['grade_level'],
+                'updated_at' => $quiz['updated_at'] ?? $quiz['created_at'],
+            ], ['id' => $id, 'teacher_id' => $user['id']]);
+            $this->supabase->adminDelete('quiz_questions', ['quiz_id' => $id]);
+            $this->restoreTemplateQuestions($oldQuestions);
+
+            return redirect('/admin/quizzes')
+                ->with('error', 'The new questions could not be saved, so the previous quiz was restored.');
+        }
+
+        return redirect('/admin/quizzes')
+            ->with('success', 'Quiz updated. Existing class assignments were not changed.');
+    }
+
+    public function review(string $id)
+    {
+        $user = session('supabase_user');
+        $quiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
+
+        if (!$quiz) {
+            return redirect('/admin/quiz-library')->with('error', 'Quiz not found.');
+        }
+
+        if (($quiz['teacher_id'] ?? null) === $user['id']) {
+            return redirect('/admin/quizzes')->with('error', 'Open your quiz from My Quizzes to edit it.');
+        }
+
+        $questions = $this->reviewQuestions($this->supabase->adminSelect(
+            'quiz_questions',
+            '*',
+            ['quiz_id' => $id, 'order' => 'position.asc']
+        ));
+        $creatorNames = $this->creatorNames([$quiz['teacher_id']]);
+        $creatorName = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
+
+        return view('admin.quizzes.review', compact('user', 'quiz', 'questions', 'creatorName'));
     }
 
     public function destroy(Request $request, string $id)
@@ -156,6 +230,75 @@ class AdminQuizController extends Controller
             'questions.*.options.*' => 'required|string|max:500',
             'questions.*.correct' => 'required|integer|between:0,3',
         ]);
+    }
+
+    private function saveTemplateQuestions(string $quizId, array $questions, int $grade): bool
+    {
+        $rows = [];
+        foreach (array_values($questions) as $index => $question) {
+            $options = array_values($question['options']);
+            $rows[] = [
+                'quiz_id' => $quizId,
+                'position' => $index + 1,
+                'grade' => $grade,
+                'type' => 'multiple_choice',
+                'question' => trim($question['question']),
+                'choice1' => trim($options[0]),
+                'choice2' => trim($options[1]),
+                'choice3' => trim($options[2]),
+                'choice4' => trim($options[3]),
+                'choice5' => '',
+                'choice6' => '',
+                'correct_answer' => (string) ((int) $question['correct']),
+            ];
+        }
+
+        $saved = $this->supabase->adminInsert('quiz_questions', $rows);
+
+        return count($saved) === count($rows);
+    }
+
+    private function restoreTemplateQuestions(array $questions): void
+    {
+        $rows = array_map(function (array $question): array {
+            unset($question['id']);
+            return $question;
+        }, $questions);
+
+        if (!empty($rows)) {
+            $this->supabase->adminInsert('quiz_questions', $rows);
+        }
+    }
+
+    private function reviewQuestions(array $questions): array
+    {
+        return array_map(function (array $question): array {
+            $choices = [
+                $question['choice1'],
+                $question['choice2'],
+                $question['choice3'],
+                $question['choice4'],
+            ];
+            $correctIndex = filter_var($question['correct_answer'], FILTER_VALIDATE_INT);
+            if ($correctIndex === false || $correctIndex < 0 || $correctIndex > 3) {
+                $correctIndex = array_search($question['correct_answer'], $choices, true);
+                $correctIndex = $correctIndex === false ? 0 : $correctIndex;
+            }
+
+            return [
+                'question' => $question['question'],
+                'choices' => $choices,
+                'correct_index' => $correctIndex,
+            ];
+        }, $questions);
+    }
+
+    private function ownedQuiz(string $id, string $adminId): ?array
+    {
+        return $this->supabase->adminSelect('quizzes', '*', [
+            'id' => $id,
+            'teacher_id' => $adminId,
+        ])[0] ?? null;
     }
 
     private function quizFilters(Request $request): array

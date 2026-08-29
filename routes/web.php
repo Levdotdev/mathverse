@@ -40,6 +40,8 @@ Route::middleware('auth.supabase:teacher')->group(function () {
 
     Route::get('/teacher/quizzes', [TeacherQuizController::class, 'index']);
     Route::get('/teacher/quiz-library', [TeacherQuizController::class, 'library']);
+    Route::get('/teacher/quiz-library/{id}/review', [TeacherQuizController::class, 'review']);
+    Route::post('/teacher/quiz-library/{id}/copy-and-assign', [TeacherQuizController::class, 'copyAndAssign']);
     Route::post('/teacher/quizzes', [TeacherQuizController::class, 'store']);
     Route::get('/teacher/quizzes/{id}', [TeacherQuizController::class, 'show']);
     Route::put('/teacher/quizzes/{id}', [TeacherQuizController::class, 'update']);
@@ -70,7 +72,10 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::delete('/admin/user/{id}', [AdminController::class, 'deleteUser']);
     Route::get('/admin/quizzes', [AdminQuizController::class, 'index']);
     Route::get('/admin/quiz-library', [AdminQuizController::class, 'library']);
+    Route::get('/admin/quiz-library/{id}/review', [AdminQuizController::class, 'review']);
     Route::post('/admin/quizzes', [AdminQuizController::class, 'store']);
+    Route::get('/admin/quizzes/{id}', [AdminQuizController::class, 'show']);
+    Route::put('/admin/quizzes/{id}', [AdminQuizController::class, 'update']);
     Route::delete('/admin/quizzes/{id}', [AdminQuizController::class, 'destroy']);
     Route::post('/admin/approve-teacher/{id}', [AdminController::class, 'approveTeacher']);
     Route::delete('/admin/deny-teacher/{id}', [AdminController::class, 'denyTeacher']);

@@ -17,7 +17,7 @@
         <h1 class="text-xl md:text-2xl font-orbitron font-bold uppercase">
             Shared Quiz <span class="text-blue-400">Library</span>
         </h1>
-        <p class="text-xs text-slate-500 mt-2">Review or delete quizzes shared by teachers. Admin-authored quizzes remain on the separate VR Quiz Bees page.</p>
+        <p class="text-xs text-slate-500 mt-2">Review or delete quizzes shared by teachers.</p>
     </div>
     <a href="/admin/quizzes" class="btn-rect-secondary !py-3 !px-5 text-center lg:!w-auto">
         <i class="fas fa-arrow-left mr-2"></i> My Quizzes
@@ -86,10 +86,16 @@
                                 Updated {{ \Carbon\Carbon::parse($quiz['updated_at'] ?? $quiz['created_at'])->format('M d, Y') }}
                             </p>
                         </div>
-                        <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
-                                class="btn-rect-secondary !py-2 !px-4 sm:!w-auto shrink-0 !border-red-500/30 text-red-400">
-                            <i class="fas fa-trash-alt mr-2"></i> Delete
-                        </button>
+                        <div class="grid grid-cols-2 gap-2 w-full sm:w-auto shrink-0">
+                            <a href="/admin/quiz-library/{{ $quiz['id'] }}/review"
+                               class="btn-rect-secondary !py-2 !px-4 !w-auto text-center !border-blue-500/30 hover:!text-blue-400">
+                                <i class="fas fa-eye mr-2"></i> Review
+                            </a>
+                            <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
+                                    class="btn-rect-secondary !py-2 !px-4 !w-auto !border-red-500/30 text-red-400">
+                                <i class="fas fa-trash-alt mr-2"></i> Delete
+                            </button>
+                        </div>
                     </article>
                 @endforeach
             </div>

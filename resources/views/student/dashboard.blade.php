@@ -264,7 +264,7 @@
                             </label>
                             <input type="file" id="avatar-input" name="avatar"
                                 accept="image/*" class="hidden">
-                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • Less than 3 MB</p>
+                            <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • 2 MB or less</p>
                         </div>
                     </div>
                 </div>

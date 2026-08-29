@@ -26,10 +26,6 @@
     @endif
 </header>
 
-<div class="portal-frame !p-5 mb-7 border-l-4 border-yellow-500">
-    <p class="text-xs text-slate-400"><i class="fas fa-info-circle text-yellow-400 mr-2"></i>The current VR result format stores your total score, but not each selected option. This review therefore shows the quiz questions and their correct answers.</p>
-</div>
-
 <div class="space-y-5">
     @forelse($questions as $index => $question)
         <article class="portal-frame !p-6">
@@ -44,7 +40,6 @@
                     </div>
                 @endforeach
             </div>
-            <p class="text-xs text-green-400 font-bold mt-5"><i class="fas fa-check mr-2"></i>Correct answer: {{ $question['correct_text'] }}</p>
         </article>
     @empty
         <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase">No question snapshot is available for this quiz.</div>

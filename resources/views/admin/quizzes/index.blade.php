@@ -16,7 +16,7 @@
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
         <div>
             <h1 class="text-xl md:text-2xl font-orbitron font-bold uppercase">My VR Quiz <span class="text-purple-400">Bees</span></h1>
-            <p class="text-xs text-slate-500 mt-2">Create and manage admin-authored quizzes. Admin quizzes cannot be assigned to classes by an admin.</p>
+            <p class="text-xs text-slate-500 mt-2">Create and manage admin-authored quizzes.</p>
         </div>
         <div class="flex flex-col sm:flex-row gap-3">
             <a href="/admin/quiz-library" class="btn-rect-secondary !py-3 !px-5 text-center sm:!w-auto">
@@ -71,10 +71,16 @@
                         <span class="text-slate-500 px-1 py-1">{{ \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y') }}</span>
                     </div>
                 </div>
-                <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
-                        class="btn-rect-secondary !py-2 !px-4 !w-auto !border-red-500/30 text-red-400">
-                    <i class="fas fa-trash-alt mr-1"></i> Delete
-                </button>
+                <div class="grid grid-cols-2 gap-2 w-full lg:w-auto">
+                    <button onclick='loadQuizBuilder(@json($quiz["id"]))'
+                            class="btn-rect-secondary !py-2 !px-4 !w-auto !border-purple-500/30 hover:!text-purple-400">
+                        <i class="fas fa-edit mr-1"></i> Edit
+                    </button>
+                    <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
+                            class="btn-rect-secondary !py-2 !px-4 !w-auto !border-red-500/30 text-red-400">
+                        <i class="fas fa-trash-alt mr-1"></i> Delete
+                    </button>
+                </div>
             </article>
         @empty
             <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase tracking-widest">

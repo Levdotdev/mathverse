@@ -87,10 +87,10 @@
                                 Updated {{ \Carbon\Carbon::parse($quiz['updated_at'] ?? $quiz['created_at'])->format('M d, Y') }}
                             </p>
                         </div>
-                        <button onclick='openAssignQuiz(@json($quiz["id"]), @json($quiz["topic"]), {{ $quiz["grade_level"] }})'
-                                class="btn-rect-primary !py-2 !px-4 sm:!w-auto shrink-0">
-                            <i class="fas fa-chalkboard-teacher mr-2"></i> Assign
-                        </button>
+                        <a href="/teacher/quiz-library/{{ $quiz['id'] }}/review{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
+                           class="btn-rect-primary !py-2 !px-4 sm:!w-auto shrink-0 text-center">
+                            <i class="fas fa-eye mr-2"></i> Review
+                        </a>
                     </article>
                 @endforeach
             </div>
@@ -129,10 +129,5 @@
 @endsection
 
 @section('modals')
-    @include('teacher.quizzes.assign-modal')
     @include('teacher.partials.logout-modal')
 @endsection
-
-@push('scripts')
-<script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-@endpush

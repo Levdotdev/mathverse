@@ -100,6 +100,151 @@ class TeacherQuizController extends Controller
         ));
     }
 
+    public function review(Request $request, string $id)
+    {
+        $user = session('supabase_user');
+        $quiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
+
+        if (!$quiz) {
+            return redirect('/teacher/quiz-library')->with('error', 'Quiz not found.');
+        }
+
+        if (($quiz['teacher_id'] ?? null) === $user['id']) {
+            return redirect('/teacher/quizzes')->with('error', 'Open your quiz from My Quizzes to edit it.');
+        }
+
+        $templateQuestions = $this->supabase->adminSelect(
+            'quiz_questions',
+            '*',
+            ['quiz_id' => $id, 'order' => 'position.asc']
+        );
+        $questionsForForm = $this->questionsForForm($templateQuestions);
+        $creatorNames = $this->creatorNames([$quiz['teacher_id']]);
+        $creatorName = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse Teacher';
+        $classes = $this->teacherClasses($user['id']);
+        $preferredClassId = $this->preferredClassId($request, $classes);
+
+        return view('teacher.quizzes.review', compact(
+            'user', 'quiz', 'questionsForForm', 'creatorName', 'classes', 'preferredClassId'
+        ));
+    }
+
+    public function copyAndAssign(Request $request, string $id)
+    {
+        $validated = $this->validateQuiz($request);
+        $assignment = $request->validate([
+            'class_ids' => 'required|array|min:1|max:100',
+            'class_ids.*' => 'required|uuid|distinct',
+            'time_limit' => 'required|integer|between:5,300',
+        ]);
+
+        $user = session('supabase_user');
+        $token = session('supabase_token');
+        $sourceQuiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
+
+        if (!$sourceQuiz || ($sourceQuiz['teacher_id'] ?? null) === $user['id']) {
+            return redirect('/teacher/quiz-library')
+                ->with('error', 'The shared quiz is no longer available.');
+        }
+
+        $classIds = array_values($assignment['class_ids']);
+        $classes = $this->supabase->adminSelect('classes', '*', [
+            'id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')'],
+            'teacher_id' => $user['id'],
+        ]);
+        $classesById = [];
+        foreach ($classes as $class) {
+            $classesById[$class['id']] = $class;
+        }
+
+        if (count($classesById) !== count($classIds)) {
+            return back()->withInput()->with('error', 'One or more selected classes are not available.');
+        }
+
+        $grade = (int) $validated['grade_level'];
+        $orderedClasses = [];
+        foreach ($classIds as $classId) {
+            $class = $classesById[$classId];
+            if (!empty($class['archived_at'])) {
+                return back()->withInput()->with('error', 'Archived classes cannot receive quiz assignments.');
+            }
+            if ((int) $class['grade_level'] !== $grade) {
+                return back()->withInput()
+                    ->with('error', 'Every selected class must match the copied quiz grade level.');
+            }
+            $orderedClasses[] = $class;
+        }
+
+        $copy = $this->supabase->insert('quizzes', [
+            'teacher_id' => $user['id'],
+            'topic' => trim($validated['topic']),
+            'grade_level' => $grade,
+            'updated_at' => now()->toIso8601String(),
+        ], $token);
+        $copyId = $copy[0]['id'] ?? null;
+
+        if (!$copyId) {
+            return back()->withInput()->with('error', 'The quiz copy could not be created.');
+        }
+
+        if (!$this->saveTemplateQuestions($copyId, $validated['questions'], $grade, $token)) {
+            $this->rollbackQuizCopy($copyId, []);
+            return back()->withInput()->with('error', 'The quiz copy could not be saved.');
+        }
+
+        $copiedQuestions = $this->supabase->adminSelect(
+            'quiz_questions',
+            '*',
+            ['quiz_id' => $copyId, 'order' => 'position.asc']
+        );
+        if (count($copiedQuestions) !== count($validated['questions'])) {
+            $this->rollbackQuizCopy($copyId, []);
+            return back()->withInput()->with('error', 'The copied questions could not be verified.');
+        }
+
+        $createdSessionIds = [];
+        try {
+            foreach ($orderedClasses as $class) {
+                $session = $this->supabase->insert('quiz_sessions', [
+                    'teacher_id' => $user['id'],
+                    'source_quiz_id' => $copyId,
+                    'topic' => trim($validated['topic']),
+                    'room_code' => $this->generateRoomCode(),
+                    'class_id' => $class['id'],
+                    'max_members' => 60,
+                    'time_limit' => (int) $assignment['time_limit'],
+                    'is_active' => true,
+                    'status' => 'waiting',
+                ], $token);
+
+                $sessionId = $session[0]['id'] ?? null;
+                if (!$sessionId) {
+                    throw new \RuntimeException('A class assignment could not be created.');
+                }
+                $createdSessionIds[] = $sessionId;
+
+                if (!$this->saveSessionQuestions($sessionId, $copiedQuestions, $token)) {
+                    throw new \RuntimeException('A class assignment could not copy its questions.');
+                }
+            }
+        } catch (\Throwable $exception) {
+            $this->rollbackQuizCopy($copyId, $createdSessionIds);
+
+            return back()->withInput()->with(
+                'error',
+                'Nothing was assigned because one of the class assignments could not be completed.'
+            );
+        }
+
+        $classCount = count($orderedClasses);
+        $classLabel = $classCount === 1 ? '1 class' : "{$classCount} classes";
+
+        return redirect('/teacher/quizzes')->with(
+            'success',
+            "Quiz copied to My Quizzes and assigned to {$classLabel}."
+        );
+    }
+
     public function store(Request $request)
     {
         $validated = $this->validateQuiz($request);
@@ -228,14 +373,14 @@ class TeacherQuizController extends Controller
 
         $user = session('supabase_user');
         $token = session('supabase_token');
-        $quiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
+        $quiz = $this->ownedQuiz($id, $user['id']);
         $class = $this->supabase->adminSelect('classes', '*', [
             'id' => $validated['class_id'],
             'teacher_id' => $user['id'],
         ])[0] ?? null;
 
         if (!$quiz || !$class) {
-            return back()->with('error', 'The selected quiz or class is not available.');
+            return back()->with('error', 'The selected quiz or class is not available. Shared quizzes must be copied first.');
         }
 
         if (!empty($class['archived_at'])) {
@@ -364,6 +509,40 @@ class TeacherQuizController extends Controller
         if (!empty($rows)) {
             $this->supabase->insert('quiz_questions', $rows, $token);
         }
+    }
+
+    private function questionsForForm(array $questions): array
+    {
+        return array_map(function (array $question): array {
+            $options = [
+                $question['choice1'],
+                $question['choice2'],
+                $question['choice3'],
+                $question['choice4'],
+            ];
+            $correctIndex = filter_var($question['correct_answer'], FILTER_VALIDATE_INT);
+            if ($correctIndex === false || $correctIndex < 0 || $correctIndex > 3) {
+                $correctIndex = array_search($question['correct_answer'], $options, true);
+                $correctIndex = $correctIndex === false ? 0 : $correctIndex;
+            }
+
+            return [
+                'question' => $question['question'],
+                'options' => $options,
+                'correct' => $correctIndex,
+            ];
+        }, $questions);
+    }
+
+    private function rollbackQuizCopy(string $quizId, array $sessionIds): void
+    {
+        foreach ($sessionIds as $sessionId) {
+            $this->supabase->delete('questions', ['session_id' => $sessionId]);
+            $this->supabase->delete('quiz_sessions', ['id' => $sessionId]);
+        }
+
+        $this->supabase->delete('quiz_questions', ['quiz_id' => $quizId]);
+        $this->supabase->delete('quizzes', ['id' => $quizId]);
     }
 
     private function saveSessionQuestions(string $sessionId, array $questions, string $token): bool
