@@ -350,6 +350,11 @@ class SupabaseService
 
     public function adminRpc(string $function, array $arguments = []): array
     {
+        return $this->adminRpcResult($function, $arguments)['data'];
+    }
+
+    public function adminRpcResult(string $function, array $arguments = []): array
+    {
         $response = Http::withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
@@ -357,15 +362,32 @@ class SupabaseService
         ])->post("{$this->url}/rest/v1/rpc/{$function}", $arguments);
 
         if (!$response->successful()) {
-            return [];
+            $error = $response->json();
+            $message = is_array($error)
+                ? ($error['message'] ?? $error['hint'] ?? $error['details'] ?? null)
+                : null;
+
+            return [
+                'data' => [],
+                'error' => $message ?: "Database function {$function} failed with status {$response->status()}.",
+                'status' => $response->status(),
+            ];
         }
 
         $payload = $response->json();
         if (!is_array($payload)) {
-            return [];
+            return [
+                'data' => [],
+                'error' => "Database function {$function} returned an invalid response.",
+                'status' => $response->status(),
+            ];
         }
 
-        return array_is_list($payload) ? $payload : [$payload];
+        return [
+            'data' => array_is_list($payload) ? $payload : [$payload],
+            'error' => null,
+            'status' => $response->status(),
+        ];
     }
 
     public function setAuthUserSuspended(string $userId, bool $suspended): bool

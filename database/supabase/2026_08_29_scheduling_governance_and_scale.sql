@@ -61,6 +61,10 @@ alter table public.quizzes
     add column if not exists verified_at timestamp with time zone,
     add column if not exists verified_by uuid;
 
+alter table public.quizzes
+    add column if not exists is_verified boolean
+    generated always as (verified_at is not null) stored;
+
 do $$
 begin
     if not exists (
@@ -906,6 +910,50 @@ from public, anon, authenticated;
 grant execute on function public.restore_quiz_version(uuid, integer, uuid)
 to service_role;
 
+-- Stable application wrapper: returns the actual restore error instead of
+-- forcing every caller to display one generic failure message. The nested
+-- exception block rolls back any partial work performed by the restore call.
+create or replace function public.restore_quiz_version_v2(
+    p_quiz_id uuid,
+    p_version integer,
+    p_actor_id uuid
+)
+returns table (
+    restore_success boolean,
+    restored_quiz_id uuid,
+    restored_version integer,
+    error_message text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    restored record;
+begin
+    begin
+        select response.quiz_id, response.restored_version
+        into restored
+        from public.restore_quiz_version(p_quiz_id, p_version, p_actor_id) response;
+
+        if restored.quiz_id is null then
+            raise exception 'The restore function returned no quiz';
+        end if;
+
+        return query
+        select true, restored.quiz_id, restored.restored_version, null::text;
+    exception when others then
+        return query
+        select false, null::uuid, null::integer, sqlerrm;
+    end;
+end;
+$$;
+
+revoke all on function public.restore_quiz_version_v2(uuid, integer, uuid)
+from public, anon, authenticated;
+grant execute on function public.restore_quiz_version_v2(uuid, integer, uuid)
+to service_role;
+
 -- Advance due and scheduled assignments during normal application traffic.
 -- The result guard independently promotes a scheduled quiz before accepting a
 -- score, so a due/start boundary is also enforced inside the database.
@@ -1004,6 +1052,8 @@ create index if not exists quizzes_visibility_grade_idx
     on public.quizzes (visibility, grade_level, created_at desc);
 create index if not exists quizzes_library_verified_idx
     on public.quizzes (visibility, verified_at desc nulls last, grade_level, created_at desc);
+create index if not exists quizzes_library_priority_created_idx
+    on public.quizzes (visibility, is_verified desc, created_at desc);
 create index if not exists quiz_sessions_source_quiz_usage_idx
     on public.quiz_sessions (source_quiz_id) where class_id is not null;
 create index if not exists profiles_role_grade_name_idx

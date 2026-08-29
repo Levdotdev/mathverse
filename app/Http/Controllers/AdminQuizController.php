@@ -16,7 +16,7 @@ class AdminQuizController extends Controller
 
         $filters = [
             'teacher_id' => $user['id'],
-            'order' => 'grade_level.asc,created_at.desc',
+            'order' => 'created_at.desc',
         ];
         if ($grade !== null) {
             $filters['grade_level'] = $grade;
@@ -48,7 +48,7 @@ class AdminQuizController extends Controller
         $filters = [
             'teacher_id' => ['operator' => 'neq', 'value' => $user['id']],
             'visibility' => 'shared',
-            'order' => 'verified_at.desc.nullslast,grade_level.asc,created_at.desc',
+            'order' => 'is_verified.desc,created_at.desc',
         ];
         if ($grade !== null) {
             $filters['grade_level'] = $grade;
@@ -241,8 +241,8 @@ class AdminQuizController extends Controller
             'version_after' => $currentVersion + 1,
         ]);
 
-        return redirect('/admin/quizzes')
-            ->with('success', 'Quiz updated. Existing class assignments were not changed.');
+        return redirect("/admin/quizzes/{$id}/versions")
+            ->with('success', 'Quiz updated. Its previous version is available below; existing class assignments were not changed.');
     }
 
     public function review(string $id)
@@ -367,8 +367,8 @@ class AdminQuizController extends Controller
             'admin_review_edit' => true,
         ]);
 
-        return redirect("/admin/quiz-library/{$id}/review")
-            ->with('success', 'Teacher quiz updated. Existing class assignments were not changed.');
+        return redirect("/admin/quizzes/{$id}/versions")
+            ->with('success', 'Teacher quiz updated. Its previous version is available below; existing class assignments were not changed.');
     }
 
     public function toggleVerified(string $id)
@@ -463,14 +463,16 @@ class AdminQuizController extends Controller
             return redirect('/admin/quiz-library')->with('error', 'Quiz not found.');
         }
 
-        $restored = $this->supabase->adminRpc('restore_quiz_version', [
+        $rpc = $this->supabase->adminRpcResult('restore_quiz_version_v2', [
             'p_quiz_id' => $id,
             'p_version' => $version,
             'p_actor_id' => $admin['id'],
         ]);
-        if (!isset($restored[0]['quiz_id'])) {
+        $restored = $rpc['data'][0] ?? [];
+        if (!($restored['restore_success'] ?? false)) {
+            $error = $restored['error_message'] ?? $rpc['error'] ?? null;
             return redirect("/admin/quizzes/{$id}/versions")
-                ->with('error', 'That quiz version could not be restored.');
+                ->with('error', $this->restoreFailureMessage($error));
         }
 
         $this->supabase->audit($admin, 'quiz.version_restored', 'quiz', $id, [
@@ -702,6 +704,21 @@ class AdminQuizController extends Controller
         }
 
         return $names;
+    }
+
+    private function restoreFailureMessage(?string $error): string
+    {
+        $message = trim(preg_replace('/\s+/', ' ', (string) $error));
+        if ($message === '') {
+            return 'The selected version could not be restored. Please try again.';
+        }
+        if (str_contains(strtolower($message), 'schema cache')
+            || str_contains(strtolower($message), 'could not find the function')
+            || str_contains(strtolower($message), 'restore_quiz_version_v2')) {
+            return 'Version restoration is not installed in Supabase yet. Run the updated August 29 migration, then try again.';
+        }
+
+        return 'Version restore failed: ' . \Illuminate\Support\Str::limit($message, 220);
     }
 
     private function questionCounts(array $ids): array

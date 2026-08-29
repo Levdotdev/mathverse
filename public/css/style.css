@@ -356,10 +356,12 @@ input:-webkit-autofill:focus {
     width: 100%;
     min-height: 46px;
     padding: 12px 14px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
     border-radius: 6px;
-    background: rgba(15, 23, 42, 0.88);
-    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.96) !important;
+    background-color: rgb(15, 23, 42) !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc;
     font-family: 'Share Tech Mono', monospace;
     font-size: 14px;
     line-height: 1.4;
@@ -386,18 +388,48 @@ textarea.input-field {
 
 .input-field option,
 .input-mobile-ultra option {
-    background: #0f172a;
-    color: #f8fafc;
+    background: #0f172a !important;
+    color: #f8fafc !important;
 }
 
-input[type="datetime-local"].input-field,
-input[type="datetime-local"].input-mobile-ultra {
-    color-scheme: dark;
+/* Native date controls otherwise render a black calendar icon on Windows. */
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="time"] {
+    color-scheme: dark !important;
+    padding-right: 12px !important;
+    background-color: rgb(15, 23, 42) !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc;
 }
 
-input[type="datetime-local"].input-field::-webkit-calendar-picker-indicator,
-input[type="datetime-local"].input-mobile-ultra::-webkit-calendar-picker-indicator {
-    filter: invert(89%) sepia(89%) saturate(1742%) hue-rotate(123deg) brightness(102%) contrast(104%);
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(89%) sepia(89%) saturate(1742%) hue-rotate(123deg) brightness(102%) contrast(104%) !important;
     cursor: pointer;
-    opacity: 0.9;
+    opacity: 1 !important;
+    width: 18px;
+    height: 18px;
+    margin: 0 0 0 10px;
+    padding: 1px;
+    flex: 0 0 18px;
+}
+
+/* Ensure every system control keeps the MathVerse palette even when browser
+   form defaults or utility classes try to paint it white. */
+.input-mobile-ultra,
+select.input-field,
+textarea.input-field,
+input.input-field {
+    background-color: rgb(15, 23, 42) !important;
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc;
+}
+
+select.input-field,
+select.input-mobile-ultra {
+    color-scheme: dark;
 }

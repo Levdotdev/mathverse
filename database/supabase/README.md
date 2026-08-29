@@ -50,6 +50,9 @@ rerun.
 The migration does not require the older `rollback_*_20260827` or
 `rollback_*_20260828` archive tables to still exist. If those archives were
 already removed after verification, their final permission cleanup is skipped.
+The file is safe to rerun when upgrading an earlier August 29 installation; the
+rerun installs the current restore wrapper and reports the actual reason when a
+quiz version cannot be restored.
 
 To undo it, first restore the application code from before this feature, then
 run `2026_08_29_scheduling_governance_and_scale_rollback.sql`. The rollback

@@ -150,6 +150,7 @@ drop function if exists public.propagate_member_accommodation();
 drop function if exists public.refresh_quiz_rating_summary();
 drop function if exists public.refresh_source_quiz_usage();
 drop function if exists public.auto_verify_admin_quiz();
+drop function if exists public.restore_quiz_version_v2(uuid, integer, uuid);
 drop function if exists public.restore_quiz_version(uuid, integer, uuid);
 drop function if exists public.advance_quiz_session_schedule(uuid);
 drop function if exists public.grant_quiz_retake(uuid, uuid, uuid, text, timestamp with time zone);
@@ -198,6 +199,7 @@ drop index if exists public.quiz_reports_status_created_idx;
 drop index if exists public.quiz_bookmarks_user_created_idx;
 drop index if exists public.quizzes_visibility_grade_idx;
 drop index if exists public.quizzes_library_verified_idx;
+drop index if exists public.quizzes_library_priority_created_idx;
 drop index if exists public.quiz_sessions_source_quiz_usage_idx;
 drop index if exists public.profiles_role_grade_name_idx;
 drop index if exists public.profiles_email_search_idx;
@@ -227,6 +229,7 @@ alter table public.quizzes
     drop column if exists usage_count,
     drop column if exists rating_average,
     drop column if exists rating_count,
+    drop column if exists is_verified,
     drop column if exists verified_at,
     drop column if exists verified_by;
 

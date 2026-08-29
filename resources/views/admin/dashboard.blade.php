@@ -106,6 +106,29 @@
         </div>
     </div>
 
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+        <a href="/admin/dashboard?section=role-verify"
+           class="portal-frame !p-5 border-orange-500/30 flex items-center justify-between gap-4 hover:border-orange-400 transition-colors">
+            <div>
+                <p class="text-[9px] text-orange-300 uppercase font-bold tracking-widest">Pending Teacher Verification</p>
+                <p class="text-xs text-slate-400 mt-2">Review newly registered teacher accounts.</p>
+            </div>
+            <span class="w-12 h-12 rounded bg-orange-500/15 text-orange-400 flex items-center justify-center font-orbitron text-xl font-black shrink-0">
+                {{ $adminPendingTeacherCount ?? count($pendingTeachers) }}
+            </span>
+        </a>
+        <a href="/admin/quiz-library?reported=1"
+           class="portal-frame !p-5 border-red-500/30 flex items-center justify-between gap-4 hover:border-red-400 transition-colors">
+            <div>
+                <p class="text-[9px] text-red-300 uppercase font-bold tracking-widest">Active Quiz Reports</p>
+                <p class="text-xs text-slate-400 mt-2">Open reported quizzes requiring moderation.</p>
+            </div>
+            <span class="w-12 h-12 rounded bg-red-500/15 text-red-400 flex items-center justify-center font-orbitron text-xl font-black shrink-0">
+                {{ $pendingReportCount }}
+            </span>
+        </a>
+    </div>
+
     <div class="portal-frame !p-6 border-red-500/10">
         <div class="flex items-center justify-between gap-4 mb-6">
             <h4 class="font-orbitron text-xs text-red-500 uppercase tracking-widest"><i class="fas fa-clipboard-list mr-2"></i> Recent Audit Events</h4>
@@ -249,6 +272,47 @@
     </div>
 </section>
 
+{{-- ACTIONABLE NOTIFICATIONS --}}
+<section id="sec-notifications" class="content-section hidden">
+    <div class="portal-frame !p-6 md:!p-8 border-yellow-500/20">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
+            <div>
+                <h2 class="text-xl font-orbitron font-bold uppercase">Admin <span class="text-yellow-400">Notifications</span></h2>
+                <p class="text-[10px] text-slate-500 mt-2">Items remain here until the teacher application or quiz report is handled.</p>
+            </div>
+            <div class="flex gap-2 text-[9px] uppercase font-black">
+                <a href="/admin/dashboard?section=role-verify" class="px-3 py-2 rounded bg-orange-500/10 text-orange-300 border border-orange-500/20">
+                    {{ $adminPendingTeacherCount ?? count($pendingTeachers) }} Teachers
+                </a>
+                <a href="/admin/quiz-library?reported=1" class="px-3 py-2 rounded bg-red-500/10 text-red-300 border border-red-500/20">
+                    {{ $pendingReportCount }} Reports
+                </a>
+            </div>
+        </div>
+        <div class="space-y-3">
+            @forelse($adminNotifications as $notification)
+                <a href="{{ $notification['url'] }}"
+                   class="flex items-start gap-4 rounded border {{ $notification['type'] === 'teacher' ? 'border-orange-500/25 bg-orange-500/5 hover:border-orange-400' : 'border-red-500/25 bg-red-500/5 hover:border-red-400' }} p-4 transition-colors">
+                    <span class="w-10 h-10 rounded flex items-center justify-center shrink-0 {{ $notification['type'] === 'teacher' ? 'bg-orange-500/15 text-orange-400' : 'bg-red-500/15 text-red-400' }}">
+                        <i class="fas {{ $notification['type'] === 'teacher' ? 'fa-user-shield' : 'fa-flag' }}"></i>
+                    </span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-sm font-bold text-white">{{ $notification['title'] }}</span>
+                        <span class="block text-xs text-slate-400 mt-1">{{ $notification['message'] }}</span>
+                        <span class="block text-[9px] text-slate-600 uppercase mt-2">{{ \Carbon\Carbon::parse($notification['created_at'])->timezone(config('app.timezone'))->diffForHumans() }}</span>
+                    </span>
+                    <i class="fas fa-chevron-right text-slate-600 mt-3"></i>
+                </a>
+            @empty
+                <div class="rounded border border-white/5 bg-black/20 p-10 text-center">
+                    <i class="fas fa-check-circle text-3xl text-green-400 mb-3"></i>
+                    <p class="text-xs text-slate-500 uppercase">No pending teacher applications or quiz reports.</p>
+                </div>
+            @endforelse
+        </div>
+    </div>
+</section>
+
 {{-- AUDIT LOG --}}
 <section id="sec-audit" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-8">
@@ -290,6 +354,7 @@
     <div class="portal-frame !p-6 md:!p-8 border-orange-500/20">
         <h2 class="text-xl font-orbitron font-bold mb-6 uppercase">
             Pending <span class="text-orange-400">Verifications</span>
+            <span class="ml-2 px-2 py-1 rounded bg-orange-500/15 text-orange-300 text-xs align-middle">{{ $adminPendingTeacherCount ?? count($pendingTeachers) }}</span>
         </h2>
         <div class="space-y-4">
             @forelse($pendingTeachers as $pt)

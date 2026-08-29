@@ -47,6 +47,20 @@ class SupabaseAuth
             return redirect('/')->with('error', 'Access denied.');
         }
 
+        if (($user['role'] ?? '') === 'admin') {
+            $pendingTeacherCount = $this->supabase->adminCount('profiles', [
+                'role' => 'pending_teacher',
+            ]);
+            $pendingReportCount = $this->supabase->adminCount('quiz_reports', [
+                'status' => 'pending',
+            ]);
+            view()->share([
+                'adminPendingTeacherCount' => $pendingTeacherCount,
+                'adminPendingReportCount' => $pendingReportCount,
+                'adminNotificationCount' => $pendingTeacherCount + $pendingReportCount,
+            ]);
+        }
+
         // Advance scheduled starts and due dates on normal application traffic.
         // The database function is idempotent and returns an empty result before
         // the scheduling migration has been installed.

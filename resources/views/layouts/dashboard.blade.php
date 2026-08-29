@@ -84,6 +84,18 @@
         <h1 class="font-orbitron font-bold text-xs tracking-widest uppercase">
             @yield('mobile-title')
         </h1>
+        @if(($user['role'] ?? '') === 'admin')
+            <a href="/admin/dashboard?section=notifications" class="relative text-xl text-yellow-400" aria-label="Admin notifications">
+                <i class="fas fa-bell"></i>
+                @if(($adminNotificationCount ?? 0) > 0)
+                    <span class="absolute -top-2 -right-3 min-w-5 h-5 px-1 rounded-full bg-red-500 text-black text-[9px] font-black flex items-center justify-center">
+                        {{ $adminNotificationCount }}
+                    </span>
+                @endif
+            </a>
+        @else
+            <span class="w-6" aria-hidden="true"></span>
+        @endif
     </div>
 
     @yield('dashboard-content')

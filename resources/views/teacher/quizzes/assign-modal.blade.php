@@ -9,7 +9,6 @@
 
         <form id="assignQuizForm" method="POST" class="space-y-5">
             @csrf
-            <input type="hidden" name="return_to_class" value="{{ $preferredClassId ?? '' }}">
             <div class="form-group">
                 <label class="input-label">Matching Class</label>
                 <select name="class_id" id="assign-class-select"

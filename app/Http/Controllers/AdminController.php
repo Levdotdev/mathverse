@@ -67,6 +67,58 @@ class AdminController extends Controller
         $pendingTeachers = $this->supabase->adminSelect(
             'profiles', '*', ['role' => 'pending_teacher', 'order' => 'created_at.asc']
         );
+        $pendingReportCount = $this->supabase->adminCount('quiz_reports', ['status' => 'pending']);
+        $pendingReports = $this->supabase->adminSelect(
+            'quiz_reports',
+            'id,quiz_id,reporter_id,reason,details,created_at',
+            ['status' => 'pending', 'order' => 'created_at.desc', 'limit' => 50]
+        );
+        $notificationQuizIds = array_values(array_unique(array_filter(array_column($pendingReports, 'quiz_id'))));
+        $notificationReporterIds = array_values(array_unique(array_filter(array_column($pendingReports, 'reporter_id'))));
+        $notificationQuizzes = empty($notificationQuizIds) ? [] : $this->supabase->adminSelect(
+            'quizzes', 'id,topic', [
+                'id' => ['operator' => 'in', 'value' => '(' . implode(',', $notificationQuizIds) . ')'],
+            ]
+        );
+        $notificationReporters = empty($notificationReporterIds) ? [] : $this->supabase->adminSelect(
+            'profiles', 'id,first_name,last_name', [
+                'id' => ['operator' => 'in', 'value' => '(' . implode(',', $notificationReporterIds) . ')'],
+            ]
+        );
+        $notificationQuizMap = array_column($notificationQuizzes, null, 'id');
+        $notificationReporterMap = array_column($notificationReporters, null, 'id');
+        $adminNotifications = [];
+        foreach ($pendingTeachers as $teacher) {
+            $name = trim(($teacher['first_name'] ?? '') . ' ' . ($teacher['last_name'] ?? ''))
+                ?: ($teacher['email'] ?? 'New teacher');
+            $adminNotifications[] = [
+                'type' => 'teacher',
+                'title' => 'Teacher verification requested',
+                'message' => "{$name} registered as a teacher and is waiting for verification.",
+                'created_at' => $teacher['created_at'] ?? now()->toIso8601String(),
+                'url' => '/admin/dashboard?section=role-verify',
+            ];
+        }
+        foreach ($pendingReports as $report) {
+            $quiz = $notificationQuizMap[$report['quiz_id']] ?? [];
+            $reporter = $notificationReporterMap[$report['reporter_id'] ?? ''] ?? [];
+            $reporterName = trim(($reporter['first_name'] ?? '') . ' ' . ($reporter['last_name'] ?? ''))
+                ?: 'A teacher';
+            $topic = $quiz['topic'] ?? 'a shared quiz';
+            $adminNotifications[] = [
+                'type' => 'report',
+                'title' => 'Quiz issue reported',
+                'message' => "{$reporterName} reported {$topic}: "
+                    . str_replace('_', ' ', $report['reason'] ?? 'other issue') . '.',
+                'created_at' => $report['created_at'] ?? now()->toIso8601String(),
+                'url' => "/admin/quiz-library/{$report['quiz_id']}/review",
+            ];
+        }
+        usort(
+            $adminNotifications,
+            fn (array $left, array $right): int => strcmp($right['created_at'], $left['created_at'])
+        );
+        $adminNotifications = array_slice($adminNotifications, 0, 50);
 
         $auditPage = max(1, (int) $request->query('audit_page', 1));
         $auditResult = $this->supabase->adminSelectPage(
@@ -102,7 +154,7 @@ class AdminController extends Controller
             'totalStudents', 'totalQuizzes', 'pendingTeachers', 'studentSearch', 'teacherSearch',
             'studentSort', 'teacherSort', 'studentPage', 'teacherPage', 'studentPages',
             'teacherPages', 'studentTotal', 'teacherTotal', 'auditLogs', 'auditPage',
-            'auditPages', 'auditTotal'
+            'auditPages', 'auditTotal', 'pendingReportCount', 'adminNotifications'
         ));
     }
 
