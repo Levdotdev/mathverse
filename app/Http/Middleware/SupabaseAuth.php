@@ -57,7 +57,6 @@ class SupabaseAuth
             view()->share([
                 'adminPendingTeacherCount' => $pendingTeacherCount,
                 'adminPendingReportCount' => $pendingReportCount,
-                'adminNotificationCount' => $pendingTeacherCount + $pendingReportCount,
             ]);
         }
 

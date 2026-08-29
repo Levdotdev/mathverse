@@ -106,7 +106,7 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
         <a href="/admin/dashboard?section=role-verify"
            class="portal-frame !p-5 border-orange-500/30 flex items-center justify-between gap-4 hover:border-orange-400 transition-colors">
             <div>
@@ -127,6 +127,20 @@
                 {{ $pendingReportCount }}
             </span>
         </a>
+        <div class="portal-frame !p-5 border-yellow-500/30 flex flex-col justify-between gap-4">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <p class="text-[9px] text-yellow-300 uppercase font-bold tracking-widest">Browser Alerts</p>
+                    <p id="admin-push-status" class="text-xs text-slate-400 mt-2">Checking this device…</p>
+                </div>
+                <i class="fas fa-bell text-2xl text-yellow-400 opacity-70"></i>
+            </div>
+            <button type="button" id="admin-push-toggle"
+                    data-vapid-key="{{ config('services.web_push.public_key') }}"
+                    class="btn-rect-secondary !py-2 !px-3 !w-auto text-yellow-300 !border-yellow-500/30 text-[10px]">
+                Enable Browser Alerts
+            </button>
+        </div>
     </div>
 
     <div class="portal-frame !p-6 border-red-500/10">
@@ -269,47 +283,6 @@
                 @if($teacherPage < $teacherPages)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?{{ http_build_query($teacherQuery + ['teacher_page' => $teacherPage + 1]) }}">Next</a>@endif
             </nav>
         @endif
-    </div>
-</section>
-
-{{-- ACTIONABLE NOTIFICATIONS --}}
-<section id="sec-notifications" class="content-section hidden">
-    <div class="portal-frame !p-6 md:!p-8 border-yellow-500/20">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
-            <div>
-                <h2 class="text-xl font-orbitron font-bold uppercase">Admin <span class="text-yellow-400">Notifications</span></h2>
-                <p class="text-[10px] text-slate-500 mt-2">Items remain here until the teacher application or quiz report is handled.</p>
-            </div>
-            <div class="flex gap-2 text-[9px] uppercase font-black">
-                <a href="/admin/dashboard?section=role-verify" class="px-3 py-2 rounded bg-orange-500/10 text-orange-300 border border-orange-500/20">
-                    {{ $adminPendingTeacherCount ?? count($pendingTeachers) }} Teachers
-                </a>
-                <a href="/admin/quiz-library?reported=1" class="px-3 py-2 rounded bg-red-500/10 text-red-300 border border-red-500/20">
-                    {{ $pendingReportCount }} Reports
-                </a>
-            </div>
-        </div>
-        <div class="space-y-3">
-            @forelse($adminNotifications as $notification)
-                <a href="{{ $notification['url'] }}"
-                   class="flex items-start gap-4 rounded border {{ $notification['type'] === 'teacher' ? 'border-orange-500/25 bg-orange-500/5 hover:border-orange-400' : 'border-red-500/25 bg-red-500/5 hover:border-red-400' }} p-4 transition-colors">
-                    <span class="w-10 h-10 rounded flex items-center justify-center shrink-0 {{ $notification['type'] === 'teacher' ? 'bg-orange-500/15 text-orange-400' : 'bg-red-500/15 text-red-400' }}">
-                        <i class="fas {{ $notification['type'] === 'teacher' ? 'fa-user-shield' : 'fa-flag' }}"></i>
-                    </span>
-                    <span class="min-w-0 flex-1">
-                        <span class="block text-sm font-bold text-white">{{ $notification['title'] }}</span>
-                        <span class="block text-xs text-slate-400 mt-1">{{ $notification['message'] }}</span>
-                        <span class="block text-[9px] text-slate-600 uppercase mt-2">{{ \Carbon\Carbon::parse($notification['created_at'])->timezone(config('app.timezone'))->diffForHumans() }}</span>
-                    </span>
-                    <i class="fas fa-chevron-right text-slate-600 mt-3"></i>
-                </a>
-            @empty
-                <div class="rounded border border-white/5 bg-black/20 p-10 text-center">
-                    <i class="fas fa-check-circle text-3xl text-green-400 mb-3"></i>
-                    <p class="text-xs text-slate-500 uppercase">No pending teacher applications or quiz reports.</p>
-                </div>
-            @endforelse
-        </div>
     </div>
 </section>
 
@@ -620,6 +593,7 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="{{ asset('js/admin.js') }}?v={{ filemtime(public_path('js/admin.js')) }}"></script>
+<script src="{{ asset('js/admin-push.js') }}?v={{ filemtime(public_path('js/admin-push.js')) }}"></script>
 <script src="{{ asset('js/charts.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {

@@ -60,3 +60,46 @@ keeps the currently counted result for each student and assignment, archives
 additional retake results and governance records in tables whose names start
 with `rollback_`, and restores the August 28 one-result behavior. Verify those
 archive tables and a separate database backup before deleting either one.
+
+## Quiz regression and browser-push hotfix
+
+For databases where the August 29 migration was already run, execute
+`2026_08_30_quiz_regression_and_push_hotfix.sql` once. It is a small,
+standalone migration that reinstalls version restoration, adds shared-library
+ranking indexes, and creates the protected browser-push subscription table. It
+does not read any `rollback_*` archive table and is safe to rerun.
+
+Use `2026_08_30_quiz_regression_and_push_hotfix_rollback.sql` to remove only
+the push-subscription table and ranking indexes. Quiz version restoration is
+retained because it belongs to the August 29 governance feature.
+
+### Enable administrator browser push alerts
+
+The push alert appears through the browser/operating system even when the
+MathVerse tab is closed. Each administrator must click **Enable Browser
+Alerts** once on the Mainframe and allow notification permission.
+
+1. Generate one VAPID key pair from the project root:
+
+   ```bash
+   node scripts/generate-vapid-keys.mjs
+   ```
+
+2. Set `WEB_PUSH_PUBLIC_KEY` in the Laravel environment to the generated public
+   key. `WEB_PUSH_FUNCTION_URL` is optional; when omitted, Laravel uses
+   `{SUPABASE_URL}/functions/v1/send-admin-push`.
+3. Set the Supabase Edge Function secrets. Replace the values below with the
+   generated keys and a real administrator contact address:
+
+   ```bash
+   supabase secrets set VAPID_PUBLIC_KEY="..." VAPID_PRIVATE_KEY="..." VAPID_SUBJECT="mailto:admin@example.com"
+   ```
+
+4. Deploy the included Edge Function:
+
+   ```bash
+   supabase functions deploy send-admin-push
+   ```
+
+The VAPID private key stays only in Supabase secrets. Never place it in the
+Laravel environment, browser JavaScript, or Git.

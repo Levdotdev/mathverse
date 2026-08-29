@@ -40,4 +40,9 @@ return [
         'anon_key'    => env('SUPABASE_ANON_KEY'),
         'service_key' => env('SUPABASE_SERVICE_KEY'),
     ],
+
+    'web_push' => [
+        'public_key' => env('WEB_PUSH_PUBLIC_KEY'),
+        'function_url' => env('WEB_PUSH_FUNCTION_URL'),
+    ],
 ];

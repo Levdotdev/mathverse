@@ -260,6 +260,70 @@ class SupabaseService
         ];
     }
 
+    /**
+     * Paginate rows with non-null priority values first without requiring a
+     * generated database column. Each partition keeps true server-side
+     * pagination and uses the supplied secondary ordering.
+     */
+    public function adminSelectPrioritizedPage(
+        string $table,
+        string $query,
+        array $filters,
+        string $priorityColumn,
+        string $secondaryOrder,
+        int $limit = 24,
+        int $offset = 0
+    ): array {
+        unset($filters['order'], $filters['limit'], $filters['offset']);
+
+        $limit = max(1, min($limit, 100));
+        $offset = max(0, $offset);
+
+        $priorityFilters = $filters;
+        $priorityFilters[$priorityColumn] = ['operator' => 'not.is', 'value' => 'null'];
+        $priorityFilters['order'] = $secondaryOrder;
+
+        $remainingFilters = $filters;
+        $remainingFilters[$priorityColumn] = ['operator' => 'is', 'value' => 'null'];
+        $remainingFilters['order'] = $secondaryOrder;
+
+        $priorityTotal = $this->adminCount($table, $priorityFilters);
+        $remainingTotal = $this->adminCount($table, $remainingFilters);
+        $rows = [];
+
+        if ($offset < $priorityTotal) {
+            $priorityLimit = min($limit, $priorityTotal - $offset);
+            $priorityPage = $this->adminSelectPage(
+                $table,
+                $query,
+                $priorityFilters,
+                $priorityLimit,
+                $offset
+            );
+            $rows = $priorityPage['data'];
+        }
+
+        $remainingSlots = $limit - count($rows);
+        if ($remainingSlots > 0) {
+            $remainingOffset = max(0, $offset - $priorityTotal);
+            if ($remainingOffset < $remainingTotal) {
+                $remainingPage = $this->adminSelectPage(
+                    $table,
+                    $query,
+                    $remainingFilters,
+                    $remainingSlots,
+                    $remainingOffset
+                );
+                $rows = array_merge($rows, $remainingPage['data']);
+            }
+        }
+
+        return [
+            'data' => $rows,
+            'total' => $priorityTotal + $remainingTotal,
+        ];
+    }
+
     public function adminCount(string $table, array $filters = []): int
     {
         $params = $this->buildAdminSelectParams('id', $filters);
@@ -326,6 +390,11 @@ class SupabaseService
 
     public function adminInsert(string $table, array $data): array
     {
+        return $this->adminInsertResult($table, $data)['data'];
+    }
+
+    public function adminInsertResult(string $table, array $data): array
+    {
         $response = Http::withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
@@ -333,7 +402,24 @@ class SupabaseService
             'Prefer'        => 'return=representation',
         ])->post("{$this->url}/rest/v1/{$table}", $data);
 
-        return $this->responseRows($response);
+        if (!$response->successful()) {
+            $error = $response->json();
+            $message = is_array($error)
+                ? ($error['message'] ?? $error['hint'] ?? $error['details'] ?? null)
+                : null;
+
+            return [
+                'data' => [],
+                'error' => $message ?: "Database insert into {$table} failed with status {$response->status()}.",
+                'status' => $response->status(),
+            ];
+        }
+
+        return [
+            'data' => $this->responseRows($response),
+            'error' => null,
+            'status' => $response->status(),
+        ];
     }
 
     public function adminUpsert(string $table, array $data, string $onConflict): array

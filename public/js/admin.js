@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const requested = new URLSearchParams(window.location.search).get('section') ?? 'overview';
-    const allowed = ['overview', 'stats', 'students', 'teachers', 'role-verify', 'notifications', 'audit', 'reports', 'profile', 'password'];
+    const allowed = ['overview', 'stats', 'students', 'teachers', 'role-verify', 'audit', 'reports', 'profile', 'password'];
     showSection(allowed.includes(requested) ? requested : 'overview');
 
     if (typeof applyChartDefaults === 'function') {

@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AdminPushService;
 use App\Services\SupabaseService;
 use Illuminate\Http\Request;
 
 class TeacherQuizController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private AdminPushService $adminPush
+    ) {}
 
     public function index(Request $request)
     {
@@ -57,7 +61,6 @@ class TeacherQuizController extends Controller
         $filters = [
             'teacher_id' => ['operator' => 'neq', 'value' => $user['id']],
             'visibility' => 'shared',
-            'order'      => 'is_verified.desc,created_at.desc',
         ];
 
         if ($grade !== null) {
@@ -84,9 +87,25 @@ class TeacherQuizController extends Controller
             }
         }
 
-        $result ??= $this->supabase->adminSelectPage(
-            'quizzes', '*', $filters, $perPage, ($page - 1) * $perPage
-        );
+        if (!isset($result)) {
+            $secondaryOrder = 'usage_count.desc,rating_average.desc,created_at.desc';
+            if ($verifiedOnly) {
+                $filters['order'] = $secondaryOrder;
+                $result = $this->supabase->adminSelectPage(
+                    'quizzes', '*', $filters, $perPage, ($page - 1) * $perPage
+                );
+            } else {
+                $result = $this->supabase->adminSelectPrioritizedPage(
+                    'quizzes',
+                    '*',
+                    $filters,
+                    'verified_at',
+                    $secondaryOrder,
+                    $perPage,
+                    ($page - 1) * $perPage
+                );
+            }
+        }
 
         $quizzes = $result['data'];
         $total = $result['total'];
@@ -247,6 +266,16 @@ class TeacherQuizController extends Controller
             'report_id' => $created[0]['id'],
         ]);
 
+        $reporterName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''))
+            ?: 'A teacher';
+        $reason = ucfirst(str_replace('_', ' ', $validated['reason']));
+        $this->adminPush->send(
+            'Shared quiz reported',
+            "{$reporterName} reported {$quiz['topic']}: {$reason}.",
+            "/admin/quiz-library/{$id}/review",
+            "quiz-report-{$created[0]['id']}"
+        );
+
         return back()->with('success', 'Report submitted for admin review.');
     }
 
@@ -276,7 +305,6 @@ class TeacherQuizController extends Controller
         ]);
 
         $user = session('supabase_user');
-        $token = session('supabase_token');
         $sourceQuiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
 
         if (!$sourceQuiz
@@ -339,7 +367,7 @@ class TeacherQuizController extends Controller
         $createdSessionIds = [];
         try {
             foreach ($orderedClasses as $class) {
-                $session = $this->supabase->insert('quiz_sessions', [
+                $sessionResult = $this->supabase->adminInsertResult('quiz_sessions', [
                     'teacher_id' => $user['id'],
                     'source_quiz_id' => $sourceQuiz['id'],
                     'topic' => trim($validated['topic']),
@@ -353,16 +381,21 @@ class TeacherQuizController extends Controller
                     'started_at' => $schedule['started_at'],
                     'is_active' => $schedule['is_active'],
                     'status' => $schedule['status'],
-                ], $token);
+                ]);
 
-                $sessionId = $session[0]['id'] ?? null;
+                $sessionId = $sessionResult['data'][0]['id'] ?? null;
                 if (!$sessionId) {
-                    throw new \RuntimeException('A class assignment could not be created.');
+                    throw new \RuntimeException(
+                        $sessionResult['error'] ?? 'A class assignment could not be created.'
+                    );
                 }
                 $createdSessionIds[] = $sessionId;
 
-                if (!$this->saveSessionQuestions($sessionId, $sessionQuestions, $token)) {
-                    throw new \RuntimeException('A class assignment could not save its questions.');
+                $questionResult = $this->saveSessionQuestions($sessionId, $sessionQuestions);
+                if (!$questionResult['success']) {
+                    throw new \RuntimeException(
+                        $questionResult['error'] ?? 'A class assignment could not save its questions.'
+                    );
                 }
             }
         } catch (\Throwable $exception) {
@@ -370,7 +403,7 @@ class TeacherQuizController extends Controller
 
             return back()->withInput()->with(
                 'error',
-                'Nothing was saved or assigned because one of the class assignments could not be completed.'
+                $this->assignmentFailureMessage($exception->getMessage(), true)
             );
         }
 
@@ -524,14 +557,14 @@ class TeacherQuizController extends Controller
             return redirect('/teacher/quizzes')->with('error', 'Quiz not found.');
         }
 
-        $rpc = $this->supabase->adminRpcResult('restore_quiz_version_v2', [
+        $rpc = $this->supabase->adminRpcResult('restore_quiz_version', [
             'p_quiz_id' => $id,
             'p_version' => $version,
             'p_actor_id' => $user['id'],
         ]);
         $restored = $rpc['data'][0] ?? [];
-        if (!($restored['restore_success'] ?? false)) {
-            $error = $restored['error_message'] ?? $rpc['error'] ?? null;
+        if (!isset($restored['quiz_id'])) {
+            $error = $rpc['error'] ?? null;
             return redirect("/teacher/quizzes/{$id}/versions")
                 ->with('error', $this->restoreFailureMessage($error));
         }
@@ -594,7 +627,6 @@ class TeacherQuizController extends Controller
         ]);
 
         $user = session('supabase_user');
-        $token = session('supabase_token');
         $quiz = $this->ownedQuiz($id, $user['id']);
         $class = $this->supabase->adminSelect('classes', '*', [
             'id' => $validated['class_id'],
@@ -636,7 +668,7 @@ class TeacherQuizController extends Controller
             return back()->with('error', 'This quiz has no questions and cannot be assigned.');
         }
 
-        $session = $this->supabase->insert('quiz_sessions', [
+        $sessionResult = $this->supabase->adminInsertResult('quiz_sessions', [
             'teacher_id' => $user['id'],
             'source_quiz_id' => $quiz['id'],
             'topic' => $quiz['topic'],
@@ -646,18 +678,25 @@ class TeacherQuizController extends Controller
             'time_limit' => (int) $validated['time_limit'],
             'assigned_at' => now()->toIso8601String(),
             ...$this->assignmentSchedule($validated),
-        ], $token);
+        ]);
 
-        $sessionId = $session[0]['id'] ?? null;
+        $sessionId = $sessionResult['data'][0]['id'] ?? null;
         if (!$sessionId) {
-            return back()->with('error', 'The quiz could not be assigned. Please try again.');
+            return back()->with(
+                'error',
+                $this->assignmentFailureMessage($sessionResult['error'] ?? null)
+            );
         }
 
-        if (!$this->saveSessionQuestions($sessionId, $templateQuestions, $token)) {
+        $questionResult = $this->saveSessionQuestions($sessionId, $templateQuestions);
+        if (!$questionResult['success']) {
             $this->supabase->delete('questions', ['session_id' => $sessionId]);
             $this->supabase->delete('quiz_sessions', ['id' => $sessionId]);
 
-            return back()->with('error', 'The quiz assignment was cancelled because its questions could not be copied.');
+            return back()->with(
+                'error',
+                $this->assignmentFailureMessage($questionResult['error'] ?? null)
+            );
         }
 
         return redirect("/teacher/classes/{$class['id']}")
@@ -822,7 +861,7 @@ class TeacherQuizController extends Controller
         }, array_values($questions));
     }
 
-    private function saveSessionQuestions(string $sessionId, array $questions, string $token): bool
+    private function saveSessionQuestions(string $sessionId, array $questions): array
     {
         $rows = array_map(fn (array $question): array => [
             'session_id' => $sessionId,
@@ -838,9 +877,12 @@ class TeacherQuizController extends Controller
             'correct_answer' => (string) $question['correct_answer'],
         ], $questions);
 
-        $saved = $this->supabase->insert('questions', $rows, $token);
+        $result = $this->supabase->adminInsertResult('questions', $rows);
 
-        return count($saved) === count($rows);
+        return [
+            'success' => count($result['data']) === count($rows),
+            'error' => $result['error'],
+        ];
     }
 
     private function ownedQuiz(string $id, string $teacherId): ?array
@@ -1000,6 +1042,34 @@ class TeacherQuizController extends Controller
         ];
     }
 
+    private function assignmentFailureMessage(?string $error, bool $multipleClasses = false): string
+    {
+        $message = trim(preg_replace('/\s+/', ' ', (string) $error));
+        $prefix = $multipleClasses
+            ? 'No classes were assigned. '
+            : 'The quiz was not assigned. ';
+
+        if ($message === '') {
+            return $prefix . 'The database returned no failure reason. Please try again.';
+        }
+
+        $lower = strtolower($message);
+        if (str_contains($lower, 'duplicate key')
+            || str_contains($lower, 'quiz_sessions_one_open_quiz_per_class')) {
+            return $prefix . 'This quiz already has an assigned or active session in the selected class.';
+        }
+        if (str_contains($lower, 'does not match class grade')) {
+            return $prefix . 'The quiz and class grade levels do not match.';
+        }
+        if (str_contains($lower, 'schema cache')
+            || (str_contains($lower, 'column') && str_contains($lower, 'does not exist'))) {
+            return $prefix . 'The assignment database schema is incomplete: '
+                . \Illuminate\Support\Str::limit($message, 180);
+        }
+
+        return $prefix . \Illuminate\Support\Str::limit($message, 220);
+    }
+
     private function restoreFailureMessage(?string $error): string
     {
         $message = trim(preg_replace('/\s+/', ' ', (string) $error));
@@ -1008,8 +1078,8 @@ class TeacherQuizController extends Controller
         }
         if (str_contains(strtolower($message), 'schema cache')
             || str_contains(strtolower($message), 'could not find the function')
-            || str_contains(strtolower($message), 'restore_quiz_version_v2')) {
-            return 'Version restoration is not installed in Supabase yet. Run the updated August 29 migration, then try again.';
+            || str_contains(strtolower($message), 'restore_quiz_version')) {
+            return 'Version restoration is missing from Supabase. Run the standalone quiz hotfix migration, then try again.';
         }
 
         return 'Version restore failed: ' . \Illuminate\Support\Str::limit($message, 220);

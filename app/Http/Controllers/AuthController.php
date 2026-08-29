@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use App\Services\AdminPushService;
 use App\Services\SupabaseService;
 
 class AuthController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private AdminPushService $adminPush
+    ) {}
 
     public function showLogin()
     {
@@ -98,6 +102,17 @@ class AuthController extends Controller
             $this->supabase->updateProfile($userId, [
                 'avatar_url' => $avatarUrl
             ]);
+        }
+
+        if ($request->role === 'teacher') {
+            $teacherName = trim($request->first_name . ' ' . $request->last_name)
+                ?: $request->email;
+            $this->adminPush->send(
+                'Teacher verification requested',
+                "{$teacherName} registered and is ready for verification.",
+                '/admin/dashboard?section=role-verify',
+                "teacher-verification-{$userId}"
+            );
         }
 
         return redirect('/')

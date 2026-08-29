@@ -48,7 +48,6 @@ class AdminQuizController extends Controller
         $filters = [
             'teacher_id' => ['operator' => 'neq', 'value' => $user['id']],
             'visibility' => 'shared',
-            'order' => 'is_verified.desc,created_at.desc',
         ];
         if ($grade !== null) {
             $filters['grade_level'] = $grade;
@@ -78,13 +77,29 @@ class AdminQuizController extends Controller
             }
         }
 
-        $result ??= $this->supabase->adminSelectPage(
-            'quizzes',
-            '*',
-            $filters,
-            $perPage,
-            ($page - 1) * $perPage
-        );
+        if (!isset($result)) {
+            $secondaryOrder = 'usage_count.desc,rating_average.desc,created_at.desc';
+            if ($verifiedOnly) {
+                $filters['order'] = $secondaryOrder;
+                $result = $this->supabase->adminSelectPage(
+                    'quizzes',
+                    '*',
+                    $filters,
+                    $perPage,
+                    ($page - 1) * $perPage
+                );
+            } else {
+                $result = $this->supabase->adminSelectPrioritizedPage(
+                    'quizzes',
+                    '*',
+                    $filters,
+                    'verified_at',
+                    $secondaryOrder,
+                    $perPage,
+                    ($page - 1) * $perPage
+                );
+            }
+        }
         $quizzes = $result['data'];
         $total = $result['total'];
         $totalPages = max(1, (int) ceil($total / $perPage));
@@ -463,14 +478,14 @@ class AdminQuizController extends Controller
             return redirect('/admin/quiz-library')->with('error', 'Quiz not found.');
         }
 
-        $rpc = $this->supabase->adminRpcResult('restore_quiz_version_v2', [
+        $rpc = $this->supabase->adminRpcResult('restore_quiz_version', [
             'p_quiz_id' => $id,
             'p_version' => $version,
             'p_actor_id' => $admin['id'],
         ]);
         $restored = $rpc['data'][0] ?? [];
-        if (!($restored['restore_success'] ?? false)) {
-            $error = $restored['error_message'] ?? $rpc['error'] ?? null;
+        if (!isset($restored['quiz_id'])) {
+            $error = $rpc['error'] ?? null;
             return redirect("/admin/quizzes/{$id}/versions")
                 ->with('error', $this->restoreFailureMessage($error));
         }
@@ -714,8 +729,8 @@ class AdminQuizController extends Controller
         }
         if (str_contains(strtolower($message), 'schema cache')
             || str_contains(strtolower($message), 'could not find the function')
-            || str_contains(strtolower($message), 'restore_quiz_version_v2')) {
-            return 'Version restoration is not installed in Supabase yet. Run the updated August 29 migration, then try again.';
+            || str_contains(strtolower($message), 'restore_quiz_version')) {
+            return 'Version restoration is missing from Supabase. Run the standalone quiz hotfix migration, then try again.';
         }
 
         return 'Version restore failed: ' . \Illuminate\Support\Str::limit($message, 220);

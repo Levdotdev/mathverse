@@ -9,6 +9,7 @@ use App\Http\Controllers\TeacherClassController;
 use App\Http\Controllers\TeacherQuizController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminQuizController;
+use App\Http\Controllers\AdminPushController;
 
 Route::pattern('id', '[0-9a-fA-F-]{36}');
 Route::pattern('classId', '[0-9a-fA-F-]{36}');
@@ -98,6 +99,8 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::delete('/admin/deny-teacher/{id}', [AdminController::class, 'denyTeacher']);
     Route::post('/admin/profile', [AdminController::class, 'updateProfile']);
     Route::get('/admin/stats', [AdminController::class, 'stats']);
+    Route::post('/admin/push-subscription', [AdminPushController::class, 'store']);
+    Route::delete('/admin/push-subscription', [AdminPushController::class, 'destroy']);
 });
 
 // Teacher reports
