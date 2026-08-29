@@ -29,17 +29,6 @@ function showSection(id) {
     return true;
 }
 
-function openModal(id) {
-    const m = document.getElementById(id);
-    m.classList.remove('hidden');
-    const f = m.querySelector('.portal-frame');
-    if (f) { f.classList.remove('animate-fade-in'); void f.offsetWidth; f.classList.add('animate-fade-in'); }
-}
-
-function closeModal(id) {
-    document.getElementById(id).classList.add('hidden');
-}
-
 const profileMenu = document.getElementById('profileMenu');
 const profileArrow = document.getElementById('profileArrow');
 const profileBtn = document.querySelector('#sidebar button');

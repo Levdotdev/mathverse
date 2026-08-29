@@ -1,6 +1,8 @@
 let lobbyTimer = null;
 let currentLobbyUrl = null;
 let pendingQuizAction = null;
+let currentResultsContext = null;
+let pendingStudentException = null;
 
 function openLobby(classId, sessionId, topic, code) {
     currentLobbyUrl = `/teacher/classes/${classId}/quizzes/${sessionId}/lobby`;
@@ -47,9 +49,10 @@ function closeLobby() {
 }
 
 async function openResults(classId, sessionId, topic) {
+    currentResultsContext = { classId, sessionId, topic };
     document.getElementById('results-modal-title').textContent = `${topic} - Analytics`;
     const body = document.getElementById('results-tbody');
-    body.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500"><i class="fas fa-circle-notch fa-spin text-2xl"></i></td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500"><i class="fas fa-circle-notch fa-spin text-2xl"></i></td></tr>';
     openModal('viewResultsModal');
 
     try {
@@ -58,30 +61,119 @@ async function openResults(classId, sessionId, topic) {
         const results = await response.json();
 
         if (!results.length) {
-            body.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No attempts yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs uppercase">No eligible students for this assignment.</td></tr>';
             return;
         }
 
-        body.innerHTML = results.map((result) => {
-            const profile = result.profiles ?? {};
-            const total = Number(result.total_questions ?? 0);
-            const correct = Number(result.correct_answers ?? 0);
-            const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-            const color = accuracy >= 75 ? 'text-green-400' : 'text-red-400';
-            const status = accuracy >= 75 ? 'Passed' : 'Failed';
+        body.innerHTML = results.map((assignment) => {
+            const profile = assignment.profiles ?? {};
+            const result = assignment.result ?? null;
+            const total = Number(result?.total_questions ?? 0);
+            const correct = Number(result?.correct_answers ?? 0);
+            const accuracy = result && total > 0 ? Math.round((correct / total) * 100) : null;
+            const passed = accuracy !== null && accuracy >= 75;
+            const color = accuracy === null ? 'text-slate-500' : (passed ? 'text-green-400' : 'text-red-400');
             const name = `${profile.last_name ?? 'Unknown'}, ${profile.first_name ?? 'Unknown'}`;
+            const assignmentStatus = String(assignment.assignment_status ?? 'available');
+            const statusLabels = {
+                completed: passed ? 'Passed' : 'Failed',
+                missed: 'Missed',
+                excused: 'Excused',
+                available: 'Available',
+            };
+            const statusColors = {
+                completed: passed ? 'text-green-400' : 'text-red-400',
+                missed: 'text-red-400',
+                excused: 'text-purple-400',
+                available: 'text-yellow-400',
+            };
+            const actionData = `data-student-id="${escapeClassroomAttribute(assignment.student_id)}" data-student-name="${escapeClassroomAttribute(name)}"`;
+            const retakeButton = assignment.can_grant_retake
+                ? `<button type="button" class="quiz-student-action text-cyan-400 hover:text-white text-[9px] uppercase font-bold" data-action="retake" ${actionData}>Grant Retake</button>`
+                : '';
+            const excuseButton = !result && assignmentStatus !== 'excused'
+                ? `<button type="button" class="quiz-student-action text-purple-400 hover:text-white text-[9px] uppercase font-bold ml-3" data-action="excuse" ${actionData}>Excuse</button>`
+                : '';
 
             return `<tr class="border-b border-white/5">
                 <td class="py-4 font-bold">${escapeClassroomHtml(name)}</td>
-                <td class="py-4 text-cyan-400 font-mono">${correct} / ${total}</td>
-                <td class="py-4 font-bold ${color}">${status} · ${accuracy}%</td>
-                <td class="py-4 text-slate-500 text-xs">${new Date(result.created_at).toLocaleDateString()}</td>
+                <td class="py-4 font-bold ${statusColors[assignmentStatus] ?? 'text-slate-400'}">${escapeClassroomHtml(statusLabels[assignmentStatus] ?? assignmentStatus)}</td>
+                <td class="py-4 text-cyan-400 font-mono">${result ? `${correct} / ${total}` : '—'}</td>
+                <td class="py-4 font-bold ${color}">${accuracy === null ? '—' : `${accuracy}%`}</td>
+                <td class="py-4 text-slate-400">${Number(assignment.attempts_used ?? 0)} / ${Number(assignment.allowed_attempts ?? 0)}</td>
+                <td class="py-4 text-right whitespace-nowrap">
+                    ${retakeButton}
+                    ${excuseButton}
+                </td>
             </tr>`;
         }).join('');
     } catch (error) {
-        body.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-red-400 text-xs">${escapeClassroomHtml(error.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-red-400 text-xs">${escapeClassroomHtml(error.message)}</td></tr>`;
     }
 }
+
+document.getElementById('results-tbody')?.addEventListener('click', (event) => {
+    const button = event.target.closest('.quiz-student-action');
+    if (!button || !currentResultsContext) return;
+    openStudentException(
+        button.dataset.action,
+        currentResultsContext.classId,
+        currentResultsContext.sessionId,
+        button.dataset.studentId,
+        button.dataset.studentName,
+    );
+});
+
+function openStudentException(action, classId, sessionId, studentId, studentName) {
+    pendingStudentException = { action, classId, sessionId, studentId };
+    const isExcuse = action === 'excuse';
+    document.getElementById('exception-modal-title').textContent = isExcuse ? 'Mark as Excused' : 'Grant Retake';
+    document.getElementById('exception-student-name').textContent = studentName;
+    document.getElementById('exception-due-wrapper').classList.toggle('hidden', isExcuse);
+    document.getElementById('exception-due-at').disabled = isExcuse;
+    document.getElementById('exception-reason').value = '';
+    document.getElementById('exception-due-at').value = '';
+    document.getElementById('confirmStudentException').textContent = isExcuse ? 'Mark Excused' : 'Grant Retake';
+    openModal('quizStudentExceptionModal');
+}
+
+document.getElementById('quizStudentExceptionForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!pendingStudentException) return;
+
+    const button = document.getElementById('confirmStudentException');
+    const { action, classId, sessionId, studentId } = pendingStudentException;
+    const payload = {
+        reason: document.getElementById('exception-reason').value.trim(),
+    };
+    if (action === 'retake') {
+        payload.due_at = document.getElementById('exception-due-at').value || null;
+    }
+    button.disabled = true;
+    button.classList.add('opacity-50');
+
+    try {
+        const response = await fetch(`/teacher/classes/${classId}/quizzes/${sessionId}/students/${studentId}/${action}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken(),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message ?? 'The exception could not be saved.');
+        closeModal('quizStudentExceptionModal');
+        showToast(data.message ?? 'Student exception saved.');
+        await openResults(classId, sessionId, currentResultsContext?.topic ?? 'Quiz');
+    } catch (error) {
+        showToast(error.message, true);
+    } finally {
+        button.disabled = false;
+        button.classList.remove('opacity-50');
+    }
+});
 
 function openQuizAction(classId, sessionId, action, topic) {
     pendingQuizAction = { classId, sessionId, action };
@@ -137,6 +229,14 @@ function openRemoveStudent(classId, studentId, name) {
     openModal('removeStudentModal');
 }
 
+function openAccommodation(classId, studentId, name, seconds, notes) {
+    document.getElementById('accommodationForm').action = `/teacher/classes/${classId}/students/${studentId}/accommodation`;
+    document.getElementById('accommodation-student-name').textContent = name;
+    document.getElementById('accommodation-seconds').value = Number(seconds ?? 0);
+    document.getElementById('accommodation-notes').value = notes ?? '';
+    openModal('accommodationModal');
+}
+
 function escapeClassroomHtml(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -144,4 +244,8 @@ function escapeClassroomHtml(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function escapeClassroomAttribute(value) {
+    return escapeClassroomHtml(value).replaceAll('`', '&#096;');
 }

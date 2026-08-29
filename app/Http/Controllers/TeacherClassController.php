@@ -60,12 +60,18 @@ class TeacherClassController extends Controller
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
         }
 
+        $this->expirePastDueSessions($id, $user);
+
         $customization = $this->customization($id);
         $members = $this->supabase->adminSelect(
             'class_members',
             'student_id,joined_at,profiles(id,username,last_name,email,first_name,grade_level,level)',
             ['class_id' => $id, 'order' => 'joined_at.asc']
         );
+        $accommodations = $this->supabase->adminSelect(
+            'class_member_accommodations', '*', ['class_id' => $id]
+        );
+        $accommodationMap = array_column($accommodations, null, 'student_id');
 
         $mismatchedMembers = 0;
         foreach ($members as &$member) {
@@ -74,6 +80,10 @@ class TeacherClassController extends Controller
             if ($member['grade_mismatch']) {
                 $mismatchedMembers++;
             }
+            $member['accommodation'] = $accommodationMap[$member['student_id']] ?? [
+                'additional_time_seconds' => 0,
+                'notes' => null,
+            ];
         }
         unset($member);
 
@@ -88,6 +98,9 @@ class TeacherClassController extends Controller
             $session['analytics'] = $analytics[$session['id']] ?? [
                 'attempts' => 0,
                 'average' => 0,
+                'eligible' => 0,
+                'missed' => 0,
+                'completion_rate' => 0,
             ];
         }
         unset($session);
@@ -101,7 +114,7 @@ class TeacherClassController extends Controller
             fn (array $session): bool => ($session['status'] ?? 'waiting') === 'completed'
         ));
 
-        $leaderboard = $this->classLeaderboard($members, array_column($sessions, 'id'));
+        $leaderboard = $this->classLeaderboard($members, array_column($endedSessions, 'id'));
 
         return view('teacher.classes.show', compact(
             'user', 'class', 'customization', 'members', 'mismatchedMembers',
@@ -265,11 +278,16 @@ class TeacherClassController extends Controller
                 $this->supabase->adminUpdate('quiz_sessions', [
                     'status' => 'completed',
                     'is_active' => false,
+                    'retake_mode' => false,
+                    'ended_at' => now()->toIso8601String(),
                 ], ['id' => $session['id']]);
             }
         }
 
         $this->supabase->adminUpdate('profiles', ['class_id' => null], ['class_id' => $id]);
+        $this->supabase->audit($user, 'class.archived', 'class', $id, [
+            'class_name' => $class['class_name'] ?? null,
+        ]);
 
         return redirect('/teacher/dashboard?section=classes')
             ->with('success', 'Class archived. Its history is preserved and it no longer locks student grade levels.');
@@ -303,9 +321,15 @@ class TeacherClassController extends Controller
             session('supabase_token')
         );
 
-        return isset($updated[0]['id'])
-            ? redirect("/teacher/classes/{$id}")->with('success', 'Class restored.')
-            : redirect("/teacher/classes/{$id}/settings")->with('error', 'The class could not be restored.');
+        if (!isset($updated[0]['id'])) {
+            return redirect("/teacher/classes/{$id}/settings")
+                ->with('error', 'The class could not be restored.');
+        }
+
+        $this->supabase->audit($user, 'class.restored', 'class', $id, [
+            'class_name' => $class['class_name'] ?? null,
+        ]);
+        return redirect("/teacher/classes/{$id}")->with('success', 'Class restored.');
     }
 
     public function destroy(string $id)
@@ -357,6 +381,10 @@ class TeacherClassController extends Controller
             'class_id' => $classId,
         ]);
 
+        $this->supabase->audit($user, 'class.student_removed', 'profile', $studentId, [
+            'class_id' => $classId,
+        ]);
+
         return redirect("/teacher/classes/{$classId}")->with('success', 'Student removed from the class.');
     }
 
@@ -378,23 +406,69 @@ class TeacherClassController extends Controller
 
     public function results(string $classId, string $sessionId)
     {
-        if (!$this->ownedSession($classId, $sessionId)) {
+        $session = $this->ownedSession($classId, $sessionId);
+        if (!$session) {
             return response()->json(['message' => 'Quiz session not found.'], 404);
         }
 
         $results = $this->supabase->adminSelect(
             'quiz_results',
-            'student_id,correct_answers,total_questions,created_at,profiles(first_name,last_name,email)',
-            ['session_id' => $sessionId, 'order' => 'created_at.asc']
+            'student_id,correct_answers,total_questions,created_at,attempt_number,is_counted',
+            ['session_id' => $sessionId, 'order' => 'attempt_number.asc']
         );
-        $firstResults = [];
+        $countedResults = [];
+        $attemptCounts = [];
         foreach ($results as $result) {
-            $firstResults[$result['student_id']] ??= $result;
+            $studentId = $result['student_id'];
+            $attemptCounts[$studentId] = ($attemptCounts[$studentId] ?? 0) + 1;
+            if ($result['is_counted'] ?? false) {
+                $countedResults[$studentId] = $result;
+            }
         }
-        $results = array_values($firstResults);
-        usort($results, fn ($a, $b) => ($b['correct_answers'] ?? 0) <=> ($a['correct_answers'] ?? 0));
 
-        return response()->json($results);
+        $eligibility = $this->supabase->adminSelect(
+            'quiz_session_students',
+            'student_id,eligibility_status,allowed_attempts,additional_time_seconds,excuse_reason,retake_due_at,profiles!quiz_session_students_student_id_fkey(first_name,last_name,email)',
+            ['session_id' => $sessionId]
+        );
+
+        $rows = [];
+        foreach ($eligibility as $item) {
+            $studentId = $item['student_id'];
+            $result = $countedResults[$studentId] ?? null;
+            $attemptsUsed = $attemptCounts[$studentId] ?? 0;
+            $retakeExpired = !empty($item['retake_due_at'])
+                && now()->gte(\Carbon\Carbon::parse($item['retake_due_at']));
+            $item['result'] = $result;
+            $item['attempts_used'] = $attemptsUsed;
+            $item['remaining_attempts'] = $retakeExpired
+                ? 0
+                : max(0, (int) $item['allowed_attempts'] - $attemptsUsed);
+            $item['can_grant_retake'] = ($session['status'] ?? '') === 'completed'
+                || (bool) ($session['retake_mode'] ?? false);
+            $item['assignment_status'] = ($item['eligibility_status'] ?? '') === 'excused'
+                ? 'excused'
+                : ($result ? 'completed' : (
+                    ($session['status'] ?? '') === 'completed' || $retakeExpired ? 'missed' : 'available'
+                ));
+            $rows[] = $item;
+        }
+
+        usort($rows, function (array $a, array $b): int {
+            $aScore = (int) ($a['result']['correct_answers'] ?? -1);
+            $bScore = (int) ($b['result']['correct_answers'] ?? -1);
+            if ($aScore !== $bScore) {
+                return $bScore <=> $aScore;
+            }
+            $aProfile = $a['profiles'] ?? [];
+            $bProfile = $b['profiles'] ?? [];
+            return strcmp(
+                ($aProfile['last_name'] ?? '') . ($aProfile['first_name'] ?? ''),
+                ($bProfile['last_name'] ?? '') . ($bProfile['first_name'] ?? '')
+            );
+        });
+
+        return response()->json($rows);
     }
 
     public function start(string $classId, string $sessionId)
@@ -410,10 +484,17 @@ class TeacherClassController extends Controller
         if (($session['status'] ?? 'waiting') !== 'waiting') {
             return response()->json(['message' => 'Only an assigned quiz can be started.'], 422);
         }
+        if (!empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at']))) {
+            return response()->json(['message' => 'This quiz is scheduled for a later time.'], 422);
+        }
+        if (!empty($session['due_at']) && now()->gte(\Carbon\Carbon::parse($session['due_at']))) {
+            return response()->json(['message' => 'This quiz assignment is already past due.'], 422);
+        }
 
         $updated = $this->supabase->update('quiz_sessions', [
             'status' => 'active',
             'is_active' => true,
+            'started_at' => $session['started_at'] ?? now()->toIso8601String(),
         ], ['id' => $sessionId], session('supabase_token'));
 
         return isset($updated[0]['id'])
@@ -431,11 +512,136 @@ class TeacherClassController extends Controller
         $updated = $this->supabase->update('quiz_sessions', [
             'status' => 'completed',
             'is_active' => false,
+            'ended_at' => now()->toIso8601String(),
+            'retake_mode' => false,
         ], ['id' => $sessionId], session('supabase_token'));
 
-        return isset($updated[0]['id'])
-            ? response()->json(['success' => true])
-            : response()->json(['message' => 'The quiz could not be ended.'], 500);
+        if (!isset($updated[0]['id'])) {
+            return response()->json(['message' => 'The quiz could not be ended.'], 500);
+        }
+
+        $this->supabase->audit(session('supabase_user'), 'quiz.ended', 'quiz_session', $sessionId, [
+            'class_id' => $classId,
+            'topic' => $session['topic'] ?? null,
+        ]);
+        return response()->json(['success' => true]);
+    }
+
+    public function grantRetake(Request $request, string $classId, string $sessionId, string $studentId)
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|max:500',
+            'due_at' => 'nullable|date|after:now',
+        ]);
+        $session = $this->ownedSession($classId, $sessionId);
+        if (!$session) {
+            return response()->json(['message' => 'Quiz session not found.'], 404);
+        }
+        if (($session['status'] ?? '') !== 'completed' && !($session['retake_mode'] ?? false)) {
+            return response()->json(['message' => 'End the original quiz before granting a retake.'], 422);
+        }
+
+        $dueAt = !empty($validated['due_at'])
+            ? \Carbon\Carbon::parse($validated['due_at'], config('app.timezone'))->utc()->toIso8601String()
+            : null;
+        $teacher = session('supabase_user');
+        $retake = $this->supabase->adminRpc('grant_quiz_retake', [
+            'p_session_id' => $sessionId,
+            'p_student_id' => $studentId,
+            'p_teacher_id' => $teacher['id'],
+            'p_reason' => trim($validated['reason']),
+            'p_due_at' => $dueAt,
+        ])[0] ?? null;
+
+        if (!$retake || !isset($retake['new_allowed_attempts'])) {
+            return response()->json(['message' => 'The retake could not be granted.'], 500);
+        }
+
+        $allowedAttempts = (int) $retake['new_allowed_attempts'];
+        $dueAt = $retake['retake_due_at'] ?? $dueAt;
+
+        $this->supabase->audit($teacher, 'quiz.retake_granted', 'profile', $studentId, [
+            'session_id' => $sessionId,
+            'class_id' => $classId,
+            'reason' => trim($validated['reason']),
+            'allowed_attempts' => $allowedAttempts,
+            'due_at' => $dueAt,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Retake granted. The quiz is active for this student.']);
+    }
+
+    public function excuseStudent(Request $request, string $classId, string $sessionId, string $studentId)
+    {
+        $validated = $request->validate(['reason' => 'required|string|max:500']);
+        if (!$this->ownedSession($classId, $sessionId)) {
+            return response()->json(['message' => 'Quiz session not found.'], 404);
+        }
+
+        $countedResult = $this->supabase->adminSelect('quiz_results', 'id', [
+            'session_id' => $sessionId, 'student_id' => $studentId, 'is_counted' => true,
+        ]);
+        if ($countedResult) {
+            return response()->json(['message' => 'A completed attempt cannot be marked excused.'], 422);
+        }
+
+        $teacher = session('supabase_user');
+        $updated = $this->supabase->adminUpdate('quiz_session_students', [
+            'eligibility_status' => 'excused',
+            'allowed_attempts' => 0,
+            'excused_at' => now()->toIso8601String(),
+            'excused_by' => $teacher['id'],
+            'excuse_reason' => trim($validated['reason']),
+        ], ['session_id' => $sessionId, 'student_id' => $studentId]);
+        if (!isset($updated[0]['student_id'])) {
+            return response()->json(['message' => 'The student could not be marked excused.'], 500);
+        }
+
+        $this->supabase->audit($teacher, 'quiz.student_excused', 'profile', $studentId, [
+            'session_id' => $sessionId,
+            'class_id' => $classId,
+            'reason' => trim($validated['reason']),
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Student marked excused for this quiz.']);
+    }
+
+    public function updateAccommodation(Request $request, string $classId, string $studentId)
+    {
+        $validated = $request->validate([
+            'additional_time_seconds' => 'required|integer|between:0,300',
+            'notes' => 'nullable|string|max:500',
+        ]);
+        $teacher = session('supabase_user');
+        if (!$this->ownedClass($classId, $teacher['id'])) {
+            return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
+        }
+        $member = $this->supabase->adminSelect('class_members', 'student_id', [
+            'class_id' => $classId, 'student_id' => $studentId,
+        ]);
+        if (!$member) {
+            return redirect("/teacher/classes/{$classId}")->with('error', 'That student is not in this class.');
+        }
+
+        $additionalTimeSeconds = (int) $validated['additional_time_seconds'];
+        $saved = $this->supabase->adminUpsert('class_member_accommodations', [
+            'class_id' => $classId,
+            'student_id' => $studentId,
+            'additional_time_seconds' => $additionalTimeSeconds,
+            'notes' => trim((string) ($validated['notes'] ?? '')) ?: null,
+            'updated_by' => $teacher['id'],
+            'updated_at' => now()->toIso8601String(),
+        ], 'class_id,student_id');
+        if (!isset($saved[0]['student_id'])) {
+            return redirect("/teacher/classes/{$classId}")->with('error', 'The accommodation could not be saved.');
+        }
+
+        $this->supabase->audit($teacher, 'class.accommodation_updated', 'profile', $studentId, [
+            'class_id' => $classId,
+            'additional_time_seconds' => $additionalTimeSeconds,
+        ]);
+
+        return redirect("/teacher/classes/{$classId}")->with('success', 'Student accommodation updated.');
     }
 
     private function ownedClass(string $classId, string $teacherId): ?array
@@ -482,18 +688,19 @@ class TeacherClassController extends Controller
             'session_id,student_id,correct_answers,total_questions,created_at',
             [
                 'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+                'is_counted' => true,
                 'order' => 'created_at.asc',
             ]
         );
 
-        $firstResults = [];
-        foreach ($results as $result) {
-            $key = $result['session_id'] . ':' . $result['student_id'];
-            $firstResults[$key] ??= $result;
-        }
+        $eligibility = $this->supabase->adminSelect(
+            'quiz_session_students', 'session_id,student_id,eligibility_status', [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+            ]
+        );
 
         $grouped = [];
-        foreach ($firstResults as $result) {
+        foreach ($results as $result) {
             $id = $result['session_id'];
             $accuracy = ($result['total_questions'] ?? 0) > 0
                 ? (($result['correct_answers'] ?? 0) / $result['total_questions']) * 100
@@ -502,9 +709,24 @@ class TeacherClassController extends Controller
             $grouped[$id]['accuracy_sum'] = ($grouped[$id]['accuracy_sum'] ?? 0) + $accuracy;
         }
 
+        foreach ($eligibility as $item) {
+            if (($item['eligibility_status'] ?? '') !== 'eligible') {
+                continue;
+            }
+            $id = $item['session_id'];
+            $grouped[$id]['eligible'] = ($grouped[$id]['eligible'] ?? 0) + 1;
+        }
+
         foreach ($grouped as &$item) {
+            $item['attempts'] = $item['attempts'] ?? 0;
+            $item['accuracy_sum'] = $item['accuracy_sum'] ?? 0;
             $item['average'] = $item['attempts'] > 0
                 ? round($item['accuracy_sum'] / $item['attempts'], 1)
+                : 0;
+            $item['eligible'] = $item['eligible'] ?? 0;
+            $item['missed'] = max(0, $item['eligible'] - $item['attempts']);
+            $item['completion_rate'] = $item['eligible'] > 0
+                ? round(($item['attempts'] / $item['eligible']) * 100, 1)
                 : 0;
             unset($item['accuracy_sum']);
         }
@@ -523,37 +745,63 @@ class TeacherClassController extends Controller
         $results = empty($sessionIds) ? [] : $this->supabase->adminSelect(
             'quiz_results',
             'session_id,student_id,correct_answers,total_questions,created_at',
-            ['session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'], 'order' => 'created_at.asc']
+            [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+                'is_counted' => true,
+                'order' => 'created_at.asc',
+            ]
         );
-
-        $firstResults = [];
+        $eligibility = empty($sessionIds) ? [] : $this->supabase->adminSelect(
+            'quiz_session_students', 'session_id,student_id,eligibility_status', [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+            ]
+        );
+        $resultMap = [];
         foreach ($results as $result) {
-            $key = $result['session_id'] . ':' . $result['student_id'];
-            $firstResults[$key] ??= $result;
+            $resultMap[$result['session_id'] . ':' . $result['student_id']] = $result;
         }
 
         $rows = [];
         foreach ($members as $member) {
             $profile = $member['profiles'] ?? [];
             $studentId = $profile['id'] ?? $member['student_id'];
-            $studentResults = array_values(array_filter(
-                $firstResults,
-                fn (array $result): bool => $result['student_id'] === $studentId
+            $studentEligibility = array_values(array_filter(
+                $eligibility,
+                fn (array $item): bool => $item['student_id'] === $studentId
+                    && ($item['eligibility_status'] ?? '') === 'eligible'
             ));
+            $studentResults = [];
+            foreach ($studentEligibility as $item) {
+                $key = $item['session_id'] . ':' . $studentId;
+                if (isset($resultMap[$key])) {
+                    $studentResults[] = $resultMap[$key];
+                }
+            }
             $accuracies = array_map(fn (array $result): float => ($result['total_questions'] ?? 0) > 0
                 ? (($result['correct_answers'] ?? 0) / $result['total_questions']) * 100
                 : 0, $studentResults);
+            $eligibleCount = count($studentEligibility);
+            $completedCount = count($studentResults);
+            if ($eligibleCount === 0) {
+                continue;
+            }
             $rows[] = [
                 'student_id' => $studentId,
                 'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')) ?: 'Unknown Student',
-                'average' => !empty($accuracies) ? round(array_sum($accuracies) / count($accuracies), 1) : 0,
-                'quizzes' => count($studentResults),
+                'average' => $eligibleCount > 0 ? round(array_sum($accuracies) / $eligibleCount, 1) : 0,
+                'quizzes' => $completedCount,
+                'eligible' => $eligibleCount,
+                'missed' => max(0, $eligibleCount - $completedCount),
+                'completion_rate' => $eligibleCount > 0
+                    ? round(($completedCount / $eligibleCount) * 100, 1)
+                    : 0,
                 'correct' => array_sum(array_column($studentResults, 'correct_answers')),
             ];
         }
 
         usort($rows, fn (array $a, array $b): int =>
             ($b['average'] <=> $a['average'])
+            ?: ($b['completion_rate'] <=> $a['completion_rate'])
             ?: ($b['correct'] <=> $a['correct'])
             ?: ($b['quizzes'] <=> $a['quizzes'])
             ?: strcmp($a['name'], $b['name'])
@@ -565,6 +813,34 @@ class TeacherClassController extends Controller
         unset($row);
 
         return $rows;
+    }
+
+    private function expirePastDueSessions(string $classId, array $teacher): void
+    {
+        $sessions = $this->supabase->adminSelect('quiz_sessions', 'id,topic,due_at,status', [
+            'class_id' => $classId,
+            'teacher_id' => $teacher['id'],
+            'due_at' => ['operator' => 'lte', 'value' => now()->utc()->toIso8601String()],
+        ]);
+
+        foreach ($sessions as $session) {
+            if (!in_array($session['status'] ?? '', ['waiting', 'active'], true)) {
+                continue;
+            }
+            $updated = $this->supabase->adminUpdate('quiz_sessions', [
+                'status' => 'completed',
+                'is_active' => false,
+                'retake_mode' => false,
+                'ended_at' => $session['due_at'] ?? now()->toIso8601String(),
+            ], ['id' => $session['id'], 'teacher_id' => $teacher['id'], 'status' => $session['status']]);
+            if (isset($updated[0]['id'])) {
+                $this->supabase->audit($teacher, 'quiz.auto_ended', 'quiz_session', $session['id'], [
+                    'class_id' => $classId,
+                    'topic' => $session['topic'] ?? null,
+                    'due_at' => $session['due_at'] ?? null,
+                ]);
+            }
+        }
     }
 
     private function generateJoinCode(): string

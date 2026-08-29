@@ -31,6 +31,7 @@ async function loadQuizBuilder(quizId = null) {
 
             document.getElementById('q-topic').value = data.quiz.topic ?? '';
             document.getElementById('q-grade').value = String(data.quiz.grade_level ?? 1);
+            document.getElementById('q-visibility').value = data.quiz.visibility ?? 'shared';
 
             (data.questions ?? []).forEach((question) => {
                 const options = [question.choice1, question.choice2, question.choice3, question.choice4];
@@ -54,6 +55,7 @@ async function loadQuizBuilder(quizId = null) {
         saveButton.innerHTML = '<i class="fas fa-save mr-2"></i> Save Quiz';
         document.getElementById('q-topic').value = '';
         document.getElementById('q-grade').value = '1';
+        document.getElementById('q-visibility').value = 'shared';
         addNewQuestion();
     }
 

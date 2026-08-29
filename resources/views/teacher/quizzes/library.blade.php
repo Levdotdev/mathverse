@@ -26,7 +26,7 @@
     @if($preferredClassId)
         <input type="hidden" name="class_id" value="{{ $preferredClassId }}">
     @endif
-    <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto] gap-4 items-end">
+    <div class="grid grid-cols-1 md:grid-cols-[1fr_190px_auto_auto] gap-4 items-end">
         <div class="form-group">
             <label class="input-label">Search Topic Keywords</label>
             <div class="relative">
@@ -45,6 +45,10 @@
                 @endfor
             </select>
         </div>
+        <label class="flex items-center gap-3 min-h-[48px] px-4 rounded border border-white/10 bg-black/20 cursor-pointer">
+            <input type="checkbox" name="bookmarked" value="1" class="w-4 h-4 accent-blue-500" {{ $bookmarkedOnly ? 'checked' : '' }}>
+            <span class="text-[10px] text-slate-300 uppercase font-bold whitespace-nowrap">Bookmarked only</span>
+        </label>
         <button type="submit" class="btn-rect-primary !py-3 md:mb-0">
             <i class="fas fa-search mr-2"></i> Search
         </button>
@@ -55,7 +59,7 @@
     <p class="text-[10px] text-slate-500 uppercase tracking-widest">
         {{ number_format($total) }} {{ Str::plural('quiz', $total) }} found
     </p>
-    @if($search !== '' || $grade !== null)
+    @if($search !== '' || $grade !== null || $bookmarkedOnly)
         <a href="/teacher/quiz-library{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
            class="text-[10px] text-blue-400 uppercase font-bold hover:text-white">Clear Filters</a>
     @endif
@@ -83,14 +87,31 @@
                             <p class="text-[10px] text-slate-500 mt-1">
                                 By {{ $quiz['creator_name'] }} · {{ $quiz['question_count'] }} questions
                             </p>
+                            <div class="flex flex-wrap items-center gap-2 mt-3 text-[9px] uppercase font-bold">
+                                @if(!empty($quiz['verified_at']))
+                                    <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i>Verified</span>
+                                @endif
+                                <span class="text-yellow-400"><i class="fas fa-star mr-1"></i>{{ number_format((float) ($quiz['rating_average'] ?? 0), 1) }} ({{ (int) ($quiz['rating_count'] ?? 0) }})</span>
+                                <span class="text-cyan-400"><i class="fas fa-layer-group mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} uses</span>
+                                <span class="text-slate-500">v{{ (int) ($quiz['version'] ?? 1) }}</span>
+                            </div>
                             <p class="text-[9px] text-slate-600 mt-2 uppercase tracking-widest">
                                 Updated {{ \Carbon\Carbon::parse($quiz['updated_at'] ?? $quiz['created_at'])->format('M d, Y') }}
                             </p>
                         </div>
-                        <a href="/teacher/quiz-library/{{ $quiz['id'] }}/review{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
-                           class="btn-rect-primary !py-2 !px-4 sm:!w-auto shrink-0 text-center">
-                            <i class="fas fa-eye mr-2"></i> Review
-                        </a>
+                        <div class="flex gap-2 shrink-0">
+                            <form method="POST" action="/teacher/quiz-library/{{ $quiz['id'] }}/bookmark">
+                                @csrf
+                                <button type="submit" class="btn-rect-secondary !py-2 !px-3 !w-auto {{ $quiz['bookmarked'] ? 'text-yellow-400 !border-yellow-500/40' : '' }}"
+                                        aria-label="{{ $quiz['bookmarked'] ? 'Remove bookmark' : 'Bookmark quiz' }}" title="{{ $quiz['bookmarked'] ? 'Remove bookmark' : 'Bookmark quiz' }}">
+                                    <i class="{{ $quiz['bookmarked'] ? 'fas' : 'far' }} fa-bookmark"></i>
+                                </button>
+                            </form>
+                            <a href="/teacher/quiz-library/{{ $quiz['id'] }}/review{{ $preferredClassId ? '?class_id=' . $preferredClassId : '' }}"
+                               class="btn-rect-primary !py-2 !px-4 sm:!w-auto text-center">
+                                <i class="fas fa-eye mr-2"></i> Review
+                            </a>
+                        </div>
                     </article>
                 @endforeach
             </div>
@@ -112,6 +133,7 @@
             'search' => $search ?: null,
             'grade' => $grade,
             'class_id' => $preferredClassId,
+            'bookmarked' => $bookmarkedOnly ? 1 : null,
         ], fn($value) => $value !== null && $value !== '');
     @endphp
     <nav class="flex items-center justify-center gap-4 mt-10" aria-label="Quiz library pages">

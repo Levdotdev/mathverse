@@ -79,11 +79,15 @@
                         <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold uppercase tracking-widest">
                             <span class="text-purple-300 bg-purple-500/10 px-2 py-1 rounded">Grade {{ $quiz['grade_level'] }}</span>
                             <span class="text-slate-400 bg-white/5 px-2 py-1 rounded">{{ $quiz['question_count'] }} Questions</span>
+                            <span class="{{ ($quiz['visibility'] ?? 'shared') === 'shared' ? 'text-blue-300 bg-blue-500/10' : 'text-slate-400 bg-white/5' }} px-2 py-1 rounded">
+                                <i class="fas {{ ($quiz['visibility'] ?? 'shared') === 'shared' ? 'fa-users' : 'fa-lock' }} mr-1"></i>{{ ucfirst($quiz['visibility'] ?? 'shared') }}
+                            </span>
+                            <span class="text-yellow-300 bg-yellow-500/10 px-2 py-1 rounded">v{{ $quiz['version'] ?? 1 }}</span>
                             <span class="text-slate-500 px-1 py-1">{{ \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y') }}</span>
                         </div>
                     </div>
                 </div>
-                <div class="grid grid-cols-3 gap-2 w-full lg:w-auto">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full lg:w-auto">
                     <button onclick='openAssignQuiz(@json($quiz["id"]), @json($quiz["topic"]), {{ $quiz["grade_level"] }})'
                             class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-yellow-500/30 hover:!text-yellow-400">
                         <i class="fas fa-chalkboard-teacher mr-1"></i> Assign
@@ -92,6 +96,10 @@
                             class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-purple-500/30 hover:!text-purple-400">
                         <i class="fas fa-edit mr-1"></i> Edit
                     </button>
+                    <a href="/teacher/quizzes/{{ $quiz['id'] }}/versions"
+                       class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-cyan-500/30 hover:!text-cyan-400 text-center">
+                        <i class="fas fa-history mr-1"></i> History
+                    </a>
                     <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
                             class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-red-500/30 hover:!text-red-400">
                         <i class="fas fa-trash-alt mr-1"></i> Delete
@@ -123,7 +131,7 @@
             @csrf
             <span id="method-field"></span>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
                 <div class="form-group">
                     <label class="input-label">Quiz Topic</label>
                     <div class="relative">
@@ -131,6 +139,13 @@
                         <input type="text" name="topic" id="q-topic" maxlength="150"
                                placeholder="e.g. Adding Fractions" class="input-mobile-ultra" required>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label class="input-label">Library Visibility</label>
+                    <select name="visibility" id="q-visibility" class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
+                        <option value="shared">Shared with teachers</option>
+                        <option value="private">Private</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label class="input-label">Grade Level</label>
@@ -152,6 +167,7 @@
                     <i class="fas fa-save mr-2"></i> Save Quiz
                 </button>
             </div>
+            <p class="text-center mt-4 text-[10px] text-slate-500">Updating a quiz saves its previous version. Existing class assignments remain unchanged.</p>
         </form>
     </div>
 </div>

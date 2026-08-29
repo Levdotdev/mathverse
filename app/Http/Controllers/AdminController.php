@@ -14,40 +14,103 @@ class AdminController extends Controller
     public function index(Request $request)
     {
         $user = session('supabase_user');
-        $profiles = $this->supabase->adminSelect('profiles', '*', ['order' => 'last_name.asc,first_name.asc']);
 
-        $selectedGrade = (int) $request->query('grade', 0);
-        if ($selectedGrade < 1 || $selectedGrade > 6) {
-            $selectedGrade = 0;
+        $selectedGrade = (int) $request->query('student_grade', $request->query('grade', 0));
+        $selectedGrade = ($selectedGrade >= 1 && $selectedGrade <= 6) ? $selectedGrade : 0;
+        $studentSearch = $this->registrySearch($request->query('student_search', ''));
+        $teacherSearch = $this->registrySearch($request->query('teacher_search', ''));
+        $studentSort = $this->registrySort((string) $request->query('student_sort', 'name_asc'));
+        $teacherSort = $this->registrySort((string) $request->query('teacher_sort', 'name_asc'));
+        $studentPage = max(1, (int) $request->query('student_page', 1));
+        $teacherPage = max(1, (int) $request->query('teacher_page', 1));
+        $perPage = 25;
+
+        $studentFilters = ['role' => 'student', 'order' => $this->registryOrder($studentSort)];
+        if ($selectedGrade !== 0) {
+            $studentFilters['grade_level'] = $selectedGrade;
+        }
+        if ($studentSearch !== '') {
+            $studentFilters['or'] = $this->registryOrFilter($studentSearch);
         }
 
-        $students = array_values(array_filter(
-            $profiles,
-            fn (array $profile): bool => $profile['role'] === 'student'
-                && ($selectedGrade === 0 || (int) ($profile['grade_level'] ?? 0) === $selectedGrade)
-        ));
-        $teachers = array_values(array_filter(
-            $profiles,
-            fn (array $profile): bool => $profile['role'] === 'teacher'
-        ));
+        $teacherFilters = ['role' => 'teacher', 'order' => $this->registryOrder($teacherSort)];
+        if ($teacherSearch !== '') {
+            $teacherFilters['or'] = $this->registryOrFilter($teacherSearch);
+        }
 
-        $totalUsers     = count($profiles) - 1;
-        $totalTeachers  = count(array_filter($profiles, fn($p) => $p['role'] === 'teacher'));
-        $totalStudents  = count(array_filter($profiles, fn($p) => $p['role'] === 'student'));
-        $pendingTeachers = array_values(array_filter($profiles, fn($p) => $p['role'] === 'pending_teacher'));
+        $studentResult = $this->supabase->adminSelectPage(
+            'profiles', '*', $studentFilters, $perPage, ($studentPage - 1) * $perPage
+        );
+        $teacherResult = $this->supabase->adminSelectPage(
+            'profiles', '*', $teacherFilters, $perPage, ($teacherPage - 1) * $perPage
+        );
 
-        $quizCountResp = $this->supabase->adminSelect('quizzes', 'id');
-        $totalQuizzes  = count($quizCountResp);
+        $students = $studentResult['data'];
+        $teachers = $teacherResult['data'];
+        $studentTotal = $studentResult['total'];
+        $teacherTotal = $teacherResult['total'];
+        $studentPages = max(1, (int) ceil($studentTotal / $perPage));
+        $teacherPages = max(1, (int) ceil($teacherTotal / $perPage));
+
+        if ($studentPage > $studentPages && $studentTotal > 0) {
+            return redirect()->to($request->fullUrlWithQuery(['student_page' => $studentPages, 'section' => 'students']));
+        }
+        if ($teacherPage > $teacherPages && $teacherTotal > 0) {
+            return redirect()->to($request->fullUrlWithQuery(['teacher_page' => $teacherPages, 'section' => 'teachers']));
+        }
+
+        $totalStudents = $this->supabase->adminCount('profiles', ['role' => 'student']);
+        $totalTeachers = $this->supabase->adminCount('profiles', ['role' => 'teacher']);
+        $totalPending = $this->supabase->adminCount('profiles', ['role' => 'pending_teacher']);
+        $totalUsers = $totalStudents + $totalTeachers + $totalPending;
+        $totalQuizzes = $this->supabase->adminCount('quizzes');
+        $pendingTeachers = $this->supabase->adminSelect(
+            'profiles', '*', ['role' => 'pending_teacher', 'order' => 'created_at.asc']
+        );
+
+        $auditPage = max(1, (int) $request->query('audit_page', 1));
+        $auditResult = $this->supabase->adminSelectPage(
+            'audit_logs', '*', ['order' => 'created_at.desc'], 30, ($auditPage - 1) * 30
+        );
+        $auditLogs = $auditResult['data'];
+        $auditTotal = $auditResult['total'];
+        $auditPages = max(1, (int) ceil($auditTotal / 30));
+        if ($auditPage > $auditPages && $auditTotal > 0) {
+            return redirect()->to($request->fullUrlWithQuery([
+                'audit_page' => $auditPages,
+                'section' => 'audit',
+            ]));
+        }
+        $actorIds = array_values(array_unique(array_filter(array_column($auditLogs, 'actor_id'))));
+        $actors = empty($actorIds) ? [] : $this->supabase->adminSelect(
+            'profiles', 'id,first_name,last_name',
+            ['id' => ['operator' => 'in', 'value' => '(' . implode(',', $actorIds) . ')']]
+        );
+        $actorNames = [];
+        foreach ($actors as $actor) {
+            $actorNames[$actor['id']] = trim(
+                ($actor['first_name'] ?? '') . ' ' . ($actor['last_name'] ?? '')
+            ) ?: 'Administrator';
+        }
+        foreach ($auditLogs as &$log) {
+            $log['actor_name'] = $actorNames[$log['actor_id'] ?? ''] ?? 'System';
+        }
+        unset($log);
 
         return view('admin.dashboard', compact(
             'user', 'students', 'teachers', 'selectedGrade', 'totalUsers', 'totalTeachers',
-            'totalStudents', 'totalQuizzes', 'pendingTeachers'
+            'totalStudents', 'totalQuizzes', 'pendingTeachers', 'studentSearch', 'teacherSearch',
+            'studentSort', 'teacherSort', 'studentPage', 'teacherPage', 'studentPages',
+            'teacherPages', 'studentTotal', 'teacherTotal', 'auditLogs', 'auditPage',
+            'auditPages', 'auditTotal'
         ));
     }
 
     public function deleteUser(string $id)
     {
-        $profile = $this->supabase->adminSelect('profiles', 'role', ['id' => $id])[0] ?? null;
+        $profile = $this->supabase->adminSelect(
+            'profiles', 'role,first_name,last_name,email', ['id' => $id]
+        )[0] ?? null;
         if (!$profile || !in_array($profile['role'], ['student', 'teacher'], true)) {
             return redirect('/admin/dashboard')->with('error', 'Only student and teacher accounts can be deleted here.');
         }
@@ -65,19 +128,52 @@ class AdminController extends Controller
                 ->with('error', $response->json()['msg'] ?? 'Failed to delete user.');
         }
 
+        $this->supabase->audit(session('supabase_user'), 'user.deleted', 'profile', $id, [
+            'role' => $profile['role'],
+            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
+            'email' => $profile['email'] ?? null,
+        ]);
+
         return redirect("/admin/dashboard?section={$section}")
             ->with('success', 'User deleted.');
     }
 
     public function approveTeacher(string $id)
     {
-        $this->supabase->adminUpdate('profiles', ['role' => 'teacher'], ['id' => $id]);
+        $profile = $this->supabase->adminSelect(
+            'profiles', 'id,role,first_name,last_name,email', ['id' => $id]
+        )[0] ?? null;
+        if (!$profile || ($profile['role'] ?? '') !== 'pending_teacher') {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'Only a pending teacher application can be approved.');
+        }
+
+        $updated = $this->supabase->adminUpdate(
+            'profiles', ['role' => 'teacher'], ['id' => $id, 'role' => 'pending_teacher']
+        );
+        if (!isset($updated[0]['id'])) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'The teacher application could not be approved.');
+        }
+
+        $this->supabase->audit(session('supabase_user'), 'teacher.approved', 'profile', $id, [
+            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
+            'email' => $profile['email'] ?? null,
+        ]);
         return redirect('/admin/dashboard?section=role-verify')
             ->with('success', 'Teacher approved!');
     }
 
     public function denyTeacher(string $id)
     {
+        $profile = $this->supabase->adminSelect(
+            'profiles', 'id,role,first_name,last_name,email', ['id' => $id]
+        )[0] ?? null;
+        if (!$profile || ($profile['role'] ?? '') !== 'pending_teacher') {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'Only a pending teacher application can be rejected.');
+        }
+
         $response = Http::withHeaders([
             'apikey'        => config('services.supabase.anon_key'),
             'Authorization' => 'Bearer ' . config('services.supabase.service_key'),
@@ -89,8 +185,90 @@ class AdminController extends Controller
                 ->with('error', 'Failed to reject application.');
         }
 
+        $this->supabase->audit(session('supabase_user'), 'teacher.rejected', 'profile', $id, [
+            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
+            'email' => $profile['email'] ?? null,
+        ]);
+
         return redirect('/admin/dashboard?section=role-verify')
             ->with('success', 'Application rejected.');
+    }
+
+    public function suspendUser(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|max:500',
+            'return_section' => 'nullable|in:students,teachers',
+        ]);
+        $profile = $this->manageableProfile($id);
+        $section = $validated['return_section'] ?? (($profile['role'] ?? '') === 'teacher' ? 'teachers' : 'students');
+
+        if (!$profile) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'Only student and teacher accounts can be suspended.');
+        }
+        if (!empty($profile['suspended_at'])) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'That account is already suspended.');
+        }
+
+        $admin = session('supabase_user');
+        if (!$this->supabase->setAuthUserSuspended($id, true)) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'Supabase Auth could not suspend that account. No profile changes were made.');
+        }
+        $updated = $this->supabase->adminUpdate('profiles', [
+            'suspended_at' => now()->toIso8601String(),
+            'suspended_by' => $admin['id'],
+            'suspension_reason' => trim($validated['reason']),
+        ], ['id' => $id, 'role' => $profile['role']]);
+
+        if (!isset($updated[0]['id'])) {
+            $this->supabase->setAuthUserSuspended($id, false);
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'The account could not be suspended.');
+        }
+
+        $this->supabase->audit($admin, 'user.suspended', 'profile', $id, [
+            'role' => $profile['role'],
+            'reason' => trim($validated['reason']),
+        ]);
+
+        return redirect("/admin/dashboard?section={$section}")
+            ->with('success', 'Account suspended. Its data was preserved.');
+    }
+
+    public function restoreUser(Request $request, string $id)
+    {
+        $profile = $this->manageableProfile($id);
+        $section = $request->input('return_section') === 'teachers' ? 'teachers' : 'students';
+        if (!$profile || empty($profile['suspended_at'])) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'That account is not suspended.');
+        }
+
+        if (!$this->supabase->setAuthUserSuspended($id, false)) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'Supabase Auth could not restore that account. It remains suspended.');
+        }
+        $updated = $this->supabase->adminUpdate('profiles', [
+            'suspended_at' => null,
+            'suspended_by' => null,
+            'suspension_reason' => null,
+        ], ['id' => $id, 'role' => $profile['role']]);
+
+        if (!isset($updated[0]['id'])) {
+            $this->supabase->setAuthUserSuspended($id, true);
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'The account could not be restored.');
+        }
+
+        $this->supabase->audit(session('supabase_user'), 'user.restored', 'profile', $id, [
+            'role' => $profile['role'],
+        ]);
+
+        return redirect("/admin/dashboard?section={$section}")
+            ->with('success', 'Account restored.');
     }
 
     public function updateProfile(Request $request)
@@ -142,11 +320,11 @@ class AdminController extends Controller
     public function stats()
     {
         // All 3 calls happen as fast as possible — no loops making extra calls
-        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+        $allResults = $this->supabase->adminSelect(
             'quiz_results',
             'correct_answers,total_questions,created_at,session_id,student_id',
-            ['order' => 'created_at.asc']
-        ));
+            ['is_counted' => true, 'order' => 'created_at.asc']
+        );
         $quizzes    = $this->supabase->adminSelect('quizzes', 'id,topic,teacher_id,created_at');
         $profiles   = $this->supabase->adminSelect('profiles', 'id,role,created_at');
 
@@ -284,11 +462,11 @@ class AdminController extends Controller
         $format     = $request->query('format', 'pdf');
         $profiles   = $this->supabase->adminSelect('profiles', '*');
         $quizzes    = $this->supabase->adminSelect('quizzes', 'id');
-        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+        $allResults = $this->supabase->adminSelect(
             'quiz_results',
             'correct_answers,total_questions,student_id,session_id,created_at',
-            ['order' => 'created_at.asc']
-        ));
+            ['is_counted' => true, 'order' => 'created_at.asc']
+        );
 
         $students = array_values(array_filter($profiles, fn($p) => $p['role'] === 'student'));
         $teachers = array_values(array_filter($profiles, fn($p) => $p['role'] === 'teacher'));
@@ -312,7 +490,7 @@ class AdminController extends Controller
         ], $top10);
 
         $summary = [
-            'total_users'    => count($profiles) - 1,
+            'total_users'    => count($students) + count($teachers) + count($pending),
             'total_students' => count($students),
             'total_teachers' => count($teachers),
             'total_pending'  => count($pending),
@@ -350,19 +528,47 @@ class AdminController extends Controller
         return $pdf->download('platform-summary-report.pdf');
     }
 
-    private function firstAttempts(array $results): array
+    private function manageableProfile(string $id): ?array
     {
-        $first = [];
-        foreach ($results as $result) {
-            $sessionId = $result['session_id'] ?? null;
-            $studentId = $result['student_id'] ?? null;
-            if (!$sessionId || !$studentId) {
-                continue;
-            }
-            $first[$sessionId . ':' . $studentId] ??= $result;
-        }
+        $profile = $this->supabase->adminSelect(
+            'profiles',
+            'id,role,first_name,last_name,email,suspended_at,suspension_reason',
+            ['id' => $id]
+        )[0] ?? null;
 
-        return array_values($first);
+        return $profile && in_array($profile['role'] ?? '', ['student', 'teacher'], true)
+            ? $profile
+            : null;
+    }
+
+    private function registrySearch(mixed $value): string
+    {
+        $search = trim(mb_substr((string) $value, 0, 80));
+        return trim(str_replace(['*', '%', ',', '(', ')'], '', $search));
+    }
+
+    private function registryOrFilter(string $search): string
+    {
+        return '(first_name.ilike.*' . $search
+            . '*,last_name.ilike.*' . $search
+            . '*,email.ilike.*' . $search . '*)';
+    }
+
+    private function registrySort(string $sort): string
+    {
+        return in_array($sort, ['name_asc', 'name_desc', 'newest', 'oldest'], true)
+            ? $sort
+            : 'name_asc';
+    }
+
+    private function registryOrder(string $sort): string
+    {
+        return match ($sort) {
+            'name_desc' => 'last_name.desc,first_name.desc',
+            'newest' => 'created_at.desc',
+            'oldest' => 'created_at.asc',
+            default => 'last_name.asc,first_name.asc',
+        };
     }
 
     private function downloadCsv(array $rows, array $headers, array $keys, string $filename): \Symfony\Component\HttpFoundation\StreamedResponse

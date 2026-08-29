@@ -63,7 +63,7 @@
     @endif
 
     {{-- Toast notification - available on every page --}}
-    <div id="toast" class="fixed bottom-6 right-4 bg-cyan-500 text-black font-bold px-6 py-3 rounded shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-[10000] text-xs uppercase">
+    <div id="toast" role="status" aria-live="polite" aria-atomic="true" class="fixed bottom-6 right-4 bg-cyan-500 text-black font-bold px-6 py-3 rounded shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-[10000] text-xs uppercase">
         <i class="fas fa-info-circle mr-2"></i>
         <span id="toast-msg">Success</span>
     </div>

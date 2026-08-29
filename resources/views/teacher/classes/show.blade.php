@@ -105,17 +105,30 @@
 
     <div class="space-y-4">
         @forelse($openSessions as $session)
-            @php $isActive = ($session['status'] ?? 'waiting') === 'active'; @endphp
-            <article class="portal-frame !p-5 border-l-4 {{ $isActive ? 'border-green-500' : 'border-yellow-500' }}">
+            @php
+                $isActive = ($session['status'] ?? 'waiting') === 'active';
+                $isScheduled = !$isActive && !empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at']));
+                $isRetake = (bool) ($session['retake_mode'] ?? false);
+                $statusLabel = $isRetake ? 'Retake Window' : ($isActive ? 'Active' : ($isScheduled ? 'Scheduled' : 'Assigned'));
+            @endphp
+            <article class="portal-frame !p-5 border-l-4 {{ $isActive ? 'border-green-500' : ($isScheduled ? 'border-purple-500' : 'border-yellow-500') }}">
                 <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2 mb-2">
-                            <span class="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded {{ $isActive ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400' }}">
-                                {{ $isActive ? 'Active' : 'Assigned' }}
+                            <span class="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded {{ $isActive ? 'bg-green-500/10 text-green-400' : ($isScheduled ? 'bg-purple-500/10 text-purple-400' : 'bg-yellow-500/10 text-yellow-400') }}">
+                                {{ $statusLabel }}
                             </span>
                             <span class="text-[9px] text-slate-500 uppercase">{{ $session['time_limit'] }} sec/question</span>
                         </div>
                         <h3 class="font-bold text-lg text-white truncate">{{ $session['topic'] }}</h3>
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] text-slate-400">
+                            @if(!empty($session['available_at']))
+                                <span><i class="far fa-calendar-check mr-1 text-purple-400"></i>Available {{ \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
+                            @endif
+                            @if(!empty($session['due_at']))
+                                <span><i class="far fa-clock mr-1 text-red-400"></i>Due {{ \Carbon\Carbon::parse($session['due_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
+                            @endif
+                        </div>
                         <div class="flex items-center gap-2 mt-3">
                             <span class="text-[9px] text-slate-500 uppercase tracking-widest">VR Code</span>
                             <code class="text-lg text-cyan-400 font-black tracking-[0.2em]">{{ $session['room_code'] }}</code>
@@ -129,7 +142,9 @@
                         </button>
                         @if(!$isActive)
                             <button onclick='openQuizAction(@json($class["id"]), @json($session["id"]), "start", @json($session["topic"]))'
-                                    class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-green-500/30 text-green-400">
+                                    @disabled($isScheduled)
+                                    title="{{ $isScheduled ? 'This quiz is not available yet.' : 'Start this quiz' }}"
+                                    class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-green-500/30 text-green-400 disabled:opacity-40 disabled:cursor-not-allowed">
                                 <i class="fas fa-play mr-1"></i> Start Quiz
                             </button>
                         @endif
@@ -165,8 +180,14 @@
                     <p class="text-[9px] text-slate-500 uppercase tracking-widest mb-1">Ended · Code {{ $session['room_code'] }}</p>
                     <h3 class="font-bold text-white">{{ $session['topic'] }}</h3>
                     <p class="text-[10px] text-slate-500 mt-2">
-                        {{ $session['analytics']['attempts'] }} attempts · {{ $session['analytics']['average'] }}% average
+                        {{ $session['analytics']['attempts'] }}/{{ $session['analytics']['eligible'] }} completed
+                        · {{ $session['analytics']['completion_rate'] }}% completion
+                        · {{ $session['analytics']['missed'] }} missed
+                        · {{ $session['analytics']['average'] }}% attempted average
                     </p>
+                    @if(!empty($session['ended_at']))
+                        <p class="text-[9px] text-slate-600 mt-1">Ended {{ \Carbon\Carbon::parse($session['ended_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</p>
+                    @endif
                 </div>
                 <div class="grid grid-cols-2 gap-2 w-full lg:w-auto">
                     <button onclick='openResults(@json($class["id"]), @json($session["id"]), @json($session["topic"]))'
@@ -187,21 +208,23 @@
 
 <section class="mb-10">
     <h2 class="text-lg font-orbitron font-bold uppercase mb-5">Class <span class="text-yellow-400">Leaderboard</span></h2>
-    <p class="text-xs text-slate-500 mb-4">Ranked by average quiz accuracy, then total correct answers. Trophies are not used.</p>
+    <p class="text-xs text-slate-500 mb-4">Missed eligible quizzes count as 0%. Excused quizzes are excluded. Ties use completion rate, then total correct answers.</p>
     <div class="portal-frame !p-5 overflow-x-auto">
-        <table class="w-full min-w-[560px] text-left">
-            <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Rank</th><th class="pb-4">Student</th><th class="pb-4">Quizzes</th><th class="pb-4">Avg Accuracy</th><th class="pb-4">Total Correct</th></tr></thead>
+        <table class="w-full min-w-[820px] text-left">
+            <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Rank</th><th class="pb-4">Student</th><th class="pb-4">Completed</th><th class="pb-4">Completion</th><th class="pb-4">Missed</th><th class="pb-4">Rank Accuracy</th><th class="pb-4">Total Correct</th></tr></thead>
             <tbody class="text-sm">
                 @forelse($leaderboard as $row)
                     <tr class="border-b border-white/5">
                         <td class="py-4 font-mono text-yellow-400">#{{ $row['rank'] }}</td>
                         <td class="py-4 font-bold">{{ $row['name'] }}</td>
-                        <td class="py-4 text-slate-400">{{ $row['quizzes'] }}</td>
+                        <td class="py-4 text-slate-400">{{ $row['quizzes'] }} / {{ $row['eligible'] }}</td>
+                        <td class="py-4 text-purple-400 font-bold">{{ $row['completion_rate'] }}%</td>
+                        <td class="py-4 {{ $row['missed'] > 0 ? 'text-red-400' : 'text-slate-500' }}">{{ $row['missed'] }}</td>
                         <td class="py-4 {{ $row['average'] >= 75 ? 'text-green-400' : 'text-red-400' }} font-bold">{{ $row['average'] }}%</td>
                         <td class="py-4 text-cyan-400">{{ $row['correct'] }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs uppercase">No student quiz results yet.</td></tr>
+                    <tr><td colspan="7" class="py-8 text-center text-slate-500 text-xs uppercase">No ended quiz assignments yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -222,7 +245,7 @@
     <div class="portal-frame !p-5 overflow-x-auto">
         <table class="w-full min-w-[650px] text-left">
             <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10">
-                <tr><th class="pb-4">Student</th><th class="pb-4">Email</th><th class="pb-4">Grade</th><th class="pb-4 text-right">Action</th></tr>
+                <tr><th class="pb-4">Student</th><th class="pb-4">Email</th><th class="pb-4">Grade</th><th class="pb-4">Extra Time</th><th class="pb-4 text-right">Actions</th></tr>
             </thead>
             <tbody class="text-sm">
                 @forelse($members as $member)
@@ -238,7 +261,14 @@
                             Grade {{ $student['grade_level'] ?? 'N/A' }}
                             @if($member['grade_mismatch']) <span class="text-[9px] uppercase ml-1">Mismatch</span> @endif
                         </td>
+                        <td class="py-4 text-purple-400">
+                            +{{ (int) ($member['accommodation']['additional_time_seconds'] ?? 0) }} sec/question
+                        </td>
                         <td class="py-4 text-right">
+                            <button onclick='openAccommodation(@json($class["id"]), @json($studentId), @json($studentName), @json((int) ($member["accommodation"]["additional_time_seconds"] ?? 0)), @json($member["accommodation"]["notes"] ?? ""))'
+                                    class="text-purple-400 hover:text-white text-[10px] uppercase font-bold mr-4">
+                                <i class="fas fa-universal-access mr-1"></i> Accommodations
+                            </button>
                             <button onclick='openRemoveStudent(@json($class["id"]), @json($studentId), @json($studentName))'
                                     class="text-red-400 hover:text-white text-[10px] uppercase font-bold">
                                 <i class="fas fa-user-minus mr-1"></i> Remove
@@ -246,7 +276,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No students have joined yet.</td></tr>
+                    <tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs uppercase">No students have joined yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -278,14 +308,70 @@
             <button onclick="closeModal('viewResultsModal')" class="text-slate-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
         </div>
         <div class="overflow-x-auto max-h-96">
-            <table class="w-full min-w-[600px] text-left">
+            <table class="w-full min-w-[900px] text-left">
                 <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10">
-                    <tr><th class="pb-4">Student</th><th class="pb-4">Score</th><th class="pb-4">Accuracy</th><th class="pb-4">Date</th></tr>
+                    <tr><th class="pb-4">Student</th><th class="pb-4">Status</th><th class="pb-4">Score</th><th class="pb-4">Accuracy</th><th class="pb-4">Attempts</th><th class="pb-4 text-right">Exception</th></tr>
                 </thead>
                 <tbody id="results-tbody" class="text-sm"></tbody>
             </table>
         </div>
         <button onclick="closeModal('viewResultsModal')" class="btn-rect-secondary mt-6">Close</button>
+    </div>
+</div>
+
+<div id="quizStudentExceptionModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-8 w-full max-w-md text-left border-purple-500/40">
+        <div class="flex items-start justify-between gap-4 mb-6">
+            <div>
+                <h3 id="exception-modal-title" class="font-orbitron font-bold uppercase text-purple-400">Grant Retake</h3>
+                <p id="exception-student-name" class="text-xs text-slate-400 mt-2"></p>
+            </div>
+            <button type="button" onclick="closeModal('quizStudentExceptionModal')" class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="quizStudentExceptionForm" class="space-y-5">
+            <div>
+                <label for="exception-reason" class="block text-[10px] text-slate-400 uppercase font-bold mb-2">Reason</label>
+                <textarea id="exception-reason" name="reason" rows="3" maxlength="500" required class="input-field w-full" placeholder="Disconnection, technical failure, or excused absence"></textarea>
+            </div>
+            <div id="exception-due-wrapper">
+                <label for="exception-due-at" class="block text-[10px] text-slate-400 uppercase font-bold mb-2">Retake Due At</label>
+                <input id="exception-due-at" name="due_at" type="datetime-local" class="input-field w-full">
+                <p class="text-[9px] text-slate-500 mt-2">If blank, the retake window remains open for 24 hours.</p>
+            </div>
+            <div class="flex flex-col-reverse sm:flex-row gap-3">
+                <button type="button" onclick="closeModal('quizStudentExceptionModal')" class="btn-rect-secondary">Cancel</button>
+                <button id="confirmStudentException" type="submit" class="btn-rect-primary">Grant Retake</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="accommodationModal" class="modal-overlay hidden">
+    <div class="portal-frame !p-8 w-full max-w-md text-left border-purple-500/40">
+        <div class="flex items-start justify-between gap-4 mb-6">
+            <div>
+                <h3 class="font-orbitron font-bold uppercase">Student <span class="text-purple-400">Accommodation</span></h3>
+                <p id="accommodation-student-name" class="text-xs text-slate-400 mt-2"></p>
+            </div>
+            <button type="button" onclick="closeModal('accommodationModal')" class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="accommodationForm" method="POST" class="space-y-5">
+            @csrf
+            @method('PUT')
+            <div>
+                <label for="accommodation-seconds" class="block text-[10px] text-slate-400 uppercase font-bold mb-2">Extra Seconds Per Question</label>
+                <input id="accommodation-seconds" name="additional_time_seconds" type="number" min="0" max="300" step="1" required class="input-field w-full">
+                <p class="text-[9px] text-slate-500 mt-2">Added to the assigned per-question time for this student.</p>
+            </div>
+            <div>
+                <label for="accommodation-notes" class="block text-[10px] text-slate-400 uppercase font-bold mb-2">Private Teacher Notes</label>
+                <textarea id="accommodation-notes" name="notes" rows="3" maxlength="500" class="input-field w-full"></textarea>
+            </div>
+            <div class="flex flex-col-reverse sm:flex-row gap-3">
+                <button type="button" onclick="closeModal('accommodationModal')" class="btn-rect-secondary">Cancel</button>
+                <button type="submit" class="btn-rect-primary">Save Accommodation</button>
+            </div>
+        </form>
     </div>
 </div>
 

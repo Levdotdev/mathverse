@@ -12,12 +12,28 @@ function _spawn() {
     c.appendChild(p);
     setTimeout(() => p.remove(), 10000);
 }
-setInterval(_spawn, 1500);
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+let particleTimer = null;
+
+function syncBackgroundMotion() {
+    if (reducedMotionQuery.matches) {
+        clearInterval(particleTimer);
+        particleTimer = null;
+        document.getElementById('particle-container')?.replaceChildren();
+        return;
+    }
+    if (!particleTimer) particleTimer = setInterval(_spawn, 1500);
+}
+
+syncBackgroundMotion();
+reducedMotionQuery.addEventListener?.('change', syncBackgroundMotion);
 
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     if (!toast) return;
     document.getElementById('toast-msg').innerText = message;
+    toast.setAttribute('role', isError ? 'alert' : 'status');
+    toast.setAttribute('aria-live', isError ? 'assertive' : 'polite');
     toast.classList.toggle('bg-red-500', isError);
     toast.classList.toggle('bg-cyan-500', !isError);
 
@@ -53,14 +69,98 @@ function copyToClipboard(text) {
 
 function openModal(id) {
     const m = document.getElementById(id);
+    if (!m) return;
+
+    m.dataset.previousFocusId = ensureElementId(document.activeElement, 'modal-trigger');
+    m.setAttribute('role', m.getAttribute('role') || 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-hidden', 'false');
+    ensureModalLabel(m, id);
     m.classList.remove('hidden');
     const f = m.querySelector('.portal-frame');
-    if (f) { f.classList.remove('animate-fade-in'); void f.offsetWidth; f.classList.add('animate-fade-in'); }
+    if (f && !reducedMotionQuery.matches) {
+        f.classList.remove('animate-fade-in');
+        void f.offsetWidth;
+        f.classList.add('animate-fade-in');
+    }
+    document.body.classList.add('modal-open');
+    requestAnimationFrame(() => {
+        const focusTarget = modalFocusableElements(m)[0] ?? f ?? m;
+        if (!focusTarget.hasAttribute('tabindex') && !focusTarget.matches('button, a, input, select, textarea')) {
+            focusTarget.setAttribute('tabindex', '-1');
+        }
+        focusTarget.focus({ preventScroll: true });
+    });
 }
 
 function closeModal(id) {
-    document.getElementById(id).classList.add('hidden');
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    modal.querySelector('.portal-frame')?.classList.remove('animate-fade-in');
+
+    if (!document.querySelector('.modal-overlay:not(.hidden)')) {
+        document.body.classList.remove('modal-open');
+    }
+
+    const previousFocus = modal.dataset.previousFocusId
+        ? document.getElementById(modal.dataset.previousFocusId)
+        : null;
+    previousFocus?.focus({ preventScroll: true });
 }
+
+function modalFocusableElements(modal) {
+    return [...modal.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )].filter(element => !element.closest('.hidden') && element.getClientRects().length > 0);
+}
+
+function ensureElementId(element, prefix) {
+    if (!(element instanceof HTMLElement) || element === document.body) return '';
+    if (!element.id) element.id = `${prefix}-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
+    return element.id;
+}
+
+function ensureModalLabel(modal, id) {
+    if (modal.hasAttribute('aria-label') || modal.hasAttribute('aria-labelledby')) return;
+    const title = modal.querySelector('h1, h2, h3');
+    if (!title) {
+        modal.setAttribute('aria-label', 'Dialog');
+        return;
+    }
+    if (!title.id) title.id = `${id}-title`;
+    modal.setAttribute('aria-labelledby', title.id);
+}
+
+document.addEventListener('keydown', event => {
+    const modals = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+    const modal = modals.at(-1);
+    if (!modal) return;
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeModal(modal.id);
+        return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = modalFocusableElements(modal);
+    if (!focusable.length) {
+        event.preventDefault();
+        modal.focus();
+        return;
+    }
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+});
 
 function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('-translate-x-full');

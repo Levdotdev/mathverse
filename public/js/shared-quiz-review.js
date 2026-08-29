@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitLabel = document.getElementById('copy-assign-label');
     const timeLimitGroup = document.getElementById('review-time-limit');
     const timeLimitInput = document.getElementById('review-time-limit-input');
+    const scheduleGroup = document.getElementById('review-schedule');
     const form = document.getElementById('shared-quiz-copy-form');
     const confirmTitle = document.getElementById('confirm-shared-quiz-title');
     const confirmSummary = document.getElementById('confirm-shared-quiz-summary');
@@ -50,6 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
             timeLimitInput.required = willAssign;
         }
         timeLimitGroup?.classList.toggle('opacity-40', !willAssign);
+        scheduleGroup?.classList.toggle('opacity-40', !willAssign);
+        scheduleGroup?.querySelectorAll('input').forEach(input => {
+            input.disabled = !willAssign;
+        });
     }
 
     function showSaveConfirmation() {

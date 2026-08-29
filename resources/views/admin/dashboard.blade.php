@@ -107,13 +107,16 @@
     </div>
 
     <div class="portal-frame !p-6 border-red-500/10">
-        <h4 class="font-orbitron text-xs text-red-500 uppercase mb-6 tracking-widest">
-            <i class="fas fa-terminal mr-2"></i> System Security Logs
-        </h4>
+        <div class="flex items-center justify-between gap-4 mb-6">
+            <h4 class="font-orbitron text-xs text-red-500 uppercase tracking-widest"><i class="fas fa-clipboard-list mr-2"></i> Recent Audit Events</h4>
+            <a href="/admin/dashboard?section=audit" class="text-[9px] text-cyan-400 uppercase font-bold">View All</a>
+        </div>
         <div class="space-y-3 font-mono text-[10px] text-slate-400">
-            <p><span class="text-red-500">[AUTH_ALERT]</span> Admin Root successfully mounted session.</p>
-            <p><span class="text-cyan-500">[DB_INFO]</span> Registry synchronized with Supabase node.</p>
-            <p><span class="text-orange-500">[VERIFY]</span> {{ count($pendingTeachers) }} teacher request(s) pending validation.</p>
+            @forelse(array_slice($auditLogs, 0, 5) as $log)
+                <p><span class="text-red-400">[{{ strtoupper($log['action']) }}]</span> {{ $log['actor_name'] }} · {{ \Carbon\Carbon::parse($log['created_at'])->diffForHumans() }}</p>
+            @empty
+                <p>No sensitive actions have been recorded yet.</p>
+            @endforelse
         </div>
     </div>
 </section>
@@ -121,84 +124,164 @@
 {{-- STUDENT REGISTRY --}}
 <section id="sec-students" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-8">
-        <div class="flex flex-col lg:flex-row justify-between lg:items-end mb-6 gap-4">
-            <h2 class="text-xl font-orbitron font-bold uppercase">
-                Student <span class="text-cyan-400">Registry</span>
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-[220px_190px_auto] gap-3 w-full lg:w-auto">
-                <input type="search" data-registry-search="students" placeholder="Search student..." class="input-mobile-ultra !py-2 !pl-4">
-                <select id="student-grade-filter" class="input-mobile-ultra !py-2 !pl-4 bg-slate-900 text-white">
+        <div class="flex flex-col xl:flex-row justify-between xl:items-end mb-6 gap-4">
+            <div>
+                <h2 class="text-xl font-orbitron font-bold uppercase">Student <span class="text-cyan-400">Registry</span></h2>
+                <p class="text-[10px] text-slate-500 mt-2">{{ number_format($studentTotal) }} matching students · 25 per page</p>
+            </div>
+            <form method="GET" action="/admin/dashboard" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_180px_160px_auto] gap-3 w-full xl:w-auto">
+                <input type="hidden" name="section" value="students">
+                <input type="search" name="student_search" value="{{ $studentSearch }}" maxlength="80" placeholder="Name or email" class="input-mobile-ultra !py-2 !pl-4">
+                <select name="student_grade" class="input-mobile-ultra !py-2 !pl-4 bg-slate-900 text-white">
                     <option value="">All grade levels</option>
                     @for($g = 1; $g <= 6; $g++)
                         <option value="{{ $g }}" {{ $selectedGrade === $g ? 'selected' : '' }}>Grade {{ $g }}</option>
                     @endfor
                 </select>
-                <button type="button" data-registry-clear="students"
-                        class="btn-rect-secondary !py-2 !px-4 !text-[10px] {{ $selectedGrade === 0 ? 'hidden' : '' }}">
-                    Clear Filters
-                </button>
-            </div>
+                <select name="student_sort" class="input-mobile-ultra !py-2 !pl-4 bg-slate-900 text-white">
+                    <option value="name_asc" {{ $studentSort === 'name_asc' ? 'selected' : '' }}>Name A–Z</option>
+                    <option value="name_desc" {{ $studentSort === 'name_desc' ? 'selected' : '' }}>Name Z–A</option>
+                    <option value="newest" {{ $studentSort === 'newest' ? 'selected' : '' }}>Newest</option>
+                    <option value="oldest" {{ $studentSort === 'oldest' ? 'selected' : '' }}>Oldest</option>
+                </select>
+                <button type="submit" class="btn-rect-primary !py-2 !px-4 !text-[10px]">Apply</button>
+            </form>
         </div>
+        @if($studentSearch !== '' || $selectedGrade !== 0 || $studentSort !== 'name_asc')
+            <div class="flex justify-end mb-4"><a href="/admin/dashboard?section=students" class="text-[10px] text-cyan-400 uppercase font-bold">Clear Filters</a></div>
+        @endif
         <div class="overflow-x-auto">
-            <table class="w-full text-left min-w-[650px]">
+            <table class="w-full text-left min-w-[850px]">
                 <thead class="text-slate-500 text-[10px] uppercase border-b border-white/5">
-                    <tr><th class="pb-4">Email</th><th class="pb-4">Full Name</th><th class="pb-4">Grade Level</th><th class="pb-4 text-right">Action</th></tr>
+                    <tr><th class="pb-4">Email</th><th class="pb-4">Full Name</th><th class="pb-4">Grade Level</th><th class="pb-4">Status</th><th class="pb-4 text-right">Actions</th></tr>
                 </thead>
                 <tbody class="text-sm font-rajdhani text-white">
                     @forelse($students as $p)
-                        <tr class="border-b border-white/5 hover:bg-white/5 registry-row" data-registry="students">
+                        @php $studentName = trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')); @endphp
+                        <tr class="border-b border-white/5 hover:bg-white/5 {{ !empty($p['suspended_at']) ? 'opacity-70 bg-red-500/5' : '' }}">
                             <td class="py-4 font-mono text-cyan-400">{{ $p['email'] ?? substr($p['id'],0,8) }}</td>
                             <td class="py-4">{{ $p['last_name'] ?? '—' }}, {{ $p['first_name'] ?? '—' }}</td>
                             <td class="py-4 text-cyan-400">Grade {{ $p['grade_level'] ?? 'N/A' }}</td>
+                            <td class="py-4">
+                                <span class="text-[9px] uppercase font-bold {{ !empty($p['suspended_at']) ? 'text-red-400' : 'text-green-400' }}">{{ !empty($p['suspended_at']) ? 'Suspended' : 'Active' }}</span>
+                                @if(!empty($p['suspension_reason']))<p class="text-[9px] text-slate-500 mt-1 max-w-[220px] truncate" title="{{ $p['suspension_reason'] }}">{{ $p['suspension_reason'] }}</p>@endif
+                            </td>
                             <td class="py-4 text-right">
-                                <button onclick='confirmDelete(@json($p["id"]), @json(trim(($p["first_name"] ?? "") . " " . ($p["last_name"] ?? ""))))'
-                                        class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+                                @if(!empty($p['suspended_at']))
+                                    <form method="POST" action="/admin/user/{{ $p['id'] }}/restore" class="inline">@csrf<input type="hidden" name="return_section" value="students"><button class="text-green-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-undo mr-1"></i> Restore</button></form>
+                                @else
+                                    <button onclick='confirmSuspend(@json($p["id"]), @json($studentName), "students")' class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
+                                @endif
+                                <button onclick='confirmDelete(@json($p["id"]), @json($studentName))' class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No students match this grade filter.</td></tr>
+                        <tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs uppercase">No students match these filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        @php $studentQuery = array_filter(['section' => 'students', 'student_search' => $studentSearch ?: null, 'student_grade' => $selectedGrade ?: null, 'student_sort' => $studentSort !== 'name_asc' ? $studentSort : null]); @endphp
+        @if($studentPages > 1)
+            <nav class="flex items-center justify-center gap-4 mt-6" aria-label="Student registry pages">
+                @if($studentPage > 1)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?{{ http_build_query($studentQuery + ['student_page' => $studentPage - 1]) }}">Previous</a>@endif
+                <span class="text-[10px] text-slate-500 uppercase">Page {{ $studentPage }} of {{ $studentPages }}</span>
+                @if($studentPage < $studentPages)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?{{ http_build_query($studentQuery + ['student_page' => $studentPage + 1]) }}">Next</a>@endif
+            </nav>
+        @endif
     </div>
 </section>
 
 {{-- TEACHER REGISTRY --}}
 <section id="sec-teachers" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-8">
-        <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4">
-            <h2 class="text-xl font-orbitron font-bold uppercase">Teacher <span class="text-blue-400">Registry</span></h2>
-            <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                <input type="search" data-registry-search="teachers" placeholder="Search teacher..." class="input-mobile-ultra !py-2 !pl-4 w-full sm:w-64">
-                <button type="button" data-registry-clear="teachers"
-                        class="btn-rect-secondary !py-2 !px-4 !text-[10px] hidden">
-                    Clear Filters
-                </button>
-            </div>
+        <div class="flex flex-col xl:flex-row justify-between xl:items-end mb-6 gap-4">
+            <div><h2 class="text-xl font-orbitron font-bold uppercase">Teacher <span class="text-blue-400">Registry</span></h2><p class="text-[10px] text-slate-500 mt-2">{{ number_format($teacherTotal) }} matching teachers · 25 per page</p></div>
+            <form method="GET" action="/admin/dashboard" class="grid grid-cols-1 sm:grid-cols-[220px_160px_auto] gap-3 w-full xl:w-auto">
+                <input type="hidden" name="section" value="teachers">
+                <input type="search" name="teacher_search" value="{{ $teacherSearch }}" maxlength="80" placeholder="Name or email" class="input-mobile-ultra !py-2 !pl-4">
+                <select name="teacher_sort" class="input-mobile-ultra !py-2 !pl-4 bg-slate-900 text-white">
+                    <option value="name_asc" {{ $teacherSort === 'name_asc' ? 'selected' : '' }}>Name A–Z</option>
+                    <option value="name_desc" {{ $teacherSort === 'name_desc' ? 'selected' : '' }}>Name Z–A</option>
+                    <option value="newest" {{ $teacherSort === 'newest' ? 'selected' : '' }}>Newest</option>
+                    <option value="oldest" {{ $teacherSort === 'oldest' ? 'selected' : '' }}>Oldest</option>
+                </select>
+                <button type="submit" class="btn-rect-primary !py-2 !px-4 !text-[10px]">Apply</button>
+            </form>
         </div>
+        @if($teacherSearch !== '' || $teacherSort !== 'name_asc')<div class="flex justify-end mb-4"><a href="/admin/dashboard?section=teachers" class="text-[10px] text-blue-400 uppercase font-bold">Clear Filters</a></div>@endif
         <div class="overflow-x-auto">
-            <table class="w-full text-left min-w-[560px]">
+            <table class="w-full text-left min-w-[780px]">
                 <thead class="text-slate-500 text-[10px] uppercase border-b border-white/5">
-                    <tr><th class="pb-4">Email</th><th class="pb-4">Full Name</th><th class="pb-4">Joined</th><th class="pb-4 text-right">Action</th></tr>
+                    <tr><th class="pb-4">Email</th><th class="pb-4">Full Name</th><th class="pb-4">Joined</th><th class="pb-4">Status</th><th class="pb-4 text-right">Actions</th></tr>
                 </thead>
                 <tbody class="text-sm font-rajdhani text-white">
                     @forelse($teachers as $p)
-                        <tr class="border-b border-white/5 hover:bg-white/5 registry-row" data-registry="teachers">
+                        @php $teacherName = trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')); @endphp
+                        <tr class="border-b border-white/5 hover:bg-white/5 {{ !empty($p['suspended_at']) ? 'opacity-70 bg-red-500/5' : '' }}">
                             <td class="py-4 font-mono text-blue-400">{{ $p['email'] ?? substr($p['id'],0,8) }}</td>
                             <td class="py-4">{{ $p['last_name'] ?? '—' }}, {{ $p['first_name'] ?? '—' }}</td>
                             <td class="py-4 text-slate-400">{{ isset($p['created_at']) ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y') : 'N/A' }}</td>
+                            <td class="py-4"><span class="text-[9px] uppercase font-bold {{ !empty($p['suspended_at']) ? 'text-red-400' : 'text-green-400' }}">{{ !empty($p['suspended_at']) ? 'Suspended' : 'Active' }}</span>@if(!empty($p['suspension_reason']))<p class="text-[9px] text-slate-500 mt-1 max-w-[220px] truncate" title="{{ $p['suspension_reason'] }}">{{ $p['suspension_reason'] }}</p>@endif</td>
                             <td class="py-4 text-right">
-                                <button onclick='confirmDelete(@json($p["id"]), @json(trim(($p["first_name"] ?? "") . " " . ($p["last_name"] ?? ""))))'
-                                        class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+                                @if(!empty($p['suspended_at']))
+                                    <form method="POST" action="/admin/user/{{ $p['id'] }}/restore" class="inline">@csrf<input type="hidden" name="return_section" value="teachers"><button class="text-green-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-undo mr-1"></i> Restore</button></form>
+                                @else
+                                    <button onclick='confirmSuspend(@json($p["id"]), @json($teacherName), "teachers")' class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
+                                @endif
+                                <button onclick='confirmDelete(@json($p["id"]), @json($teacherName))' class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No teachers registered.</td></tr>
+                        <tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs uppercase">No teachers match these filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        @php $teacherQuery = array_filter(['section' => 'teachers', 'teacher_search' => $teacherSearch ?: null, 'teacher_sort' => $teacherSort !== 'name_asc' ? $teacherSort : null]); @endphp
+        @if($teacherPages > 1)
+            <nav class="flex items-center justify-center gap-4 mt-6" aria-label="Teacher registry pages">
+                @if($teacherPage > 1)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?{{ http_build_query($teacherQuery + ['teacher_page' => $teacherPage - 1]) }}">Previous</a>@endif
+                <span class="text-[10px] text-slate-500 uppercase">Page {{ $teacherPage }} of {{ $teacherPages }}</span>
+                @if($teacherPage < $teacherPages)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?{{ http_build_query($teacherQuery + ['teacher_page' => $teacherPage + 1]) }}">Next</a>@endif
+            </nav>
+        @endif
+    </div>
+</section>
+
+{{-- AUDIT LOG --}}
+<section id="sec-audit" class="content-section hidden">
+    <div class="portal-frame !p-6 md:!p-8">
+        <div class="flex items-center justify-between gap-4 mb-6">
+            <div><h2 class="text-xl font-orbitron font-bold uppercase">Accountability <span class="text-red-400">Audit Log</span></h2><p class="text-[10px] text-slate-500 mt-2">Append-only history of sensitive administrator and teacher actions.</p></div>
+            <span class="text-[10px] text-slate-500 uppercase">{{ number_format($auditTotal) }} events</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[850px] text-left">
+                <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Date</th><th class="pb-4">Actor</th><th class="pb-4">Action</th><th class="pb-4">Target</th><th class="pb-4">Details</th></tr></thead>
+                <tbody class="text-sm">
+                    @forelse($auditLogs as $log)
+                        @php $metadata = is_string($log['metadata'] ?? null) ? (json_decode($log['metadata'], true) ?: []) : ($log['metadata'] ?? []); @endphp
+                        <tr class="border-b border-white/5 align-top">
+                            <td class="py-4 text-slate-500 text-xs whitespace-nowrap">{{ \Carbon\Carbon::parse($log['created_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</td>
+                            <td class="py-4"><span class="font-bold">{{ $log['actor_name'] }}</span><p class="text-[9px] text-slate-500 uppercase">{{ $log['actor_role'] ?? 'system' }}</p></td>
+                            <td class="py-4 text-red-300 font-mono text-xs">{{ $log['action'] }}</td>
+                            <td class="py-4 text-slate-400 text-xs">{{ $log['target_type'] ?? '—' }}<p class="font-mono text-[9px] text-slate-600">{{ $log['target_id'] ?? '' }}</p></td>
+                            <td class="py-4 text-xs text-slate-400 max-w-sm">{{ !empty($metadata) ? collect($metadata)->map(fn($value, $key) => $key . ': ' . (is_scalar($value) || $value === null ? ($value ?? 'null') : json_encode($value)))->implode(' · ') : '—' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="py-10 text-center text-slate-500 text-xs uppercase">No audit events recorded yet.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        @if($auditPages > 1)
+            <nav class="flex items-center justify-center gap-4 mt-6" aria-label="Audit log pages">
+                @if($auditPage > 1)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?section=audit&audit_page={{ $auditPage - 1 }}">Previous</a>@endif
+                <span class="text-[10px] text-slate-500 uppercase">Page {{ $auditPage }} of {{ $auditPages }}</span>
+                @if($auditPage < $auditPages)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?section=audit&audit_page={{ $auditPage + 1 }}">Next</a>@endif
+            </nav>
+        @endif
     </div>
 </section>
 
@@ -410,6 +493,31 @@
 @endsection
 
 @section('modals')
+
+<div id="suspendUserModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="suspend-user-title">
+    <div class="portal-frame !p-8 w-full max-w-md text-left border-yellow-500/40">
+        <div class="flex justify-between items-start gap-4 mb-6">
+            <div>
+                <h3 id="suspend-user-title" class="font-orbitron font-bold uppercase">Suspend Account?</h3>
+                <p id="suspend-user-name" class="text-xs text-slate-400 mt-2"></p>
+            </div>
+            <button type="button" onclick="closeModal('suspendUserModal')" aria-label="Close" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <p class="text-[10px] text-slate-500 mb-5">The user will be signed out and blocked from returning. Their classes, quizzes, and results are preserved.</p>
+        <form id="suspendUserForm" method="POST" class="space-y-5">
+            @csrf
+            <input id="suspend-return-section" type="hidden" name="return_section">
+            <div>
+                <label for="suspension-reason" class="input-label">Reason</label>
+                <textarea id="suspension-reason" name="reason" rows="4" maxlength="500" required class="input-field w-full"></textarea>
+            </div>
+            <div class="flex flex-col-reverse sm:flex-row gap-3">
+                <button type="button" onclick="closeModal('suspendUserModal')" class="btn-rect-secondary">Cancel</button>
+                <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black">Suspend Account</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <div id="deleteUserModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">

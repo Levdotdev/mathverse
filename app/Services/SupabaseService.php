@@ -260,13 +260,34 @@ class SupabaseService
         ];
     }
 
+    public function adminCount(string $table, array $filters = []): int
+    {
+        $params = $this->buildAdminSelectParams('id', $filters);
+        $params['limit'] = 1;
+
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Prefer'        => 'count=exact',
+        ])->get("{$this->url}/rest/v1/{$table}", $params);
+
+        if (!$response->successful()) {
+            return 0;
+        }
+
+        $contentRange = (string) $response->header('Content-Range');
+        return preg_match('/\/(\d+)$/', $contentRange, $matches)
+            ? (int) $matches[1]
+            : 0;
+    }
+
     private function buildAdminSelectParams(string $query, array $filters): array
     {
         $params = ['select' => $query];
         $allowedOperators = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in', 'not.is'];
 
         foreach ($filters as $column => $value) {
-            if (in_array($column, ['order', 'limit', 'offset'], true)) {
+            if (in_array($column, ['order', 'limit', 'offset', 'or', 'and'], true)) {
                 $params[$column] = $value;
                 continue;
             }
@@ -313,6 +334,70 @@ class SupabaseService
         ])->post("{$this->url}/rest/v1/{$table}", $data);
 
         return $this->responseRows($response);
+    }
+
+    public function adminUpsert(string $table, array $data, string $onConflict): array
+    {
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type'  => 'application/json',
+            'Prefer'        => 'resolution=merge-duplicates,return=representation',
+        ])->post("{$this->url}/rest/v1/{$table}?on_conflict=" . urlencode($onConflict), $data);
+
+        return $this->responseRows($response);
+    }
+
+    public function adminRpc(string $function, array $arguments = []): array
+    {
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type'  => 'application/json',
+        ])->post("{$this->url}/rest/v1/rpc/{$function}", $arguments);
+
+        if (!$response->successful()) {
+            return [];
+        }
+
+        $payload = $response->json();
+        if (!is_array($payload)) {
+            return [];
+        }
+
+        return array_is_list($payload) ? $payload : [$payload];
+    }
+
+    public function setAuthUserSuspended(string $userId, bool $suspended): bool
+    {
+        $response = Http::withHeaders([
+            'apikey' => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type' => 'application/json',
+        ])->put("{$this->url}/auth/v1/admin/users/{$userId}", [
+            'ban_duration' => $suspended ? '876000h' : 'none',
+        ]);
+
+        return $response->successful();
+    }
+
+    public function audit(
+        array $actor,
+        string $action,
+        string $targetType,
+        string|int|null $targetId = null,
+        array $metadata = []
+    ): bool {
+        $created = $this->adminInsert('audit_logs', [
+            'actor_id' => $actor['id'] ?? null,
+            'actor_role' => $actor['role'] ?? null,
+            'action' => $action,
+            'target_type' => $targetType,
+            'target_id' => $targetId === null ? null : (string) $targetId,
+            'metadata' => $metadata,
+        ]);
+
+        return isset($created[0]['id']);
     }
 
     public function adminDelete(string $table, array $filters): bool

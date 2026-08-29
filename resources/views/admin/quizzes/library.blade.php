@@ -82,6 +82,19 @@
                             <p class="text-[10px] text-slate-500 mt-1">
                                 By {{ $quiz['creator_name'] }} · {{ $quiz['question_count'] }} questions
                             </p>
+                            <div class="flex flex-wrap items-center gap-2 mt-3 text-[9px] uppercase font-bold">
+                                @if(!empty($quiz['verified_at']))
+                                    <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i>Verified</span>
+                                @else
+                                    <span class="text-slate-500"><i class="far fa-circle mr-1"></i>Unverified</span>
+                                @endif
+                                <span class="text-yellow-400"><i class="fas fa-star mr-1"></i>{{ number_format((float) ($quiz['rating_average'] ?? 0), 1) }} ({{ (int) ($quiz['rating_count'] ?? 0) }})</span>
+                                <span class="text-cyan-400"><i class="fas fa-layer-group mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} uses</span>
+                                @if(($quiz['pending_report_count'] ?? 0) > 0)
+                                    <span class="text-red-400"><i class="fas fa-flag mr-1"></i>{{ $quiz['pending_report_count'] }} pending</span>
+                                @endif
+                                <span class="text-slate-500">v{{ (int) ($quiz['version'] ?? 1) }}</span>
+                            </div>
                             <p class="text-[9px] text-slate-600 mt-2 uppercase tracking-widest">
                                 Updated {{ \Carbon\Carbon::parse($quiz['updated_at'] ?? $quiz['created_at'])->format('M d, Y') }}
                             </p>

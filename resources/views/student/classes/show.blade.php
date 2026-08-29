@@ -56,22 +56,41 @@
             @php
                 $isActive = ($session['status'] ?? 'waiting') === 'active';
                 $alreadyTaken = !empty($session['result']);
+                $isScheduled = !empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at']));
+                $canAttempt = $isActive && !$isScheduled && ($session['remaining_attempts'] ?? 0) > 0;
             @endphp
             <article class="portal-frame !p-6 border-l-4 {{ $isActive ? 'border-green-500' : 'border-yellow-500' }}">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <span class="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded {{ $isActive ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400' }}">
-                            {{ $isActive ? 'Active Now' : 'Assigned' }}
+                            {{ $isScheduled ? 'Scheduled' : ($isActive ? (($session['retake_mode'] ?? false) ? 'Retake Active' : 'Active Now') : 'Assigned') }}
                         </span>
                         <h3 class="font-bold text-xl text-white mt-4">{{ $session['topic'] }}</h3>
-                        <p class="text-[10px] text-slate-500 mt-1">{{ $session['time_limit'] }} seconds per question</p>
+                        <p class="text-[10px] text-slate-500 mt-1">{{ $session['time_limit'] + ($session['eligibility']['additional_time_seconds'] ?? 0) }} seconds per question</p>
+                        @if(($session['eligibility']['additional_time_seconds'] ?? 0) > 0)
+                            <p class="text-[10px] text-purple-300 mt-1"><i class="fas fa-universal-access mr-1"></i>Includes +{{ $session['eligibility']['additional_time_seconds'] }} seconds per-question accommodation</p>
+                        @endif
+                        @if(!empty($session['available_at']))
+                            <p class="text-[9px] text-slate-500 mt-2">Available {{ \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('M d, Y h:i A') }}</p>
+                        @endif
+                        @if(!empty($session['effective_due_at']))
+                            <p class="text-[9px] text-orange-400 mt-1">{{ !empty($session['eligibility']['retake_due_at']) ? 'Your retake is due' : 'Due' }} {{ \Carbon\Carbon::parse($session['effective_due_at'])->timezone(config('app.timezone'))->format('M d, Y h:i A') }}</p>
+                        @endif
                     </div>
                     <i class="fas fa-vr-cardboard text-2xl {{ $isActive ? 'text-green-400' : 'text-yellow-400' }} opacity-70"></i>
                 </div>
-                @if($alreadyTaken)
+                @if($alreadyTaken && !$canAttempt)
                     <div class="mt-6 p-4 rounded bg-green-500/10 border border-green-500/30">
                         <p class="text-xs text-green-400 font-bold uppercase"><i class="fas fa-check-circle mr-2"></i>Attempt recorded</p>
-                        <p class="text-[10px] text-slate-400 mt-1">Only your first attempt counts for this assignment.</p>
+                        <p class="text-[10px] text-slate-400 mt-1">No additional teacher-authorized attempt is currently available.</p>
+                    </div>
+                @elseif($isScheduled)
+                    <div class="mt-6 p-4 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-300">
+                        The VR code will be available at the scheduled time.
+                    </div>
+                @elseif(!$isActive)
+                    <div class="mt-6 p-4 rounded bg-slate-500/10 border border-white/10 text-xs text-slate-400">
+                        Waiting for your teacher to start this quiz.
                     </div>
                 @else
                 <div class="mt-6 p-4 rounded bg-black/40 border border-cyan-500/20 flex items-center justify-between gap-4">
@@ -95,7 +114,7 @@
 
 <section class="mb-10">
     <h2 class="text-lg font-orbitron font-bold uppercase mb-5">My Class <span class="text-cyan-400">Analytics</span></h2>
-    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-7 gap-4">
         <div class="portal-frame !p-5 border-l-2 border-purple-500">
             <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Quizzes Taken</p>
             <p class="text-2xl font-orbitron mt-1">{{ $analytics['attempts'] }}</p>
@@ -112,6 +131,10 @@
             <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Missed</p>
             <p class="text-2xl font-orbitron mt-1">{{ $analytics['missed'] }}</p>
         </div>
+        <div class="portal-frame !p-5 border-l-2 border-slate-500">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Excused</p>
+            <p class="text-2xl font-orbitron mt-1">{{ $analytics['excused'] }}</p>
+        </div>
         <div class="portal-frame !p-5 border-l-2 border-emerald-500">
             <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Passed</p>
             <p class="text-2xl font-orbitron mt-1">{{ $analytics['passed'] }}</p>
@@ -127,17 +150,18 @@
     <h2 class="text-lg font-orbitron font-bold uppercase mb-5">Class <span class="text-yellow-400">Leaderboard</span></h2>
     <div class="portal-frame !p-5 overflow-x-auto">
         <table class="w-full min-w-[520px] text-left">
-            <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Rank</th><th class="pb-4">Student</th><th class="pb-4">Quizzes</th><th class="pb-4">Average Accuracy</th></tr></thead>
+            <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Rank</th><th class="pb-4">Student</th><th class="pb-4">Completed</th><th class="pb-4">Completion</th><th class="pb-4">Rank Accuracy</th></tr></thead>
             <tbody class="text-sm">
                 @forelse($leaderboard as $row)
                     <tr class="border-b border-white/5 {{ $row['student_id'] === $user['id'] ? 'bg-cyan-500/5' : '' }}">
                         <td class="py-4 font-mono text-yellow-400">#{{ $row['rank'] }}</td>
                         <td class="py-4 font-bold">{{ $row['name'] }} {{ $row['student_id'] === $user['id'] ? '(You)' : '' }}</td>
-                        <td class="py-4 text-slate-400">{{ $row['quizzes'] }}</td>
+                        <td class="py-4 text-slate-400">{{ $row['quizzes'] }}/{{ $row['eligible'] }}</td>
+                        <td class="py-4 text-blue-400">{{ $row['completion_rate'] }}%</td>
                         <td class="py-4 {{ $row['average'] >= 75 ? 'text-green-400' : 'text-red-400' }} font-bold">{{ $row['average'] }}%</td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs uppercase">No quiz results yet.</td></tr>
+                    <tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs uppercase">No ended quiz assignments yet.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -160,7 +184,9 @@
                     <p class="text-[10px] text-slate-500 mt-1">{{ $session['time_limit'] }} seconds per question</p>
                 </div>
                 <div class="flex items-center gap-4">
-                @if($result)
+                @if(($session['eligibility']['eligibility_status'] ?? '') === 'excused')
+                    <p class="text-xs text-slate-400 uppercase font-bold">Excused</p>
+                @elseif($result)
                     <div class="text-left sm:text-right">
                         <p class="font-bold text-cyan-400">{{ $result['correct_answers'] }} / {{ $result['total_questions'] }}</p>
                         <p class="text-sm font-black {{ $accuracyColor }}">{{ $accuracy >= 75 ? 'Passed' : 'Failed' }} · {{ $accuracy }}%</p>

@@ -2,11 +2,14 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\SupabaseService;
 use Closure;
 use Illuminate\Http\Request;
 
 class SupabaseAuth
 {
+    public function __construct(private SupabaseService $supabase) {}
+
     public function handle(Request $request, Closure $next, string $role = ''): mixed
     {
         $user = session('supabase_user');
@@ -14,6 +17,25 @@ class SupabaseAuth
         if (!$user) {
             return redirect('/')->with('error', 'Please log in first.');
         }
+
+        $currentProfile = $this->supabase->adminSelect(
+            'profiles',
+            'id,role,first_name,last_name,email,avatar_url,grade_level,suspended_at,leaderboard_alias,show_on_leaderboard',
+            ['id' => $user['id']]
+        )[0] ?? null;
+
+        if (!$currentProfile) {
+            session()->forget(['supabase_token', 'supabase_user']);
+            return redirect('/')->with('error', 'Your account is no longer available.');
+        }
+
+        if (!empty($currentProfile['suspended_at'])) {
+            session()->forget(['supabase_token', 'supabase_user']);
+            return redirect('/')->with('error', 'Your account is suspended. Contact an administrator.');
+        }
+
+        $user = array_merge($user, $currentProfile);
+        session(['supabase_user' => $user]);
 
         if ($role && ($user['role'] ?? '') !== $role) {
             // Redirect to their correct dashboard

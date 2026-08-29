@@ -23,6 +23,7 @@
         </div>
         <div class="portal-frame !p-5 border-b-2 border-purple-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Taken</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['taken'] }}</h3></div>
         <div class="portal-frame !p-5 border-b-2 border-red-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Missed</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['missed'] }}</h3></div>
+        <div class="portal-frame !p-5 border-b-2 border-slate-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Excused</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['excused'] }}</h3></div>
         <div class="portal-frame !p-5 border-b-2 border-blue-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Average</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['average'] }}%</h3></div>
         <div class="portal-frame !p-5 border-b-2 border-green-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Passed (75%+)</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['passed'] }}</h3></div>
         <div class="portal-frame !p-5 border-b-2 border-orange-500"><p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Failed (&lt;75%)</p><h3 class="text-2xl font-orbitron mt-1">{{ $studentAnalytics['failed'] }}</h3></div>
@@ -77,7 +78,7 @@
         <div class="space-y-3">
             @forelse($missedQuizzes as $missed)
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
-                    <div><p class="font-bold text-sm">{{ $missed['topic'] }}</p><p class="text-[10px] text-slate-500">{{ $missed['class_name'] }} · Ended {{ \Carbon\Carbon::parse($missed['created_at'])->format('M d, Y') }}</p></div>
+                    <div><p class="font-bold text-sm">{{ $missed['topic'] }}</p><p class="text-[10px] text-slate-500">{{ $missed['class_name'] }} · Ended {{ \Carbon\Carbon::parse($missed['ended_at'] ?? $missed['created_at'])->timezone(config('app.timezone'))->format('M d, Y') }}</p></div>
                     <a href="/student/classes/{{ $missed['class_id'] }}/quizzes/{{ $missed['id'] }}/review" class="btn-rect-secondary !py-2 !px-3 !w-auto text-[9px]">Review Answers</a>
                 </div>
             @empty
@@ -174,7 +175,7 @@
                         <tr class="border-b border-white/5 {{ $isMe ? 'bg-cyan-400/5' : '' }}">
                             <td class="py-4 font-mono {{ $isMe ? 'text-cyan-400' : '' }}">#{{ $i + 1 }}</td>
                             <td class="py-4 {{ $isMe ? 'font-bold' : '' }}">
-                                {{ $p['last_name'] ?? 'Unknown' }}, {{ $p['first_name'] ?? 'Unknown' }}
+                                {{ $p['display_name'] }}
                                 {{ $isMe ? '(You)' : '' }}
                             </td>
                             <td class="py-4">Level {{ $p['level'] ?? 1 }}</td>
@@ -277,6 +278,25 @@
                                class="input-mobile-ultra !bg-white/5 text-slate-400">
                     </div>
                 </div>
+                <div class="form-group">
+                    <label class="input-label">Leaderboard Name <span class="text-slate-600">(Optional)</span></label>
+                    <div class="relative">
+                        <i class="fas fa-user-secret input-icon"></i>
+                        <input type="text" name="leaderboard_alias" maxlength="30"
+                               value="{{ old('leaderboard_alias', $profile['leaderboard_alias'] ?? '') }}"
+                               placeholder="Nickname shown to students" class="input-mobile-ultra">
+                    </div>
+                </div>
+                <label class="form-group flex items-center gap-3 p-4 rounded border border-white/10 bg-white/5 cursor-pointer">
+                    <input type="hidden" name="show_on_leaderboard" value="0">
+                    <input type="checkbox" name="show_on_leaderboard" value="1"
+                           {{ old('show_on_leaderboard', $profile['show_on_leaderboard'] ?? true) ? 'checked' : '' }}
+                           class="w-4 h-4 accent-cyan-500">
+                    <span>
+                        <span class="block text-xs font-bold text-white">Show my chosen name on leaderboards</span>
+                        <span class="block text-[9px] text-slate-500 mt-1">When disabled, other students see “Anonymous Student.” Teachers still see your real name.</span>
+                    </span>
+                </label>
                 <div class="form-group">
                     <label class="input-label">Grade Level</label>
                     <div class="relative">

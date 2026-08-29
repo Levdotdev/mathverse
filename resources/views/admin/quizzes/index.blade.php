@@ -68,14 +68,20 @@
                     <div class="flex flex-wrap gap-2 mt-2 text-[10px] font-bold uppercase tracking-widest">
                         <span class="text-purple-300 bg-purple-500/10 px-2 py-1 rounded">Grade {{ $quiz['grade_level'] }}</span>
                         <span class="text-slate-400 bg-white/5 px-2 py-1 rounded">{{ $quiz['question_count'] }} Questions</span>
+                        <span class="{{ ($quiz['visibility'] ?? 'shared') === 'shared' ? 'text-blue-300 bg-blue-500/10' : 'text-slate-400 bg-white/5' }} px-2 py-1 rounded">{{ ucfirst($quiz['visibility'] ?? 'shared') }}</span>
+                        <span class="text-yellow-300 bg-yellow-500/10 px-2 py-1 rounded">v{{ $quiz['version'] ?? 1 }}</span>
                         <span class="text-slate-500 px-1 py-1">{{ \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y') }}</span>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2 w-full lg:w-auto">
+                <div class="grid grid-cols-3 gap-2 w-full lg:w-auto">
                     <button onclick='loadQuizBuilder(@json($quiz["id"]))'
                             class="btn-rect-secondary !py-2 !px-4 !w-auto !border-purple-500/30 hover:!text-purple-400">
                         <i class="fas fa-edit mr-1"></i> Edit
                     </button>
+                    <a href="/admin/quizzes/{{ $quiz['id'] }}/versions"
+                       class="btn-rect-secondary !py-2 !px-4 !w-auto !border-cyan-500/30 hover:!text-cyan-400 text-center">
+                        <i class="fas fa-history mr-1"></i> History
+                    </a>
                     <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
                             class="btn-rect-secondary !py-2 !px-4 !w-auto !border-red-500/30 text-red-400">
                         <i class="fas fa-trash-alt mr-1"></i> Delete
@@ -94,14 +100,21 @@
     <div class="portal-frame !p-6 md:!p-8 relative">
         <button type="button" onclick="toggleQuizView('list')" class="absolute top-5 right-5 text-slate-500 hover:text-white"><i class="fas fa-times-circle text-xl"></i></button>
         <h2 id="builder-title" class="text-xl font-orbitron font-bold mb-2 uppercase">Create <span class="text-purple-400">Quiz</span></h2>
-        <p class="text-xs text-slate-500 mb-8">This quiz is immediately available to teachers in the shared library.</p>
+        <p class="text-xs text-slate-500 mb-8">Choose private storage or share the quiz with teachers through the library.</p>
         <form id="quiz-form" method="POST" action="/admin/quizzes">
             @csrf
             <span id="method-field"></span>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
                 <div class="form-group">
                     <label class="input-label">Quiz Topic</label>
                     <input type="text" name="topic" id="q-topic" maxlength="150" class="input-mobile-ultra !pl-4" required>
+                </div>
+                <div class="form-group">
+                    <label class="input-label">Library Visibility</label>
+                    <select name="visibility" id="q-visibility" class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
+                        <option value="shared">Shared with teachers</option>
+                        <option value="private">Private</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label class="input-label">Grade Level</label>

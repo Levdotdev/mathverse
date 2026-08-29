@@ -30,12 +30,15 @@ class TeacherController extends Controller
         $allClasses = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
         usort($allClasses, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
 
+        $allClassIds = array_column($allClasses, 'id');
+        $customizations = empty($allClassIds) ? [] : $this->supabase->adminSelect(
+            'class_customizations', '*', [
+                'class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $allClassIds) . ')'],
+            ]
+        );
+        $customizationMap = array_column($customizations, null, 'class_id');
         foreach ($allClasses as &$class) {
-            $class['customization'] = $this->supabase->adminSelect(
-                'class_customizations',
-                '*',
-                ['class_id' => $class['id']]
-            )[0] ?? [
+            $class['customization'] = $customizationMap[$class['id']] ?? [
                 'theme_color' => '#f59e0b',
                 'icon' => 'chalkboard',
                 'banner_pattern' => 'grid',
@@ -134,14 +137,14 @@ class TeacherController extends Controller
             'id,topic,created_at,class_id',
             ['class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
         );
-        $allResults = $this->firstAttempts($this->supabase->adminSelect(
-            'quiz_results', 'correct_answers,total_questions,created_at,session_id,student_id', ['order' => 'created_at.asc']
-        ));
-
-        // Filter results to only this teacher's quizzes
         $quizIds    = array_column($quizzes, 'id');
-        $allResults = array_filter($allResults, fn($r) => in_array($r['session_id'], $quizIds));
-        $allResults = array_values($allResults);
+        $allResults = empty($quizIds) ? [] : $this->supabase->adminSelect(
+            'quiz_results', 'correct_answers,total_questions,created_at,session_id,student_id', [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $quizIds) . ')'],
+                'is_counted' => true,
+                'order' => 'created_at.asc',
+            ]
+        );
 
         // Average accuracy for each non-archived class.
         $classAccuracy = [];
@@ -208,12 +211,14 @@ class TeacherController extends Controller
 
         $quizzes    = $this->supabase->adminSelect('quiz_sessions', 'id,topic,room_code,created_at,class_id', ['teacher_id' => $user['id']]);
         $quizzes    = array_values(array_filter($quizzes, fn ($quiz) => !empty($quiz['class_id'])));
-        $allResults = $this->firstAttempts($this->supabase->adminSelect(
-            'quiz_results', 'correct_answers,total_questions,created_at,session_id,student_id', ['order' => 'created_at.asc']
-        ));
-
         $quizIds    = array_column($quizzes, 'id');
-        $allResults = array_values(array_filter($allResults, fn($r) => in_array($r['session_id'], $quizIds)));
+        $allResults = empty($quizIds) ? [] : $this->supabase->adminSelect(
+            'quiz_results', 'correct_answers,total_questions,created_at,session_id,student_id', [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $quizIds) . ')'],
+                'is_counted' => true,
+                'order' => 'created_at.asc',
+            ]
+        );
 
         $rows = [];
         foreach ($quizzes as $q) {
@@ -265,9 +270,18 @@ class TeacherController extends Controller
         // Get all students from teacher's classes
         $classes    = $this->supabase->adminSelect('classes', 'id,class_name', ['teacher_id' => $user['id']]);
         $classIds   = array_column($classes, 'id');
-        $members    = $this->supabase->adminSelect('class_members', 'student_id,class_id');
-        $members    = array_filter($members, fn($m) => in_array($m['class_id'], $classIds));
+        $members = empty($classIds) ? [] : $this->supabase->adminSelect(
+            'class_members',
+            'student_id,class_id,profiles(first_name,last_name,grade_level,trophies)',
+            ['class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
+        );
         $studentIds = array_unique(array_column(array_values($members), 'student_id'));
+        $studentProfiles = [];
+        foreach ($members as $member) {
+            if (!isset($studentProfiles[$member['student_id']]) && !empty($member['profiles'])) {
+                $studentProfiles[$member['student_id']] = $member['profiles'];
+            }
+        }
 
         $classSessions = empty($classIds)
             ? []
@@ -278,20 +292,19 @@ class TeacherController extends Controller
             );
         $classSessionIds = array_column($classSessions, 'id');
 
-        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+        $allResults = empty($classSessionIds) ? [] : $this->supabase->adminSelect(
             'quiz_results',
             'correct_answers,total_questions,student_id,session_id,created_at',
-            ['order' => 'created_at.asc']
-        ));
-        $allResults = array_values(array_filter(
-            $allResults,
-            fn ($result) => in_array($result['session_id'], $classSessionIds, true)
-        ));
+            [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classSessionIds) . ')'],
+                'is_counted' => true,
+                'order' => 'created_at.asc',
+            ]
+        );
 
         $rows = [];
         foreach ($studentIds as $sid) {
-            $profile  = $this->supabase->adminSelect('profiles', 'first_name,last_name,grade_level,trophies', ['id' => $sid]);
-            $p        = $profile[0] ?? null;
+            $p = $studentProfiles[$sid] ?? null;
             if (!$p) continue;
 
             $sResults = array_values(array_filter($allResults, fn($r) => $r['student_id'] === $sid));
@@ -338,7 +351,12 @@ class TeacherController extends Controller
         $format = $request->query('format', 'pdf');
 
         $classes = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
-        $members = $this->supabase->adminSelect('class_members', 'student_id,class_id');
+        $classIds = array_column($classes, 'id');
+        $members = empty($classIds) ? [] : $this->supabase->adminSelect(
+            'class_members', 'student_id,class_id,profiles(first_name,last_name)', [
+                'class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')'],
+            ]
+        );
 
         $rows = [];
         foreach ($classes as $c) {
@@ -346,9 +364,8 @@ class TeacherController extends Controller
             $studentNames = [];
 
             foreach ($classMembers as $m) {
-                $profile = $this->supabase->adminSelect('profiles', 'first_name,last_name', ['id' => $m['student_id']]);
-                if (!empty($profile[0])) {
-                    $p = $profile[0];
+                if (!empty($m['profiles'])) {
+                    $p = $m['profiles'];
                     $studentNames[] = ($p['last_name'] ?? '') . ', ' . ($p['first_name'] ?? '');
                 }
             }
@@ -377,21 +394,6 @@ class TeacherController extends Controller
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download('classes-report.pdf');
-    }
-
-    private function firstAttempts(array $results): array
-    {
-        $first = [];
-        foreach ($results as $result) {
-            $sessionId = $result['session_id'] ?? null;
-            $studentId = $result['student_id'] ?? null;
-            if (!$sessionId || !$studentId) {
-                continue;
-            }
-            $first[$sessionId . ':' . $studentId] ??= $result;
-        }
-
-        return array_values($first);
     }
 
     private function downloadCsv(array $rows, array $headers, array $keys, string $filename): \Symfony\Component\HttpFoundation\StreamedResponse
@@ -423,17 +425,16 @@ class TeacherController extends Controller
         $questions = $this->supabase->adminSelect('questions', '*', ['session_id' => $id]);
 
         // Results with student profiles
-        $results = $this->firstAttempts($this->supabase->adminSelect(
+        $results = $this->supabase->adminSelect(
             'quiz_results',
-            'correct_answers,total_questions,created_at,student_id,session_id',
-            ['session_id' => $id, 'order' => 'created_at.asc']
-        ));
+            'correct_answers,total_questions,created_at,student_id,session_id,profiles(first_name,last_name,grade_level)',
+            ['session_id' => $id, 'is_counted' => true, 'order' => 'created_at.asc']
+        );
 
         // Get student names
         $rows = [];
         foreach ($results as $r) {
-            $profile = $this->supabase->adminSelect('profiles', 'first_name,last_name,grade_level', ['id' => $r['student_id']]);
-            $p       = $profile[0] ?? null;
+            $p = $r['profiles'] ?? null;
             $accuracy = $r['total_questions'] > 0
                 ? round(($r['correct_answers'] / $r['total_questions']) * 100, 1)
                 : 0;
@@ -525,28 +526,28 @@ class TeacherController extends Controller
         }
 
         // Members
-        $members = $this->supabase->adminSelect('class_members', 'student_id,joined_at', ['class_id' => $id]);
+        $members = $this->supabase->adminSelect(
+            'class_members',
+            'student_id,joined_at,profiles(first_name,last_name,grade_level,trophies,level)',
+            ['class_id' => $id]
+        );
 
         // Only results produced by quiz sessions assigned to this class.
         $classSessions = $this->supabase->adminSelect('quiz_sessions', 'id', ['class_id' => $id]);
         $classSessionIds = array_column($classSessions, 'id');
-        $allResults = $this->firstAttempts($this->supabase->adminSelect(
+        $allResults = empty($classSessionIds) ? [] : $this->supabase->adminSelect(
             'quiz_results',
             'correct_answers,total_questions,student_id,session_id,created_at',
-            ['order' => 'created_at.asc']
-        ));
-        $allResults = array_values(array_filter(
-            $allResults,
-            fn ($result) => in_array($result['session_id'], $classSessionIds, true)
-        ));
+            [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classSessionIds) . ')'],
+                'is_counted' => true,
+                'order' => 'created_at.asc',
+            ]
+        );
 
         $rows = [];
         foreach ($members as $m) {
-            $profile = $this->supabase->adminSelect(
-                'profiles', 'first_name,last_name,grade_level,trophies,level',
-                ['id' => $m['student_id']]
-            );
-            $p = $profile[0] ?? null;
+            $p = $m['profiles'] ?? null;
             if (!$p) continue;
 
             $sResults = array_values(array_filter($allResults, fn($r) => $r['student_id'] === $m['student_id']));

@@ -28,6 +28,10 @@
    class="nav-link w-full {{ $activePage === 'verification' ? 'active' : '' }}">
     <i class="fas fa-user-shield mr-3 w-5 text-orange-400"></i> Verification
 </a>
+<a href="/admin/dashboard?section=audit" id="btn-audit"
+   class="nav-link w-full {{ $activePage === 'audit' ? 'active' : '' }}">
+    <i class="fas fa-clipboard-list mr-3 w-5 text-red-400"></i> Audit Log
+</a>
 <a href="/admin/dashboard?section=reports" id="btn-reports"
    class="nav-link w-full {{ $activePage === 'reports' ? 'active' : '' }}">
     <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports

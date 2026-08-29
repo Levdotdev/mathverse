@@ -18,6 +18,36 @@
     <p class="text-[10px] text-blue-400 uppercase tracking-widest font-bold">Shared by {{ $creatorName }}</p>
     <h1 class="text-2xl font-orbitron font-bold mt-2">Review and use this quiz</h1>
     <p class="text-xs text-slate-400 mt-3">Edit and save a personal copy, with the option to assign it to matching classes. The shared original will stay unchanged.</p>
+    <div class="flex flex-wrap items-center gap-3 mt-5 text-[10px] uppercase font-bold">
+        @if(!empty($quiz['verified_at']))
+            <span class="px-3 py-2 rounded bg-green-500/10 text-green-400"><i class="fas fa-check-circle mr-1"></i>Admin Verified</span>
+        @endif
+        <span class="px-3 py-2 rounded bg-yellow-500/10 text-yellow-400"><i class="fas fa-star mr-1"></i>{{ number_format((float) ($quiz['rating_average'] ?? 0), 1) }} from {{ (int) ($quiz['rating_count'] ?? 0) }}</span>
+        <span class="px-3 py-2 rounded bg-cyan-500/10 text-cyan-400"><i class="fas fa-layer-group mr-1"></i>{{ (int) ($quiz['usage_count'] ?? 0) }} uses</span>
+        <span class="px-3 py-2 rounded bg-white/5 text-slate-400">Version {{ (int) ($quiz['version'] ?? 1) }}</span>
+    </div>
+    <div class="flex flex-col lg:flex-row gap-3 mt-5">
+        <form method="POST" action="/teacher/quiz-library/{{ $quiz['id'] }}/bookmark">
+            @csrf
+            <button type="submit" class="btn-rect-secondary !py-2 !px-4 lg:!w-auto {{ $isBookmarked ? 'text-yellow-400 !border-yellow-500/40' : '' }}">
+                <i class="{{ $isBookmarked ? 'fas' : 'far' }} fa-bookmark mr-2"></i>{{ $isBookmarked ? 'Remove Bookmark' : 'Bookmark' }}
+            </button>
+        </form>
+        <form method="POST" action="/teacher/quiz-library/{{ $quiz['id'] }}/rating" class="flex gap-2">
+            @csrf
+            <label for="quiz-rating" class="sr-only">Your rating</label>
+            <select id="quiz-rating" name="rating" required class="input-field !py-2 !px-3 min-w-[140px]">
+                <option value="">Rate quiz</option>
+                @for($rating = 5; $rating >= 1; $rating--)
+                    <option value="{{ $rating }}" {{ (int) $userRating === $rating ? 'selected' : '' }}>{{ $rating }} {{ Str::plural('star', $rating) }}</option>
+                @endfor
+            </select>
+            <button type="submit" class="btn-rect-secondary !py-2 !px-4 !w-auto">Save Rating</button>
+        </form>
+        <button type="button" onclick="openModal('reportSharedQuizModal')" class="btn-rect-secondary !py-2 !px-4 lg:!w-auto text-red-400 !border-red-500/30">
+            <i class="fas fa-flag mr-2"></i>Report an Issue
+        </button>
+    </div>
 </header>
 
 @php
@@ -31,7 +61,7 @@
 
     <section class="portal-frame !p-6 md:!p-8">
         <h2 class="font-orbitron font-bold uppercase mb-6">Quiz <span class="text-purple-400">Copy</span></h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div class="form-group">
                 <label class="input-label">Quiz Topic</label>
                 <div class="relative">
@@ -39,6 +69,13 @@
                     <input type="text" name="topic" id="q-topic" maxlength="150"
                            value="{{ old('topic', $quiz['topic']) }}" class="input-mobile-ultra" required>
                 </div>
+            </div>
+            <div class="form-group">
+                <label class="input-label">Your Copy Visibility</label>
+                <select name="visibility" class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
+                    <option value="private" {{ old('visibility', 'private') === 'private' ? 'selected' : '' }}>Private</option>
+                    <option value="shared" {{ old('visibility') === 'shared' ? 'selected' : '' }}>Shared with teachers</option>
+                </select>
             </div>
             <div class="form-group">
                 <label class="input-label">Grade Level</label>
@@ -102,6 +139,18 @@
             </div>
             <p class="text-[9px] text-slate-500 mt-1">5–300 seconds for every selected class.</p>
         </div>
+        <div id="review-schedule" class="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-6 transition-opacity">
+            <div class="form-group">
+                <label class="input-label">Available From <span class="text-slate-600">(Optional)</span></label>
+                <input type="datetime-local" name="available_at" value="{{ old('available_at') }}"
+                       class="input-mobile-ultra !pl-4">
+            </div>
+            <div class="form-group">
+                <label class="input-label">Due Date <span class="text-slate-600">(Optional)</span></label>
+                <input type="datetime-local" name="due_at" value="{{ old('due_at') }}"
+                       class="input-mobile-ultra !pl-4">
+            </div>
+        </div>
     </section>
 
     <div class="flex flex-col sm:flex-row justify-end gap-3">
@@ -116,6 +165,48 @@
 @endsection
 
 @section('modals')
+    <div id="reportSharedQuizModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="report-shared-quiz-title">
+        <div class="portal-frame !p-8 w-full max-w-md text-left border-red-500/40">
+            <div class="flex justify-between items-start gap-4 mb-6">
+                <div>
+                    <h3 id="report-shared-quiz-title" class="font-orbitron font-bold uppercase">Report Quiz Issue</h3>
+                    <p class="text-xs text-slate-400 mt-2">An administrator will review your report.</p>
+                </div>
+                <button type="button" onclick="closeModal('reportSharedQuizModal')" aria-label="Close" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <form method="POST" action="/teacher/quiz-library/{{ $quiz['id'] }}/report" class="space-y-5">
+                @csrf
+                <div>
+                    <label for="report-reason" class="input-label">Issue Type</label>
+                    <select id="report-reason" name="reason" required class="input-field w-full">
+                        <option value="incorrect_answer">Incorrect answer</option>
+                        <option value="unclear_question">Unclear question</option>
+                        <option value="inappropriate">Inappropriate content</option>
+                        <option value="duplicate">Duplicate quiz</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="report-question" class="input-label">Affected Question <span class="text-slate-600">(Optional)</span></label>
+                    <select id="report-question" name="question_id" class="input-field w-full">
+                        <option value="">Whole quiz / not question-specific</option>
+                        @foreach($reportQuestions as $reportQuestion)
+                            <option value="{{ $reportQuestion['id'] }}">Question {{ $reportQuestion['position'] }} — {{ Str::limit($reportQuestion['question'], 65) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="report-details" class="input-label">Details</label>
+                    <textarea id="report-details" name="details" rows="4" maxlength="1000" class="input-field w-full" placeholder="Include the question number and what appears incorrect."></textarea>
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row gap-3">
+                    <button type="button" onclick="closeModal('reportSharedQuizModal')" class="btn-rect-secondary">Cancel</button>
+                    <button type="submit" class="btn-rect-primary !bg-red-600 !text-white">Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="cancelSharedQuizModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cancel-shared-quiz-title">
         <div class="portal-frame !p-8 w-full max-w-sm text-center border-red-500/40">
             <i class="fas fa-exclamation-triangle text-4xl text-red-400 mb-4"></i>

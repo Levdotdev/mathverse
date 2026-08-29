@@ -45,6 +45,7 @@ class AdminQuizController extends Controller
 
         $filters = [
             'teacher_id' => ['operator' => 'neq', 'value' => $user['id']],
+            'visibility' => 'shared',
             'order' => 'grade_level.asc,created_at.desc',
         ];
         if ($grade !== null) {
@@ -70,11 +71,13 @@ class AdminQuizController extends Controller
 
         $creatorNames = $this->creatorNames(array_column($quizzes, 'teacher_id'));
         $questionCounts = $this->questionCounts(array_column($quizzes, 'id'));
+        $reportCounts = $this->reportCounts(array_column($quizzes, 'id'));
         $quizzesByGrade = array_fill(1, 6, []);
 
         foreach ($quizzes as &$quiz) {
             $quiz['creator_name'] = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
             $quiz['question_count'] = $questionCounts[$quiz['id']] ?? 0;
+            $quiz['pending_report_count'] = $reportCounts[$quiz['id']] ?? 0;
             $quizzesByGrade[(int) $quiz['grade_level']][] = $quiz;
         }
         unset($quiz);
@@ -93,6 +96,7 @@ class AdminQuizController extends Controller
             'teacher_id' => $user['id'],
             'topic' => trim($validated['topic']),
             'grade_level' => (int) $validated['grade_level'],
+            'visibility' => $validated['visibility'],
             'updated_at' => now()->toIso8601String(),
         ]);
 
@@ -110,7 +114,11 @@ class AdminQuizController extends Controller
             return redirect('/admin/quizzes')->with('error', 'The quiz questions could not be saved.');
         }
 
-        return redirect('/admin/quizzes')->with('success', 'Admin quiz created in the shared library.');
+        $message = $validated['visibility'] === 'shared'
+            ? 'Admin quiz created and shared with teachers.'
+            : 'Private admin quiz created.';
+
+        return redirect('/admin/quizzes')->with('success', $message);
     }
 
     public function show(string $id)
@@ -146,14 +154,32 @@ class AdminQuizController extends Controller
             '*',
             ['quiz_id' => $id, 'order' => 'position.asc']
         );
+        $currentVersion = max(1, (int) ($quiz['version'] ?? 1));
+        $snapshot = $this->supabase->adminInsert('quiz_versions', [
+            'quiz_id' => $id,
+            'version' => $currentVersion,
+            'topic' => $quiz['topic'],
+            'grade_level' => (int) $quiz['grade_level'],
+            'visibility' => $quiz['visibility'] ?? 'shared',
+            'questions' => $oldQuestions,
+            'created_by' => $user['id'],
+        ]);
+        if (!isset($snapshot[0]['id'])) {
+            return redirect('/admin/quizzes')->with('error', 'The current quiz version could not be preserved.');
+        }
 
         $updated = $this->supabase->adminUpdate('quizzes', [
             'topic' => trim($validated['topic']),
             'grade_level' => (int) $validated['grade_level'],
+            'visibility' => $validated['visibility'],
+            'version' => $currentVersion + 1,
+            'verified_at' => null,
+            'verified_by' => null,
             'updated_at' => now()->toIso8601String(),
         ], ['id' => $id, 'teacher_id' => $user['id']]);
 
         if (!isset($updated[0]['id'])) {
+            $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot[0]['id']]);
             return redirect('/admin/quizzes')->with('error', 'The quiz could not be updated.');
         }
 
@@ -166,10 +192,15 @@ class AdminQuizController extends Controller
             $this->supabase->adminUpdate('quizzes', [
                 'topic' => $quiz['topic'],
                 'grade_level' => $quiz['grade_level'],
+                'visibility' => $quiz['visibility'] ?? 'shared',
+                'version' => $currentVersion,
+                'verified_at' => $quiz['verified_at'] ?? null,
+                'verified_by' => $quiz['verified_by'] ?? null,
                 'updated_at' => $quiz['updated_at'] ?? $quiz['created_at'],
             ], ['id' => $id, 'teacher_id' => $user['id']]);
             $this->supabase->adminDelete('quiz_questions', ['quiz_id' => $id]);
             $this->restoreTemplateQuestions($oldQuestions);
+            $this->supabase->adminDelete('quiz_versions', ['id' => $snapshot[0]['id']]);
 
             return redirect('/admin/quizzes')
                 ->with('error', 'The new questions could not be saved, so the previous quiz was restored.');
@@ -184,7 +215,7 @@ class AdminQuizController extends Controller
         $user = session('supabase_user');
         $quiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
 
-        if (!$quiz) {
+        if (!$quiz || ($quiz['visibility'] ?? 'shared') !== 'shared') {
             return redirect('/admin/quiz-library')->with('error', 'Quiz not found.');
         }
 
@@ -199,24 +230,128 @@ class AdminQuizController extends Controller
         ));
         $creatorNames = $this->creatorNames([$quiz['teacher_id']]);
         $creatorName = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
+        $reports = $this->supabase->adminSelect(
+            'quiz_reports', '*', ['quiz_id' => $id, 'order' => 'created_at.desc']
+        );
+        $reporterNames = $this->creatorNames(array_column($reports, 'reporter_id'));
+        $questionLabels = [];
+        foreach ($questions as $index => $question) {
+            if (!empty($question['id'])) {
+                $questionLabels[$question['id']] = 'Question ' . ($question['position'] ?? $index + 1)
+                    . ': ' . \Illuminate\Support\Str::limit($question['question'] ?? '', 80);
+            }
+        }
+        foreach ($reports as &$report) {
+            $report['reporter_name'] = $reporterNames[$report['reporter_id'] ?? ''] ?? 'Former user';
+            $report['question_label'] = $questionLabels[$report['question_id'] ?? ''] ?? null;
+        }
+        unset($report);
 
-        return view('admin.quizzes.review', compact('user', 'quiz', 'questions', 'creatorName'));
+        return view('admin.quizzes.review', compact('user', 'quiz', 'questions', 'creatorName', 'reports'));
+    }
+
+    public function toggleVerified(string $id)
+    {
+        $admin = session('supabase_user');
+        $quiz = $this->supabase->adminSelect('quizzes', '*', [
+            'id' => $id, 'visibility' => 'shared',
+        ])[0] ?? null;
+        if (!$quiz) {
+            return back()->with('error', 'Only a shared quiz can be verified.');
+        }
+
+        $verify = empty($quiz['verified_at']);
+        $updated = $this->supabase->adminUpdate('quizzes', [
+            'verified_at' => $verify ? now()->toIso8601String() : null,
+            'verified_by' => $verify ? $admin['id'] : null,
+        ], ['id' => $id]);
+        if (!isset($updated[0]['id'])) {
+            return back()->with('error', 'The verification status could not be changed.');
+        }
+
+        $this->supabase->audit(
+            $admin,
+            $verify ? 'quiz.verified' : 'quiz.verification_removed',
+            'quiz',
+            $id,
+            ['topic' => $quiz['topic'] ?? null]
+        );
+
+        return back()->with('success', $verify ? 'Quiz marked as verified.' : 'Verification removed.');
+    }
+
+    public function resolveReport(Request $request, string $id, string $reportId)
+    {
+        $validated = $request->validate(['status' => 'required|in:reviewed,dismissed']);
+        $report = $this->supabase->adminSelect('quiz_reports', '*', [
+            'id' => $reportId, 'quiz_id' => $id,
+        ])[0] ?? null;
+        if (!$report || ($report['status'] ?? '') !== 'pending') {
+            return back()->with('error', 'That report has already been handled or no longer exists.');
+        }
+
+        $admin = session('supabase_user');
+        $updated = $this->supabase->adminUpdate('quiz_reports', [
+            'status' => $validated['status'],
+            'reviewed_by' => $admin['id'],
+            'reviewed_at' => now()->toIso8601String(),
+        ], ['id' => $reportId, 'quiz_id' => $id, 'status' => 'pending']);
+        if (!isset($updated[0]['id'])) {
+            return back()->with('error', 'The report could not be updated.');
+        }
+
+        $this->supabase->audit($admin, 'quiz_report.' . $validated['status'], 'quiz_report', $reportId, [
+            'quiz_id' => $id,
+            'reason' => $report['reason'] ?? null,
+        ]);
+
+        return back()->with('success', 'Quiz report marked as ' . $validated['status'] . '.');
+    }
+
+    public function versions(string $id)
+    {
+        $user = session('supabase_user');
+        $quiz = $this->ownedQuiz($id, $user['id']);
+        if (!$quiz) {
+            return redirect('/admin/quizzes')->with('error', 'Quiz not found.');
+        }
+        $versions = $this->supabase->adminSelect(
+            'quiz_versions', '*', ['quiz_id' => $id, 'order' => 'version.desc']
+        );
+        return view('admin.quizzes.versions', compact('user', 'quiz', 'versions'));
     }
 
     public function destroy(Request $request, string $id)
     {
         $destination = $this->quizDestination($request);
-        $quiz = $this->supabase->adminSelect('quizzes', 'id', ['id' => $id])[0] ?? null;
+        $quiz = $this->supabase->adminSelect(
+            'quizzes', 'id,topic,teacher_id,visibility', ['id' => $id]
+        )[0] ?? null;
         if (!$quiz) {
             return redirect($destination)->with('error', 'Quiz not found.');
+        }
+
+        $admin = session('supabase_user');
+        $isOwnQuiz = ($quiz['teacher_id'] ?? null) === ($admin['id'] ?? null);
+        if (!$isOwnQuiz && ($quiz['visibility'] ?? 'shared') !== 'shared') {
+            return redirect($destination)->with('error', 'A private quiz can only be deleted by its creator.');
         }
 
         if (!$this->supabase->adminDelete('quizzes', ['id' => $id])) {
             return redirect($destination)->with('error', 'The quiz could not be deleted.');
         }
 
-        return redirect($destination)
-            ->with('success', 'Quiz removed from the shared library. Existing class assignments were preserved.');
+        $this->supabase->audit($admin, 'quiz.deleted', 'quiz', $id, [
+            'topic' => $quiz['topic'] ?? null,
+            'creator_id' => $quiz['teacher_id'] ?? null,
+            'visibility' => $quiz['visibility'] ?? null,
+        ]);
+
+        $message = $isOwnQuiz
+            ? 'Your quiz was deleted. Existing class assignments were preserved.'
+            : 'Quiz removed from the shared library. Existing class assignments were preserved.';
+
+        return redirect($destination)->with('success', $message);
     }
 
     private function validateQuiz(Request $request): array
@@ -224,6 +359,7 @@ class AdminQuizController extends Controller
         return $request->validate([
             'topic' => 'required|string|max:150',
             'grade_level' => 'required|integer|between:1,6',
+            'visibility' => 'required|in:private,shared',
             'questions' => 'required|array|min:1|max:100',
             'questions.*.question' => 'required|string|max:1000',
             'questions.*.options' => 'required|array|size:4',
@@ -286,6 +422,8 @@ class AdminQuizController extends Controller
             }
 
             return [
+                'id' => $question['id'] ?? null,
+                'position' => $question['position'] ?? null,
                 'question' => $question['question'],
                 'choices' => $choices,
                 'correct_index' => $correctIndex,
@@ -368,6 +506,23 @@ class AdminQuizController extends Controller
             $counts[$question['quiz_id']] = ($counts[$question['quiz_id']] ?? 0) + 1;
         }
 
+        return $counts;
+    }
+
+    private function reportCounts(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (empty($ids)) {
+            return [];
+        }
+        $reports = $this->supabase->adminSelect('quiz_reports', 'quiz_id', [
+            'quiz_id' => ['operator' => 'in', 'value' => '(' . implode(',', $ids) . ')'],
+            'status' => 'pending',
+        ]);
+        $counts = [];
+        foreach ($reports as $report) {
+            $counts[$report['quiz_id']] = ($counts[$report['quiz_id']] ?? 0) + 1;
+        }
         return $counts;
     }
 }

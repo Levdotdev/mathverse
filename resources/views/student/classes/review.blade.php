@@ -21,6 +21,8 @@
             <span class="px-3 py-2 rounded bg-cyan-500/10 text-cyan-400">{{ $result['correct_answers'] }} / {{ $result['total_questions'] }}</span>
             <span class="px-3 py-2 rounded {{ $result['accuracy'] >= 75 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400' }}">{{ $result['status'] }} · {{ $result['accuracy'] }}%</span>
         </div>
+    @elseif(($eligibility['eligibility_status'] ?? '') === 'excused')
+        <p class="text-slate-400 text-xs font-bold uppercase mt-5">Excused — this quiz does not affect your completion or leaderboard score</p>
     @else
         <p class="text-red-400 text-xs font-bold uppercase mt-5">Missed — no attempt recorded</p>
     @endif

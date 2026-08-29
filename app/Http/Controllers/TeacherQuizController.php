@@ -49,11 +49,13 @@ class TeacherQuizController extends Controller
     {
         $user = session('supabase_user');
         [$search, $grade, $safeSearch] = $this->quizFilters($request);
+        $bookmarkedOnly = $request->boolean('bookmarked');
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 24;
 
         $filters = [
             'teacher_id' => ['operator' => 'neq', 'value' => $user['id']],
+            'visibility' => 'shared',
             'order'      => 'grade_level.asc,created_at.desc',
         ];
 
@@ -65,12 +67,20 @@ class TeacherQuizController extends Controller
             $filters['topic'] = ['operator' => 'ilike', 'value' => "*{$safeSearch}*"];
         }
 
-        $result = $this->supabase->adminSelectPage(
-            'quizzes',
-            '*',
-            $filters,
-            $perPage,
-            ($page - 1) * $perPage
+        if ($bookmarkedOnly) {
+            $bookmarks = $this->supabase->adminSelect(
+                'quiz_bookmarks', 'quiz_id', ['user_id' => $user['id']]
+            );
+            $bookmarkIds = array_values(array_unique(array_filter(array_column($bookmarks, 'quiz_id'))));
+            if (empty($bookmarkIds)) {
+                $result = ['data' => [], 'total' => 0];
+            } else {
+                $filters['id'] = ['operator' => 'in', 'value' => '(' . implode(',', $bookmarkIds) . ')'];
+            }
+        }
+
+        $result ??= $this->supabase->adminSelectPage(
+            'quizzes', '*', $filters, $perPage, ($page - 1) * $perPage
         );
 
         $quizzes = $result['data'];
@@ -82,11 +92,14 @@ class TeacherQuizController extends Controller
 
         $creatorNames = $this->creatorNames(array_column($quizzes, 'teacher_id'));
         $questionCounts = $this->questionCounts(array_column($quizzes, 'id'));
+        $preferences = $this->libraryPreferences($user['id'], array_column($quizzes, 'id'));
         $quizzesByGrade = array_fill(1, 6, []);
 
         foreach ($quizzes as &$quiz) {
             $quiz['creator_name'] = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse Teacher';
             $quiz['question_count'] = $questionCounts[$quiz['id']] ?? 0;
+            $quiz['bookmarked'] = isset($preferences['bookmarks'][$quiz['id']]);
+            $quiz['user_rating'] = $preferences['ratings'][$quiz['id']] ?? null;
             $quizzesByGrade[(int) $quiz['grade_level']][] = $quiz;
         }
         unset($quiz);
@@ -96,7 +109,7 @@ class TeacherQuizController extends Controller
 
         return view('teacher.quizzes.library', compact(
             'user', 'quizzesByGrade', 'classes', 'preferredClassId',
-            'search', 'grade', 'page', 'total', 'totalPages'
+            'search', 'grade', 'page', 'total', 'totalPages', 'bookmarkedOnly'
         ));
     }
 
@@ -105,7 +118,7 @@ class TeacherQuizController extends Controller
         $user = session('supabase_user');
         $quiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
 
-        if (!$quiz) {
+        if (!$quiz || ($quiz['visibility'] ?? 'shared') !== 'shared') {
             return redirect('/teacher/quiz-library')->with('error', 'Quiz not found.');
         }
 
@@ -119,14 +132,131 @@ class TeacherQuizController extends Controller
             ['quiz_id' => $id, 'order' => 'position.asc']
         );
         $questionsForForm = $this->questionsForForm($templateQuestions);
+        $reportQuestions = array_map(fn (array $question): array => [
+            'id' => $question['id'],
+            'position' => $question['position'] ?? null,
+            'question' => $question['question'] ?? '',
+        ], $templateQuestions);
         $creatorNames = $this->creatorNames([$quiz['teacher_id']]);
         $creatorName = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse Teacher';
         $classes = $this->teacherClasses($user['id']);
         $preferredClassId = $this->preferredClassId($request, $classes);
+        $preferences = $this->libraryPreferences($user['id'], [$id]);
+        $isBookmarked = isset($preferences['bookmarks'][$id]);
+        $userRating = $preferences['ratings'][$id] ?? null;
 
         return view('teacher.quizzes.review', compact(
-            'user', 'quiz', 'questionsForForm', 'creatorName', 'classes', 'preferredClassId'
+            'user', 'quiz', 'questionsForForm', 'creatorName', 'classes', 'preferredClassId',
+            'isBookmarked', 'userRating', 'reportQuestions'
         ));
+    }
+
+    public function toggleBookmark(string $id)
+    {
+        $user = session('supabase_user');
+        $quiz = $this->sharedQuiz($id, $user['id']);
+        if (!$quiz) {
+            return back()->with('error', 'That shared quiz is no longer available.');
+        }
+
+        $existing = $this->supabase->adminSelect('quiz_bookmarks', 'quiz_id', [
+            'quiz_id' => $id, 'user_id' => $user['id'],
+        ]);
+        if ($existing) {
+            $this->supabase->adminDelete('quiz_bookmarks', [
+                'quiz_id' => $id, 'user_id' => $user['id'],
+            ]);
+            return back()->with('success', 'Bookmark removed.');
+        }
+
+        $created = $this->supabase->adminInsert('quiz_bookmarks', [
+            'quiz_id' => $id, 'user_id' => $user['id'],
+        ]);
+        return isset($created[0]['quiz_id'])
+            ? back()->with('success', 'Quiz bookmarked.')
+            : back()->with('error', 'The bookmark could not be saved.');
+    }
+
+    public function rate(Request $request, string $id)
+    {
+        $validated = $request->validate(['rating' => 'required|integer|between:1,5']);
+        $user = session('supabase_user');
+        if (!$this->sharedQuiz($id, $user['id'])) {
+            return back()->with('error', 'Only another creator’s shared quiz can be rated.');
+        }
+
+        $saved = $this->supabase->adminUpsert('quiz_ratings', [
+            'quiz_id' => $id,
+            'user_id' => $user['id'],
+            'rating' => (int) $validated['rating'],
+            'updated_at' => now()->toIso8601String(),
+        ], 'quiz_id,user_id');
+
+        return isset($saved[0]['quiz_id'])
+            ? back()->with('success', 'Your rating was saved.')
+            : back()->with('error', 'Your rating could not be saved.');
+    }
+
+    public function report(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'reason' => 'required|in:incorrect_answer,unclear_question,inappropriate,duplicate,other',
+            'question_id' => 'nullable|integer|min:1',
+            'details' => 'nullable|string|max:1000',
+        ]);
+        $user = session('supabase_user');
+        $quiz = $this->sharedQuiz($id, $user['id']);
+        if (!$quiz) {
+            return back()->with('error', 'Only an available shared quiz can be reported.');
+        }
+
+        if (!empty($validated['question_id'])) {
+            $question = $this->supabase->adminSelect('quiz_questions', 'id', [
+                'id' => $validated['question_id'], 'quiz_id' => $id,
+            ]);
+            if (!$question) {
+                return back()->with('error', 'The selected question is not part of this quiz.');
+            }
+        }
+
+        $pending = $this->supabase->adminSelect('quiz_reports', 'id', [
+            'quiz_id' => $id, 'reporter_id' => $user['id'], 'status' => 'pending',
+        ]);
+        if ($pending) {
+            return back()->with('error', 'You already have a pending report for this quiz.');
+        }
+
+        $created = $this->supabase->adminInsert('quiz_reports', [
+            'quiz_id' => $id,
+            'reporter_id' => $user['id'],
+            'question_id' => $validated['question_id'] ?? null,
+            'reason' => $validated['reason'],
+            'details' => trim((string) ($validated['details'] ?? '')) ?: null,
+        ]);
+        if (!isset($created[0]['id'])) {
+            return back()->with('error', 'The report could not be submitted.');
+        }
+
+        $this->supabase->audit($user, 'quiz.reported', 'quiz', $id, [
+            'reason' => $validated['reason'],
+            'report_id' => $created[0]['id'],
+        ]);
+
+        return back()->with('success', 'Report submitted for admin review.');
+    }
+
+    public function versions(string $id)
+    {
+        $user = session('supabase_user');
+        $quiz = $this->ownedQuiz($id, $user['id']);
+        if (!$quiz) {
+            return redirect('/teacher/quizzes')->with('error', 'Quiz not found.');
+        }
+
+        $versions = $this->supabase->adminSelect(
+            'quiz_versions', '*', ['quiz_id' => $id, 'order' => 'version.desc']
+        );
+        return view('teacher.quizzes.versions', compact('user', 'quiz', 'versions'));
     }
 
     public function copyAndAssign(Request $request, string $id)
@@ -136,13 +266,17 @@ class TeacherQuizController extends Controller
             'class_ids' => 'nullable|array|max:100',
             'class_ids.*' => 'uuid|distinct',
             'time_limit' => 'nullable|required_with:class_ids|integer|between:5,300',
+            'available_at' => 'nullable|date',
+            'due_at' => 'nullable|date',
         ]);
 
         $user = session('supabase_user');
         $token = session('supabase_token');
         $sourceQuiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
 
-        if (!$sourceQuiz || ($sourceQuiz['teacher_id'] ?? null) === $user['id']) {
+        if (!$sourceQuiz
+            || ($sourceQuiz['teacher_id'] ?? null) === $user['id']
+            || ($sourceQuiz['visibility'] ?? 'shared') !== 'shared') {
             return redirect('/teacher/quiz-library')
                 ->with('error', 'The shared quiz is no longer available.');
         }
@@ -175,10 +309,16 @@ class TeacherQuizController extends Controller
             $orderedClasses[] = $class;
         }
 
+        $schedule = empty($orderedClasses)
+            ? null
+            : $this->assignmentSchedule($assignment);
+
         $copy = $this->supabase->insert('quizzes', [
             'teacher_id' => $user['id'],
             'topic' => trim($validated['topic']),
             'grade_level' => $grade,
+            'visibility' => $validated['visibility'],
+            'source_quiz_id' => $sourceQuiz['id'],
             'updated_at' => now()->toIso8601String(),
         ], $token);
         $copyId = $copy[0]['id'] ?? null;
@@ -218,6 +358,9 @@ class TeacherQuizController extends Controller
                     'class_id' => $class['id'],
                     'max_members' => 60,
                     'time_limit' => (int) $assignment['time_limit'],
+                    'assigned_at' => now()->toIso8601String(),
+                    'available_at' => $schedule['available_at'],
+                    'due_at' => $schedule['due_at'],
                     'is_active' => true,
                     'status' => 'waiting',
                 ], $token);
@@ -260,6 +403,7 @@ class TeacherQuizController extends Controller
             'teacher_id' => $user['id'],
             'topic' => trim($validated['topic']),
             'grade_level' => (int) $validated['grade_level'],
+            'visibility' => $validated['visibility'],
             'updated_at' => now()->toIso8601String(),
         ], $token);
 
@@ -281,7 +425,11 @@ class TeacherQuizController extends Controller
                 ->with('error', 'The questions could not be saved. Please try again.');
         }
 
-        return redirect('/teacher/quizzes')->with('success', 'Quiz created and shared with other teachers.');
+        $message = $validated['visibility'] === 'shared'
+            ? 'Quiz created and shared with other teachers.'
+            : 'Private quiz created.';
+
+        return redirect('/teacher/quizzes')->with('success', $message);
     }
 
     public function update(Request $request, string $id)
@@ -301,13 +449,33 @@ class TeacherQuizController extends Controller
             ['quiz_id' => $id, 'order' => 'position.asc']
         );
 
+        $currentVersion = max(1, (int) ($quiz['version'] ?? 1));
+        $snapshot = $this->supabase->insert('quiz_versions', [
+            'quiz_id' => $id,
+            'version' => $currentVersion,
+            'topic' => $quiz['topic'],
+            'grade_level' => (int) $quiz['grade_level'],
+            'visibility' => $quiz['visibility'] ?? 'shared',
+            'questions' => $oldQuestions,
+            'created_by' => $user['id'],
+        ], $token);
+
+        if (!isset($snapshot[0]['id'])) {
+            return redirect('/teacher/quizzes')->with('error', 'The current quiz version could not be preserved.');
+        }
+
         $updated = $this->supabase->update('quizzes', [
             'topic' => trim($validated['topic']),
             'grade_level' => (int) $validated['grade_level'],
+            'visibility' => $validated['visibility'],
+            'version' => $currentVersion + 1,
+            'verified_at' => null,
+            'verified_by' => null,
             'updated_at' => now()->toIso8601String(),
         ], ['id' => $id], $token);
 
         if (!isset($updated[0]['id'])) {
+            $this->supabase->delete('quiz_versions', ['id' => $snapshot[0]['id']]);
             return redirect('/teacher/quizzes')->with('error', 'The quiz could not be updated.');
         }
 
@@ -323,10 +491,15 @@ class TeacherQuizController extends Controller
             $this->supabase->update('quizzes', [
                 'topic' => $quiz['topic'],
                 'grade_level' => $quiz['grade_level'],
+                'visibility' => $quiz['visibility'] ?? 'shared',
+                'version' => $currentVersion,
+                'verified_at' => $quiz['verified_at'] ?? null,
+                'verified_by' => $quiz['verified_by'] ?? null,
                 'updated_at' => $quiz['updated_at'] ?? $quiz['created_at'],
             ], ['id' => $id], $token);
             $this->supabase->delete('quiz_questions', ['quiz_id' => $id]);
             $this->restoreTemplateQuestions($oldQuestions, $token);
+            $this->supabase->delete('quiz_versions', ['id' => $snapshot[0]['id']]);
 
             return redirect('/teacher/quizzes')
                 ->with('error', 'The new questions could not be saved, so the previous quiz was restored.');
@@ -338,13 +511,19 @@ class TeacherQuizController extends Controller
     public function destroy(string $id)
     {
         $user = session('supabase_user');
-        if (!$this->ownedQuiz($id, $user['id'])) {
+        $quiz = $this->ownedQuiz($id, $user['id']);
+        if (!$quiz) {
             return redirect('/teacher/quizzes')->with('error', 'You can only delete quizzes you created.');
         }
 
         if (!$this->supabase->delete('quizzes', ['id' => $id])) {
             return redirect('/teacher/quizzes')->with('error', 'The quiz could not be deleted.');
         }
+
+        $this->supabase->audit($user, 'quiz.deleted', 'quiz', $id, [
+            'topic' => $quiz['topic'] ?? null,
+            'visibility' => $quiz['visibility'] ?? null,
+        ]);
 
         return redirect('/teacher/quizzes')
             ->with('success', 'Quiz deleted. Existing class sessions and results were preserved.');
@@ -374,6 +553,8 @@ class TeacherQuizController extends Controller
             'class_id' => 'required|uuid',
             'time_limit' => 'required|integer|between:5,300',
             'return_to_class' => 'nullable|uuid',
+            'available_at' => 'nullable|date',
+            'due_at' => 'nullable|date',
         ]);
 
         $user = session('supabase_user');
@@ -427,6 +608,8 @@ class TeacherQuizController extends Controller
             'class_id' => $class['id'],
             'max_members' => 60,
             'time_limit' => (int) $validated['time_limit'],
+            'assigned_at' => now()->toIso8601String(),
+            ...$this->assignmentSchedule($validated),
             'is_active' => true,
             'status' => 'waiting',
         ], $token);
@@ -456,6 +639,7 @@ class TeacherQuizController extends Controller
         return $request->validate([
             'topic' => 'required|string|max:150',
             'grade_level' => 'required|integer|between:1,6',
+            'visibility' => 'required|in:private,shared',
             'questions' => 'required|array|min:1|max:100',
             'questions.*.question' => 'required|string|max:1000',
             'questions.*.options' => 'required|array|size:4',
@@ -579,6 +763,36 @@ class TeacherQuizController extends Controller
         ])[0] ?? null;
     }
 
+    private function sharedQuiz(string $id, string $viewerId): ?array
+    {
+        $quiz = $this->supabase->adminSelect('quizzes', '*', [
+            'id' => $id, 'visibility' => 'shared',
+        ])[0] ?? null;
+
+        return $quiz && ($quiz['teacher_id'] ?? null) !== $viewerId ? $quiz : null;
+    }
+
+    private function libraryPreferences(string $userId, array $quizIds): array
+    {
+        $quizIds = array_values(array_unique(array_filter($quizIds)));
+        if (empty($quizIds)) {
+            return ['bookmarks' => [], 'ratings' => []];
+        }
+
+        $filter = ['operator' => 'in', 'value' => '(' . implode(',', $quizIds) . ')'];
+        $bookmarks = $this->supabase->adminSelect('quiz_bookmarks', 'quiz_id', [
+            'user_id' => $userId, 'quiz_id' => $filter,
+        ]);
+        $ratings = $this->supabase->adminSelect('quiz_ratings', 'quiz_id,rating', [
+            'user_id' => $userId, 'quiz_id' => $filter,
+        ]);
+
+        return [
+            'bookmarks' => array_fill_keys(array_column($bookmarks, 'quiz_id'), true),
+            'ratings' => array_column($ratings, 'rating', 'quiz_id'),
+        ];
+    }
+
     private function teacherClasses(string $teacherId): array
     {
         return $this->supabase->adminSelect(
@@ -664,5 +878,26 @@ class TeacherQuizController extends Controller
         }
 
         throw new \RuntimeException('Unable to generate an available VR room code.');
+    }
+
+    private function assignmentSchedule(array $validated): array
+    {
+        $availableAt = !empty($validated['available_at'])
+            ? \Carbon\Carbon::parse($validated['available_at'], config('app.timezone'))->utc()
+            : now()->utc();
+        $dueAt = !empty($validated['due_at'])
+            ? \Carbon\Carbon::parse($validated['due_at'], config('app.timezone'))->utc()
+            : null;
+
+        if ($dueAt !== null && $dueAt->lessThanOrEqualTo($availableAt)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'due_at' => 'The due date must be later than the availability date.',
+            ]);
+        }
+
+        return [
+            'available_at' => $availableAt->toIso8601String(),
+            'due_at' => $dueAt?->toIso8601String(),
+        ];
     }
 }

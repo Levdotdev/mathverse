@@ -19,6 +19,15 @@ body {
     overflow-x: clip;
 }
 
+body.modal-open {
+    overflow: hidden;
+}
+
+:focus-visible {
+    outline: 3px solid var(--neon-cyan);
+    outline-offset: 3px;
+}
+
 /* All background layers must be fixed so they don't add document height */
 .stars-container {
     position: fixed;
@@ -143,6 +152,21 @@ body {
     20% { opacity: 0.8; }
     80% { opacity: 0.8; }
     to { transform: translateY(-10vh) rotate(180deg) scale(1.2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .digital-rain,
+    .cyber-grid,
+    #particle-container {
+        display: none !important;
+    }
 }
 
 @keyframes glowPulse { from { filter: drop-shadow(0 0 5px currentColor); } to { filter: drop-shadow(0 0 15px currentColor); } }
