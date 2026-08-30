@@ -18,12 +18,25 @@ Deno.serve(async (request: Request) => {
   const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
   const vapidSubject = Deno.env.get("VAPID_SUBJECT") ?? "";
+  const adminPushSecret = Deno.env.get("ADMIN_PUSH_SECRET") ?? "";
 
-  if (request.headers.get("authorization") !== `Bearer ${serviceKey}`) {
-    return json({ message: "Unauthorized." }, 401);
-  }
-  if (!supabaseUrl || !serviceKey || !vapidPublicKey || !vapidPrivateKey || !vapidSubject) {
+  if (
+    !supabaseUrl ||
+    !serviceKey ||
+    !vapidPublicKey ||
+    !vapidPrivateKey ||
+    !vapidSubject ||
+    !adminPushSecret
+  ) {
     return json({ message: "Web Push secrets are incomplete." }, 503);
+  }
+  if (
+    !safeEqual(
+      request.headers.get("x-mathverse-push-secret") ?? "",
+      adminPushSecret,
+    )
+  ) {
+    return json({ message: "Unauthorized." }, 401);
   }
 
   let payload: PushPayload;
@@ -35,7 +48,10 @@ Deno.serve(async (request: Request) => {
 
   const notification = JSON.stringify({
     title: String(payload.title ?? "MathVerse Admin Alert").slice(0, 100),
-    body: String(payload.body ?? "A new item needs your attention.").slice(0, 240),
+    body: String(payload.body ?? "A new item needs your attention.").slice(
+      0,
+      240,
+    ),
     url: safeAdminPath(payload.url),
     tag: String(payload.tag ?? "mathverse-admin-alert").slice(0, 100),
   });
@@ -53,30 +69,58 @@ Deno.serve(async (request: Request) => {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
   let sent = 0;
+  let failed = 0;
   let expired = 0;
   for (const subscription of subscriptions ?? []) {
     try {
-      await webpush.sendNotification({
-        endpoint: subscription.endpoint,
-        keys: {
-          p256dh: subscription.p256dh,
-          auth: subscription.auth,
+      await webpush.sendNotification(
+        {
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: subscription.p256dh,
+            auth: subscription.auth,
+          },
         },
-      }, notification, { TTL: 3600 });
+        notification,
+        { TTL: 3600 },
+      );
       sent++;
     } catch (pushError) {
       const statusCode = Number(
         (pushError as { statusCode?: number })?.statusCode ?? 0,
       );
       if (statusCode === 404 || statusCode === 410) {
-        await supabase.from("push_subscriptions").delete().eq("id", subscription.id);
+        await supabase
+          .from("push_subscriptions")
+          .delete()
+          .eq("id", subscription.id);
         expired++;
+      } else {
+        failed++;
+        console.error("Admin browser push rejected", {
+          subscriptionId: subscription.id,
+          statusCode,
+          message:
+            pushError instanceof Error ? pushError.message : String(pushError),
+        });
       }
     }
   }
 
-  return json({ sent, expired, total: subscriptions?.length ?? 0 });
+  return json({ sent, failed, expired, total: subscriptions?.length ?? 0 });
 });
+
+function safeEqual(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left);
+  const rightBytes = new TextEncoder().encode(right);
+  if (leftBytes.length !== rightBytes.length) return false;
+
+  let difference = 0;
+  for (let index = 0; index < leftBytes.length; index++) {
+    difference |= leftBytes[index] ^ rightBytes[index];
+  }
+  return difference === 0;
+}
 
 function safeAdminPath(value: unknown): string {
   const path = String(value ?? "/admin/dashboard");

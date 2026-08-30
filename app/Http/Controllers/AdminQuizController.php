@@ -462,6 +462,23 @@ class AdminQuizController extends Controller
         $versions = $this->supabase->adminSelect(
             'quiz_versions', '*', ['quiz_id' => $id, 'order' => 'version.desc']
         );
+        $currentVersionNumber = max(1, (int) ($quiz['version'] ?? 1));
+        $currentQuestions = $this->supabase->adminSelect(
+            'quiz_questions', '*', ['quiz_id' => $id, 'order' => 'position.asc']
+        );
+        $versions = array_values(array_filter(
+            $versions,
+            fn (array $version): bool => (int) ($version['version'] ?? 0) !== $currentVersionNumber
+        ));
+        array_unshift($versions, [
+            'version' => $currentVersionNumber,
+            'topic' => $quiz['topic'],
+            'grade_level' => (int) $quiz['grade_level'],
+            'visibility' => $quiz['visibility'] ?? 'shared',
+            'questions' => $currentQuestions,
+            'created_at' => $quiz['updated_at'] ?? $quiz['created_at'] ?? now()->toIso8601String(),
+            'is_current' => true,
+        ]);
         $creatorNames = $this->creatorNames([$quiz['teacher_id']]);
         $creatorName = $creatorNames[$quiz['teacher_id']] ?? 'MathVerse User';
         return view('admin.quizzes.versions', compact(

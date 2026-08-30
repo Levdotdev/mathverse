@@ -73,6 +73,13 @@ Use `2026_08_30_quiz_regression_and_push_hotfix_rollback.sql` to remove only
 the push-subscription table and ranking indexes. Quiz version restoration is
 retained because it belongs to the August 29 governance feature.
 
+Then run `2026_08_30_assignment_usage_and_attempt_integrity.sql`. It refreshes
+quiz usage as the number of distinct assigned classes, repairs unapproved
+repeat results so only the first is counted, ignores later unapproved inserts,
+and prevents client upserts from overwriting a stored attempt. The paired
+`2026_08_30_assignment_usage_and_attempt_integrity_rollback.sql` restores the
+former usage and result-selection behavior without deleting result rows.
+
 ### Enable administrator browser push alerts
 
 The push alert appears through the browser/operating system even when the
@@ -85,21 +92,31 @@ Alerts** once on the Mainframe and allow notification permission.
    node scripts/generate-vapid-keys.mjs
    ```
 
-2. Set `WEB_PUSH_PUBLIC_KEY` in the Laravel environment to the generated public
-   key. `WEB_PUSH_FUNCTION_URL` is optional; when omitted, Laravel uses
+2. Generate a separate server-to-server secret:
+
+   ```bash
+   node scripts/generate-admin-push-secret.mjs
+   ```
+
+3. Set `WEB_PUSH_PUBLIC_KEY` and `ADMIN_PUSH_SECRET` in the Laravel environment.
+   Use the generated VAPID public key and random server secret respectively.
+   `WEB_PUSH_FUNCTION_URL` is optional; when omitted, Laravel uses
    `{SUPABASE_URL}/functions/v1/send-admin-push`.
-3. Set the Supabase Edge Function secrets. Replace the values below with the
-   generated keys and a real administrator contact address:
+4. Set the Supabase Edge Function secrets. `ADMIN_PUSH_SECRET` must exactly
+   match the Laravel value:
 
    ```bash
-   supabase secrets set VAPID_PUBLIC_KEY="..." VAPID_PRIVATE_KEY="..." VAPID_SUBJECT="mailto:admin@example.com"
+   supabase secrets set VAPID_PUBLIC_KEY="..." VAPID_PRIVATE_KEY="..." VAPID_SUBJECT="mailto:admin@example.com" ADMIN_PUSH_SECRET="..."
    ```
 
-4. Deploy the included Edge Function:
+5. Deploy the included Edge Function. The Supabase legacy JWT check is disabled
+   because this is a service-to-service call; the function validates the
+   dedicated `ADMIN_PUSH_SECRET` before doing any work:
 
    ```bash
-   supabase functions deploy send-admin-push
+   supabase functions deploy send-admin-push --no-verify-jwt
    ```
 
-The VAPID private key stays only in Supabase secrets. Never place it in the
-Laravel environment, browser JavaScript, or Git.
+The VAPID private key stays only in Supabase secrets. Both private values stay
+out of browser JavaScript and Git, and `ADMIN_PUSH_SECRET` must never be shown
+to users or included in screenshots.

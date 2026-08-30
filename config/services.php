@@ -44,5 +44,6 @@ return [
     'web_push' => [
         'public_key' => env('WEB_PUSH_PUBLIC_KEY'),
         'function_url' => env('WEB_PUSH_FUNCTION_URL'),
+        'auth_secret' => env('ADMIN_PUSH_SECRET'),
     ],
 ];

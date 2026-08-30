@@ -20,21 +20,25 @@
     <p class="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">Version History</p>
     <h1 class="text-2xl font-orbitron font-bold mt-2">{{ $quiz['topic'] }}</h1>
     <p class="text-[10px] text-slate-500 uppercase mt-2">Created by {{ $creatorName }}</p>
-    <p class="text-xs text-slate-400 mt-3">Current version: {{ (int) ($quiz['version'] ?? 1) }}. Restoring a snapshot replaces the current quiz and permanently removes every later version.</p>
+    <p class="text-xs text-slate-400 mt-3">The current live version appears first with all of its questions. Restoring a previous snapshot replaces it and permanently removes every later version.</p>
 </header>
 
 <div class="space-y-4">
     @forelse($versions as $version)
         @php
+            $isCurrent = (bool) ($version['is_current'] ?? false);
             $snapshotQuestions = $version['questions'] ?? [];
             if (is_string($snapshotQuestions)) {
                 $snapshotQuestions = json_decode($snapshotQuestions, true) ?: [];
             }
         @endphp
-        <details class="portal-frame !p-5 group">
+        <details class="portal-frame !p-5 group {{ $isCurrent ? 'border-cyan-500/40' : '' }}" @if($isCurrent) open @endif>
             <summary class="cursor-pointer list-none flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <span class="text-cyan-400 font-orbitron font-bold">Version {{ $version['version'] }}</span>
+                    @if($isCurrent)
+                        <span class="ml-2 px-2 py-1 rounded bg-cyan-500/15 text-cyan-300 text-[8px] uppercase font-bold">Current</span>
+                    @endif
                     <span class="text-xs text-slate-500 ml-2">{{ $version['topic'] }}</span>
                 </div>
                 <div class="flex items-center gap-3 text-[9px] uppercase font-bold text-slate-500">
@@ -71,16 +75,18 @@
                         </div>
                     </div>
                 @endforeach
-                <div class="flex justify-end pt-2">
-                    <button type="button" onclick='openRestoreQuizVersion(@json((int) $version["version"]), @json($version["topic"]))'
-                            class="btn-rect-secondary !py-2 !px-4 !w-auto text-yellow-400 !border-yellow-500/30">
-                        <i class="fas fa-undo-alt mr-2"></i>Restore Version {{ $version['version'] }}
-                    </button>
-                </div>
+                @unless($isCurrent)
+                    <div class="flex justify-end pt-2">
+                        <button type="button" onclick='openRestoreQuizVersion(@json((int) $version["version"]), @json($version["topic"]))'
+                                class="btn-rect-secondary !py-2 !px-4 !w-auto text-yellow-400 !border-yellow-500/30">
+                            <i class="fas fa-undo-alt mr-2"></i>Restore Version {{ $version['version'] }}
+                        </button>
+                    </div>
+                @endunless
             </div>
         </details>
     @empty
-        <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase">No previous versions yet. A snapshot is created when you update this quiz.</div>
+        <div class="portal-frame !p-10 text-center text-slate-500 text-xs uppercase">The current quiz version could not be loaded.</div>
     @endforelse
 </div>
 @endsection

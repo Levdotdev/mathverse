@@ -1,0 +1,4 @@
+project_id = "mathverse"
+
+[functions.send-admin-push]
+verify_jwt = false
