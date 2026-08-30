@@ -117,7 +117,7 @@
                 {{ $adminPendingTeacherCount ?? count($pendingTeachers) }}
             </span>
         </a>
-        <a href="/admin/quiz-library?reported=1"
+        <a href="/admin/quiz-reports?status=active"
            class="portal-frame !p-5 border-red-500/30 flex items-center justify-between gap-4 hover:border-red-400 transition-colors">
             <div>
                 <p class="text-[9px] text-red-300 uppercase font-bold tracking-widest">Active Quiz Reports</p>

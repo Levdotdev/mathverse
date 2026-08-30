@@ -17,7 +17,7 @@
 <header class="portal-frame !p-6 md:!p-8 mb-7 border-l-4 border-blue-500">
     <p class="text-[10px] text-blue-400 uppercase tracking-widest font-bold">Shared by {{ $creatorName }}</p>
     <h1 class="text-2xl font-orbitron font-bold mt-2">Review and assign this quiz</h1>
-    <p class="text-xs text-slate-400 mt-3">Adjust the questions for this assignment and select one or more matching classes. No personal quiz copy is created, and the shared original stays unchanged.</p>
+    <p class="text-xs text-slate-400 mt-3">Adjust the questions for this assignment and select one or more matching classes. The shared original and every selected class grade stay unchanged.</p>
     <div class="flex flex-wrap items-center gap-3 mt-5 text-[10px] uppercase font-bold">
         @if(!empty($quiz['verified_at']))
             <span class="px-3 py-2 rounded bg-green-500/10 text-green-400"><i class="fas fa-check-circle mr-1"></i>Admin Verified</span>
@@ -71,7 +71,7 @@
                 </div>
             </div>
             <div class="form-group">
-                <label class="input-label">Grade Level</label>
+                <label class="input-label">Assignment Grade Level</label>
                 <select name="grade_level" id="q-grade"
                         class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
                     @for($gradeOption = 1; $gradeOption <= 6; $gradeOption++)
@@ -81,6 +81,7 @@
                         </option>
                     @endfor
                 </select>
+                <p class="text-[10px] text-slate-500 mt-2">This filters eligible classes and sets the frozen quiz assignment grade. It never changes a class grade.</p>
             </div>
         </div>
     </section>
@@ -102,7 +103,7 @@
     <section class="portal-frame !p-6 md:!p-8">
         <div class="mb-6">
             <h2 class="font-orbitron font-bold uppercase">Assign to <span class="text-yellow-400">Classes</span></h2>
-            <p class="text-[10px] text-slate-500 mt-1">Select at least one class with the same grade level.</p>
+            <p class="text-[10px] text-slate-500 mt-1">Select at least one class with the same grade level. Assigning never changes class settings.</p>
         </div>
 
         <div id="review-class-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3">

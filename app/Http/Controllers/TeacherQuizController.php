@@ -272,7 +272,7 @@ class TeacherQuizController extends Controller
         $this->adminPush->send(
             'Shared quiz reported',
             "{$reporterName} reported {$quiz['topic']}: {$reason}.",
-            "/admin/quiz-library/{$id}/review",
+            "/admin/quiz-reports/{$created[0]['id']}",
             "quiz-report-{$created[0]['id']}"
         );
 
@@ -381,46 +381,25 @@ class TeacherQuizController extends Controller
         $schedule = $this->assignmentSchedule($assignment);
         $sessionQuestions = $this->sessionQuestionsFromValidated($validated['questions'], $grade);
 
-        $createdSessionIds = [];
-        try {
-            foreach ($orderedClasses as $class) {
-                $sessionResult = $this->supabase->adminInsertResult('quiz_sessions', [
-                    'teacher_id' => $user['id'],
-                    'source_quiz_id' => $sourceQuiz['id'],
-                    'topic' => trim($validated['topic']),
-                    'room_code' => $this->generateRoomCode(),
-                    'class_id' => $class['id'],
-                    'max_members' => 60,
-                    'time_limit' => (int) $assignment['time_limit'],
-                    'assigned_at' => now()->toIso8601String(),
-                    'available_at' => $schedule['available_at'],
-                    'due_at' => $schedule['due_at'],
-                    'started_at' => $schedule['started_at'],
-                    'is_active' => $schedule['is_active'],
-                    'status' => $schedule['status'],
-                ]);
+        $assignmentResult = $this->supabase->adminRpcResult(
+            'assign_shared_quiz_to_classes',
+            [
+                'p_teacher_id' => $user['id'],
+                'p_source_quiz_id' => $sourceQuiz['id'],
+                'p_class_ids' => $classIds,
+                'p_topic' => trim($validated['topic']),
+                'p_grade_level' => $grade,
+                'p_time_limit' => (int) $assignment['time_limit'],
+                'p_available_at' => $schedule['available_at'],
+                'p_due_at' => $schedule['due_at'],
+                'p_questions' => $sessionQuestions,
+            ]
+        );
 
-                $sessionId = $sessionResult['data'][0]['id'] ?? null;
-                if (!$sessionId) {
-                    throw new \RuntimeException(
-                        $sessionResult['error'] ?? 'A class assignment could not be created.'
-                    );
-                }
-                $createdSessionIds[] = $sessionId;
-
-                $questionResult = $this->saveSessionQuestions($sessionId, $sessionQuestions);
-                if (!$questionResult['success']) {
-                    throw new \RuntimeException(
-                        $questionResult['error'] ?? 'A class assignment could not save its questions.'
-                    );
-                }
-            }
-        } catch (\Throwable $exception) {
-            $this->rollbackSessions($createdSessionIds);
-
+        if (count($assignmentResult['data']) !== count($orderedClasses)) {
             return back()->withInput()->with(
                 'error',
-                $this->assignmentFailureMessage($exception->getMessage(), true)
+                $this->assignmentFailureMessage($assignmentResult['error'] ?? null, true)
             );
         }
 
@@ -438,7 +417,7 @@ class TeacherQuizController extends Controller
             : '/teacher/dashboard?section=classes';
 
         return redirect($destination)
-            ->with('success', "Quiz assigned to {$classLabel}. The shared original was not changed.");
+            ->with('success', "Quiz assigned to {$classLabel}. The shared original and class grade levels were not changed.");
     }
 
     public function store(Request $request)
@@ -691,6 +670,7 @@ class TeacherQuizController extends Controller
             'topic' => $quiz['topic'],
             'room_code' => $this->generateRoomCode(),
             'class_id' => $class['id'],
+            'grade_level' => (int) $quiz['grade_level'],
             'max_members' => 60,
             'time_limit' => (int) $validated['time_limit'],
             'assigned_at' => now()->toIso8601String(),
@@ -717,7 +697,7 @@ class TeacherQuizController extends Controller
         }
 
         return redirect("/teacher/classes/{$class['id']}")
-            ->with('success', "Quiz assigned to {$class['class_name']}. Its VR code is ready for the class.");
+            ->with('success', "Quiz assigned to {$class['class_name']}. Its VR code is ready, and the class grade was not changed.");
     }
 
     private function validateQuiz(Request $request): array
@@ -848,14 +828,6 @@ class TeacherQuizController extends Controller
                 'correct' => $correctIndex,
             ];
         }, $questions);
-    }
-
-    private function rollbackSessions(array $sessionIds): void
-    {
-        foreach ($sessionIds as $sessionId) {
-            $this->supabase->delete('questions', ['session_id' => $sessionId]);
-            $this->supabase->delete('quiz_sessions', ['id' => $sessionId]);
-        }
     }
 
     private function sessionQuestionsFromValidated(array $questions, int $grade): array
@@ -1077,6 +1049,10 @@ class TeacherQuizController extends Controller
         }
         if (str_contains($lower, 'does not match class grade')) {
             return $prefix . 'The quiz and class grade levels do not match.';
+        }
+        if (str_contains($lower, 'assign_shared_quiz_to_classes')
+            || str_contains($lower, 'could not find the function')) {
+            return $prefix . 'Run the latest shared-assignment Supabase migration, then try again.';
         }
         if (str_contains($lower, 'schema cache')
             || (str_contains($lower, 'column') && str_contains($lower, 'does not exist'))) {

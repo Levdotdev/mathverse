@@ -20,6 +20,7 @@
                         </option>
                     @endforeach
                 </select>
+                <p class="text-[9px] text-slate-500 mt-2">Only matching classes are shown. Assigning this quiz never changes the class grade level.</p>
             </div>
             <div class="form-group">
                 <label class="input-label">Start Date <span class="text-slate-600">(Optional)</span></label>

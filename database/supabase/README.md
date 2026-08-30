@@ -80,6 +80,18 @@ and prevents client upserts from overwriting a stored attempt. The paired
 `2026_08_30_assignment_usage_and_attempt_integrity_rollback.sql` restores the
 former usage and result-selection behavior without deleting result rows.
 
+Then run `2026_08_30_shared_assignment_and_quiz_reports.sql`. It makes a
+multi-class shared-quiz assignment one atomic database operation, records the
+customized assignment grade on the session, and recomputes popularity from the
+distinct classes that received the source quiz. Assignment grades must match
+the selected classes and never modify class grade levels. It also preserves
+quiz and question snapshots for the dedicated Active, Reviewed, and Dismissed
+report queues, including when an administrator later edits or deletes the quiz.
+
+Use `2026_08_30_shared_assignment_and_quiz_reports_rollback.sql` only after
+rolling the application back. The rollback stops if a preserved report points
+to a quiz that has since been deleted, preventing accidental report loss.
+
 ### Enable administrator browser push alerts
 
 The push alert appears through the browser/operating system even when the

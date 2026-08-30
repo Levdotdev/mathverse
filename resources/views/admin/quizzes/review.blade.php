@@ -8,13 +8,23 @@
 @section('mobile-title', 'Quiz Review')
 
 @section('sidebar-nav')
-    @include('admin.partials.sidebar-nav', ['activePage' => 'library'])
+    @include('admin.partials.sidebar-nav', ['activePage' => $reportContext ? 'quiz-reports' : 'library'])
 @endsection
 
 @section('dashboard-content')
-<a href="/admin/quiz-library"
+@php
+    $backUrl = $reportContext
+        ? '/admin/quiz-reports/' . $reportContext['id']
+        : ($isOwnQuiz ? '/admin/quizzes' : '/admin/quiz-library');
+    $formAction = $isOwnQuiz
+        ? '/admin/quizzes/' . $quiz['id']
+        : '/admin/quiz-library/' . $quiz['id'];
+    $reportContextIsActive = $reportContext
+        && ($reportContext['status'] ?? 'pending') === 'pending';
+@endphp
+<a href="{{ $backUrl }}"
    class="inline-block text-xs text-slate-400 hover:text-white font-bold uppercase mb-6">
-    <i class="fas fa-arrow-left mr-2"></i> Back to Shared Library
+    <i class="fas fa-arrow-left mr-2"></i> {{ $reportContext ? 'Back to Quiz Report' : 'Back to Shared Library' }}
 </a>
 
 <header class="portal-frame !p-6 md:!p-8 mb-7 border-l-4 border-blue-500">
@@ -29,12 +39,18 @@
         <span class="px-3 py-2 rounded bg-white/5 text-slate-400">v{{ (int) ($quiz['version'] ?? 1) }}</span>
     </div>
     <div class="flex flex-col sm:flex-row gap-3 mt-5">
-        <form method="POST" action="/admin/quiz-library/{{ $quiz['id'] }}/verify">
-            @csrf
-            <button type="submit" class="btn-rect-secondary !py-2 !px-4 md:!w-auto {{ !empty($quiz['verified_at']) ? 'text-green-400 !border-green-500/40' : '' }}">
-                <i class="fas fa-check-circle mr-2"></i>{{ !empty($quiz['verified_at']) ? 'Remove Verification' : 'Mark as Verified' }}
-            </button>
-        </form>
+        @if($isOwnQuiz)
+            <span class="btn-rect-secondary !py-2 !px-4 md:!w-auto text-green-400 !border-green-500/40 text-center">
+                <i class="fas fa-check-circle mr-2"></i>Admin Verified
+            </span>
+        @else
+            <form method="POST" action="/admin/quiz-library/{{ $quiz['id'] }}/verify">
+                @csrf
+                <button type="submit" class="btn-rect-secondary !py-2 !px-4 md:!w-auto {{ !empty($quiz['verified_at']) ? 'text-green-400 !border-green-500/40' : '' }}">
+                    <i class="fas fa-check-circle mr-2"></i>{{ !empty($quiz['verified_at']) ? 'Remove Verification' : 'Mark as Verified' }}
+                </button>
+            </form>
+        @endif
         <a href="/admin/quizzes/{{ $quiz['id'] }}/versions"
            class="btn-rect-secondary !py-2 !px-4 md:!w-auto text-center">
             <i class="fas fa-history mr-2"></i>Version History
@@ -42,55 +58,38 @@
     </div>
 </header>
 
-<section class="portal-frame !p-6 md:!p-8 mb-7">
-    <div class="flex items-center justify-between gap-4 mb-5">
-        <div>
-            <h2 class="font-orbitron font-bold uppercase">Question <span class="text-red-400">Reports</span></h2>
-            <p class="text-[10px] text-slate-500 mt-1">Review teacher-submitted concerns and record a moderation outcome.</p>
+@if($reportContext)
+    <section class="portal-frame !p-5 md:!p-6 mb-7 border-red-500/30 bg-red-500/5">
+        <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+            <div>
+                <p class="text-[9px] text-red-400 uppercase font-black tracking-widest">
+                    Editing from {{ $reportContextIsActive ? 'active' : ($reportContext['status'] ?? 'handled') }} quiz report
+                </p>
+                <h2 class="font-bold text-white mt-2">{{ ucwords(str_replace('_', ' ', $reportContext['reason'] ?? 'other')) }}</h2>
+                @if(!empty($reportContext['question_label']))
+                    <p class="text-[10px] text-cyan-300 mt-2">{{ $reportContext['question_label'] }}</p>
+                @endif
+                <p class="text-xs text-slate-300 mt-3">{{ $reportContext['details'] ?: 'No additional details provided.' }}</p>
+            </div>
+            <span class="text-[9px] text-slate-500 uppercase shrink-0">By {{ $reportContext['reporter_name'] }}</span>
         </div>
-        <span class="text-[10px] text-slate-500 uppercase">{{ count($reports) }} total</span>
-    </div>
-    <div class="space-y-3">
-        @forelse($reports as $report)
-            <article class="rounded border {{ ($report['status'] ?? 'pending') === 'pending' ? 'border-red-500/30 bg-red-500/5' : 'border-white/5 bg-black/20' }} p-4">
-                <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                    <div>
-                        <div class="flex flex-wrap gap-2 text-[9px] uppercase font-bold">
-                            <span class="text-red-400">{{ str_replace('_', ' ', $report['reason'] ?? 'other') }}</span>
-                            @if(!empty($report['question_label']))<span class="text-cyan-400">{{ $report['question_label'] }}</span>@endif
-                            <span class="text-slate-500">{{ ucfirst($report['status'] ?? 'pending') }}</span>
-                            <span class="text-slate-600">By {{ $report['reporter_name'] }}</span>
-                        </div>
-                        <p class="text-xs text-slate-300 mt-3">{{ $report['details'] ?: 'No additional details provided.' }}</p>
-                        <p class="text-[9px] text-slate-600 mt-2">Submitted {{ \Carbon\Carbon::parse($report['created_at'])->format('M j, Y g:i A') }}</p>
-                    </div>
-                    @if(($report['status'] ?? 'pending') === 'pending')
-                        <div class="flex gap-2 shrink-0">
-                            <form method="POST" action="/admin/quiz-library/{{ $quiz['id'] }}/reports/{{ $report['id'] }}">
-                                @csrf
-                                <input type="hidden" name="status" value="reviewed">
-                                <button type="submit" class="btn-rect-secondary !py-2 !px-3 !w-auto text-green-400">Reviewed</button>
-                            </form>
-                            <form method="POST" action="/admin/quiz-library/{{ $quiz['id'] }}/reports/{{ $report['id'] }}">
-                                @csrf
-                                <input type="hidden" name="status" value="dismissed">
-                                <button type="submit" class="btn-rect-secondary !py-2 !px-3 !w-auto text-slate-400">Dismiss</button>
-                            </form>
-                        </div>
-                    @endif
-                </div>
-            </article>
-        @empty
-            <p class="text-xs text-slate-500 text-center py-5 uppercase">No reports for this quiz.</p>
-        @endforelse
-    </div>
-</section>
+        <p class="text-[10px] text-slate-500 mt-4">
+            {{ $reportContextIsActive
+                ? 'Saving this edit marks only this report as reviewed and opens the next active report. Other reports stay in the queue.'
+                : 'Saving updates the quiz, while this already-handled report keeps its current status.' }}
+        </p>
+    </section>
+@endif
 
 @php $initialQuestions = old('questions', $questionsForForm); @endphp
-<form id="admin-review-quiz-form" method="POST" action="/admin/quiz-library/{{ $quiz['id'] }}" class="space-y-7">
+<form id="admin-review-quiz-form" method="POST" action="{{ $formAction }}" class="space-y-7">
     @csrf
     @method('PUT')
-    <input type="hidden" name="visibility" value="shared">
+    <input type="hidden" name="visibility" value="{{ $isOwnQuiz ? ($quiz['visibility'] ?? 'shared') : 'shared' }}">
+    @if($reportContext)
+        <input type="hidden" name="return_to" value="reports">
+        <input type="hidden" name="report_id" value="{{ $reportContext['id'] }}">
+    @endif
 
     <section class="portal-frame !p-6 md:!p-8">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -127,9 +126,9 @@
     </section>
 
     <div class="flex flex-col sm:flex-row justify-end gap-3">
-        <a href="/admin/quiz-library" class="btn-rect-secondary !py-3 !px-6 sm:!w-auto text-center">Cancel</a>
+        <a href="{{ $backUrl }}" class="btn-rect-secondary !py-3 !px-6 sm:!w-auto text-center">Cancel</a>
         <button type="button" onclick="openModal('confirmAdminReviewEditModal')" class="btn-rect-primary !bg-red-600 !text-white !py-3 !px-6 sm:!w-auto">
-            <i class="fas fa-save mr-2"></i>Save Teacher Quiz
+            <i class="fas fa-save mr-2"></i>Save Quiz Changes
         </button>
     </div>
 </form>
@@ -139,8 +138,8 @@
 <div id="confirmAdminReviewEditModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-admin-edit-title">
     <div class="portal-frame !p-9 w-full max-w-sm text-center border-red-500/40">
         <i class="fas fa-edit text-4xl text-red-400 mb-4"></i>
-        <h3 id="confirm-admin-edit-title" class="font-orbitron font-bold uppercase">Update Teacher Quiz?</h3>
-        <p class="text-xs text-slate-400 my-5">This updates the shared quiz and creates a restorable version. Existing classroom assignments are unchanged.</p>
+        <h3 id="confirm-admin-edit-title" class="font-orbitron font-bold uppercase">Update Reported Quiz?</h3>
+        <p class="text-xs text-slate-400 my-5">This updates {{ $isOwnQuiz ? 'your admin quiz' : 'the teacher quiz' }} and creates a restorable version. Existing classroom assignments are unchanged.</p>
         <button type="button" onclick="closeModal('confirmAdminReviewEditModal'); document.getElementById('admin-review-quiz-form').requestSubmit()" class="btn-rect-primary !bg-red-600 !text-white">Save Changes</button>
         <button type="button" onclick="closeModal('confirmAdminReviewEditModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Review Again</button>
     </div>

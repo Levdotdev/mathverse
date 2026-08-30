@@ -15,6 +15,10 @@
 <a href="/admin/quiz-library"
    class="nav-link w-full {{ $activePage === 'library' ? 'active' : '' }}">
     <i class="fas fa-book-open mr-3 w-5 text-blue-400"></i> Quiz Library
+</a>
+<a href="/admin/quiz-reports"
+   class="nav-link w-full {{ $activePage === 'quiz-reports' ? 'active' : '' }}">
+    <i class="fas fa-flag mr-3 w-5 text-red-400"></i> Quiz Reports
     @if(($adminPendingReportCount ?? 0) > 0)
         <span class="ml-auto min-w-5 h-5 px-1 rounded-full bg-red-500 text-black text-[9px] font-black flex items-center justify-center">{{ $adminPendingReportCount }}</span>
     @endif

@@ -85,10 +85,12 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::post('/admin/user/{id}/restore', [AdminController::class, 'restoreUser']);
     Route::get('/admin/quizzes', [AdminQuizController::class, 'index']);
     Route::get('/admin/quiz-library', [AdminQuizController::class, 'library']);
+    Route::get('/admin/quiz-reports', [AdminQuizController::class, 'reports']);
+    Route::get('/admin/quiz-reports/{reportId}', [AdminQuizController::class, 'showReport']);
+    Route::post('/admin/quiz-reports/{reportId}/resolve', [AdminQuizController::class, 'resolveReport']);
     Route::get('/admin/quiz-library/{id}/review', [AdminQuizController::class, 'review']);
     Route::put('/admin/quiz-library/{id}', [AdminQuizController::class, 'updateReviewed']);
     Route::post('/admin/quiz-library/{id}/verify', [AdminQuizController::class, 'toggleVerified']);
-    Route::post('/admin/quiz-library/{id}/reports/{reportId}', [AdminQuizController::class, 'resolveReport']);
     Route::post('/admin/quizzes', [AdminQuizController::class, 'store']);
     Route::get('/admin/quizzes/{id}/versions', [AdminQuizController::class, 'versions']);
     Route::post('/admin/quizzes/{id}/versions/{version}/restore', [AdminQuizController::class, 'restoreVersion']);

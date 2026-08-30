@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmTitle.textContent = 'Assign Quiz to Classes?';
         }
         if (confirmSummary) {
-            confirmSummary.textContent = `“${topic}” will be assigned to ${classLabel}. The shared original will not change.`;
+            confirmSummary.textContent = `“${topic}” will be assigned to ${classLabel}. The shared original and class grade levels will not change.`;
         }
         if (confirmMeta) {
             confirmMeta.textContent = `Grade ${grade} · ${questionCount} questions · ${timeLimit} seconds per question`;
