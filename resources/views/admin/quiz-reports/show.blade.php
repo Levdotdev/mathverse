@@ -79,17 +79,17 @@
         <section class="portal-frame !p-5">
             <h2 class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-4">Quiz Actions</h2>
             @if($report['quiz_available'])
-                <div class="space-y-3">
+                <div class="flex flex-col gap-4">
                     <a href="/admin/quiz-library/{{ $report['quiz_id'] }}/review?{{ http_build_query(['return_to' => 'reports', 'report_id' => $report['id']]) }}#admin-review-quiz-form"
-                       class="btn-rect-primary !bg-red-600 !text-white !py-3 text-center">
+                       class="btn-rect-primary !bg-red-600 !text-white !py-3 !w-full block text-center">
                         <i class="fas fa-edit mr-2"></i> {{ ($report['quiz_creator_id_display'] ?? null) === ($user['id'] ?? null) ? 'Review and Edit My Quiz' : 'Review and Edit Quiz' }}
                     </a>
                     <a href="/admin/quizzes/{{ $report['quiz_id'] }}/versions"
-                       class="btn-rect-secondary !py-3 text-center">
+                       class="btn-rect-secondary !py-3 !w-full block text-center">
                         <i class="fas fa-history mr-2"></i> Version History
                     </a>
                     <button type="button" onclick="openModal('reportDeleteQuizModal')"
-                            class="btn-rect-secondary !py-3 text-red-400 !border-red-500/30">
+                            class="btn-rect-secondary !py-3 !w-full text-red-400 !border-red-500/30">
                         <i class="fas fa-trash-alt mr-2"></i> Delete Quiz
                     </button>
                 </div>

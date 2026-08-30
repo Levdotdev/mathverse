@@ -15,14 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
         addNewQuestion();
     }
 
-    const gradeSelect = document.getElementById('q-grade');
+    const form = document.getElementById('shared-quiz-assignment-form');
+    const quizGrade = Number(form?.dataset.quizGrade);
     const classOptions = [...document.querySelectorAll('[data-class-option]')];
     const noMatchingClass = document.getElementById('review-no-matching-class');
     const submitLabel = document.getElementById('shared-assign-label');
     const timeLimitGroup = document.getElementById('review-time-limit');
     const timeLimitInput = document.getElementById('review-time-limit-input');
     const scheduleGroup = document.getElementById('review-schedule');
-    const form = document.getElementById('shared-quiz-assignment-form');
     const confirmTitle = document.getElementById('confirm-shared-quiz-title');
     const confirmSummary = document.getElementById('confirm-shared-quiz-summary');
     const confirmMeta = document.getElementById('confirm-shared-quiz-meta');
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const topic = document.getElementById('q-topic')?.value.trim() || 'this quiz';
-        const grade = gradeSelect?.value || '—';
+        const grade = Number.isInteger(quizGrade) ? quizGrade : '—';
         const questionCount = document.querySelectorAll('.question-block').length;
         const timeLimit = timeLimitInput?.value || '—';
         const classLabel = selectedClasses.length === 1 ? '1 class' : `${selectedClasses.length} classes`;
@@ -99,12 +99,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function filterClassesByGrade() {
-        const grade = Number(gradeSelect?.value);
         let matchingClasses = 0;
 
         classOptions.forEach(option => {
             const checkbox = option.querySelector('input[type="checkbox"]');
-            const matches = Number(option.dataset.grade) === grade;
+            const matches = Number(option.dataset.grade) === quizGrade;
 
             option.classList.toggle('hidden', !matches);
             if (checkbox) {
@@ -135,6 +134,5 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmationApproved = false;
         }, 0);
     });
-    gradeSelect?.addEventListener('change', filterClassesByGrade);
     filterClassesByGrade();
 });

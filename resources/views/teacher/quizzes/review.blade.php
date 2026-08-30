@@ -56,7 +56,8 @@
 @endphp
 
 <form id="shared-quiz-assignment-form" method="POST"
-      action="/teacher/quiz-library/{{ $quiz['id'] }}/assign" class="space-y-7">
+      action="/teacher/quiz-library/{{ $quiz['id'] }}/assign"
+      data-quiz-grade="{{ (int) $quiz['grade_level'] }}" class="space-y-7">
     @csrf
 
     <section class="portal-frame !p-6 md:!p-8">
@@ -70,18 +71,10 @@
                            value="{{ old('topic', $quiz['topic']) }}" class="input-mobile-ultra" required>
                 </div>
             </div>
-            <div class="form-group">
-                <label class="input-label">Assignment Grade Level</label>
-                <select name="grade_level" id="q-grade"
-                        class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
-                    @for($gradeOption = 1; $gradeOption <= 6; $gradeOption++)
-                        <option value="{{ $gradeOption }}"
-                            {{ (int) old('grade_level', $quiz['grade_level']) === $gradeOption ? 'selected' : '' }}>
-                            Grade {{ $gradeOption }}
-                        </option>
-                    @endfor
-                </select>
-                <p class="text-[10px] text-slate-500 mt-2">This filters eligible classes and sets the frozen quiz assignment grade. It never changes a class grade.</p>
+            <div class="rounded border border-purple-500/20 bg-purple-500/5 p-4 self-end">
+                <p class="text-[9px] text-purple-300 uppercase font-black tracking-widest">Original Quiz Grade</p>
+                <p class="font-orbitron text-lg font-black text-white mt-1">Grade {{ $quiz['grade_level'] }}</p>
+                <p class="text-[10px] text-slate-500 mt-2">This grade was chosen by the quiz creator and is used for every assignment.</p>
             </div>
         </div>
     </section>
@@ -103,7 +96,7 @@
     <section class="portal-frame !p-6 md:!p-8">
         <div class="mb-6">
             <h2 class="font-orbitron font-bold uppercase">Assign to <span class="text-yellow-400">Classes</span></h2>
-            <p class="text-[10px] text-slate-500 mt-1">Select at least one class with the same grade level. Assigning never changes class settings.</p>
+            <p class="text-[10px] text-slate-500 mt-1">Only active Grade {{ $quiz['grade_level'] }} classes can receive this quiz. Assigning never changes class settings.</p>
         </div>
 
         <div id="review-class-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -121,7 +114,7 @@
             @endforeach
         </div>
         <p id="review-no-matching-class" class="hidden text-xs text-yellow-400 text-center py-6">
-            You do not have an active class with this grade level. Choose another grade or create a matching class before assigning.
+            You do not have an active Grade {{ $quiz['grade_level'] }} class. Create a matching class before assigning.
         </p>
 
         <div id="review-time-limit" class="form-group mt-6 max-w-sm transition-opacity">
