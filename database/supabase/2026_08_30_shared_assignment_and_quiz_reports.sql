@@ -420,10 +420,11 @@ begin
 
     update public.quizzes source_quiz
     set usage_count = (
-        select count(distinct assignments.class_id)::integer
+        select count(*)::integer
         from public.quiz_sessions assignments
         where assignments.source_quiz_id = p_source_quiz_id
           and assignments.class_id is not null
+          and assignments.teacher_id <> source_quiz.teacher_id
     )
     where source_quiz.id = p_source_quiz_id;
 end;

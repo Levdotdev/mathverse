@@ -802,12 +802,17 @@ class TeacherQuizController extends Controller
         $questionResult = $this->saveSessionQuestions($sessionId, $templateQuestions);
         if (!$questionResult['success']) {
             $this->rollbackSessions([$sessionId]);
+            $this->refreshQuizUsageCount($quiz['id']);
 
             return back()->with(
                 'error',
                 $this->assignmentFailureMessage($questionResult['error'] ?? null)
             );
         }
+
+        // Class Uses measures adoption by other teachers through the shared
+        // library. Assigning the creator's own quiz must not change it.
+        $this->refreshQuizUsageCount($quiz['id']);
 
         return redirect("/teacher/classes/{$class['id']}")
             ->with('success', "Quiz assigned to {$class['class_name']}. Its VR code is ready, and the class grade was not changed.");
@@ -990,20 +995,34 @@ class TeacherQuizController extends Controller
 
     private function refreshQuizUsageCount(string $quizId): void
     {
-        $result = $this->supabase->adminSelectResult(
-            'quiz_sessions',
-            'class_id',
-            ['source_quiz_id' => $quizId]
+        $quizResult = $this->supabase->adminSelectResult(
+            'quizzes',
+            'id,teacher_id',
+            ['id' => $quizId]
         );
-        $assignments = $result['data'];
-        if (empty($assignments)) {
+        $quiz = $quizResult['data'][0] ?? null;
+        if ($quizResult['error'] !== null || !$quiz) {
             return;
         }
 
-        $classIds = array_values(array_unique(array_filter(array_column($assignments, 'class_id'))));
+        $result = $this->supabase->adminSelectResult(
+            'quiz_sessions',
+            'id,teacher_id,class_id',
+            ['source_quiz_id' => $quizId]
+        );
+        if ($result['error'] !== null) {
+            return;
+        }
+
+        $usageCount = count(array_filter(
+            $result['data'],
+            fn (array $assignment): bool => !empty($assignment['class_id'])
+                && ($assignment['teacher_id'] ?? null) !== ($quiz['teacher_id'] ?? null)
+        ));
+
         $this->supabase->adminUpdate(
             'quizzes',
-            ['usage_count' => count($classIds)],
+            ['usage_count' => $usageCount],
             ['id' => $quizId]
         );
     }

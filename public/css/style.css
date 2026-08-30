@@ -122,7 +122,7 @@ body.modal-open {
     font-size: 14px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.input-mobile-ultra::placeholder { color: #334155; }
+.input-mobile-ultra::placeholder { color: #64748b; }
 .input-mobile-ultra:focus { border-color: var(--neon-cyan); outline: none; box-shadow: 0 0 15px rgba(0, 242, 255, 0.1); }
 
 .role-card {
@@ -404,6 +404,17 @@ input[type="time"] {
     -webkit-text-fill-color: #f8fafc;
 }
 
+/* Date/time controls render their empty format as browser-owned text rather
+   than a normal ::placeholder, so give that empty state the same muted tone. */
+input[type="date"].temporal-input-empty,
+input[type="datetime-local"].temporal-input-empty,
+input[type="month"].temporal-input-empty,
+input[type="time"].temporal-input-empty {
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
+    font-weight: 400 !important;
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator,
 input[type="month"]::-webkit-calendar-picker-indicator,
@@ -432,4 +443,26 @@ input.input-field {
 select.input-field,
 select.input-mobile-ultra {
     color-scheme: dark;
+}
+
+/* Keep helper examples visually distinct from values the user has entered.
+   WebKit inherits -webkit-text-fill-color from our dark inputs, so it must be
+   overridden here as well or placeholders can appear solid white. */
+input::placeholder,
+textarea::placeholder,
+.input-field::placeholder,
+.input-mobile-ultra::placeholder {
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
+    opacity: 0.58 !important;
+    font-weight: 400 !important;
+}
+
+/* Required combo-box prompts such as "Select a class" behave like
+   placeholders even though HTML renders them as an empty option. */
+select.input-field:required:invalid,
+select.input-mobile-ultra:required:invalid {
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
+    font-weight: 400 !important;
 }

@@ -534,6 +534,55 @@ class TeacherClassController extends Controller
             ->with('success', $startsNow ? 'Assignment updated and started.' : 'Assignment settings updated.');
     }
 
+    public function destroyAssignment(string $classId, string $sessionId)
+    {
+        $teacher = session('supabase_user');
+        $session = $this->ownedSession($classId, $sessionId);
+        if (!$session) {
+            return redirect('/teacher/dashboard?section=classes')
+                ->with('error', 'Quiz assignment not found.');
+        }
+        if (!in_array($session['status'] ?? 'waiting', ['waiting', 'active'], true)) {
+            return redirect("/teacher/classes/{$classId}")
+                ->with('error', 'Only an assigned or active quiz can be deleted. Ended quiz records are preserved.');
+        }
+
+        $deleted = $this->supabase->adminRpcResult('delete_open_quiz_assignment', [
+            'p_teacher_id' => $teacher['id'],
+            'p_class_id' => $classId,
+            'p_session_id' => $sessionId,
+        ]);
+
+        $result = $deleted['data'][0] ?? null;
+        if ($deleted['error'] !== null || !$result) {
+            $reason = trim((string) ($deleted['error'] ?? 'The database returned no deletion result.'));
+            if (str_contains(strtolower($reason), 'delete_open_quiz_assignment')) {
+                $reason = 'Run 2026_08_30_repeated_shared_class_uses_and_assignment_delete.sql in Supabase, then try again.';
+            }
+
+            return redirect("/teacher/classes/{$classId}")
+                ->with('error', "The assignment could not be deleted. {$reason}");
+        }
+
+        $wasShared = filter_var(
+            $result['was_shared_assignment'] ?? false,
+            FILTER_VALIDATE_BOOL
+        );
+        $this->supabase->audit($teacher, 'quiz.assignment_deleted', 'quiz_session', $sessionId, [
+            'class_id' => $classId,
+            'topic' => $session['topic'] ?? null,
+            'source_quiz_id' => $session['source_quiz_id'] ?? null,
+            'shared_library_assignment' => $wasShared,
+            'remaining_usage_count' => (int) ($result['remaining_usage_count'] ?? 0),
+        ]);
+
+        $message = $wasShared
+            ? 'Assignment deleted. The shared quiz\'s Class Uses decreased by 1.'
+            : 'Assignment deleted. Your quiz\'s Class Uses were not changed.';
+
+        return redirect("/teacher/classes/{$classId}")->with('success', $message);
+    }
+
     public function start(string $classId, string $sessionId)
     {
         $session = $this->ownedSession($classId, $sessionId);

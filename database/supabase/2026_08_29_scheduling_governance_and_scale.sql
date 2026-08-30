@@ -747,24 +747,26 @@ set search_path = public
 as $$
 begin
     if tg_op in ('UPDATE', 'DELETE') and old.source_quiz_id is not null then
-        update public.quizzes
+        update public.quizzes originals
         set usage_count = (
             select count(*)::integer
             from public.quiz_sessions assignments
             where assignments.source_quiz_id = old.source_quiz_id
               and assignments.class_id is not null
+              and assignments.teacher_id <> originals.teacher_id
         )
-        where id = old.source_quiz_id;
+        where originals.id = old.source_quiz_id;
     end if;
     if tg_op in ('INSERT', 'UPDATE') and new.source_quiz_id is not null then
-        update public.quizzes
+        update public.quizzes originals
         set usage_count = (
             select count(*)::integer
             from public.quiz_sessions assignments
             where assignments.source_quiz_id = new.source_quiz_id
               and assignments.class_id is not null
+              and assignments.teacher_id <> originals.teacher_id
         )
-        where id = new.source_quiz_id;
+        where originals.id = new.source_quiz_id;
     end if;
     if tg_op = 'DELETE' then
         return old;
@@ -789,12 +791,13 @@ set usage_count = (
     from public.quiz_sessions assignments
     where assignments.source_quiz_id = originals.id
       and assignments.class_id is not null
+      and assignments.teacher_id <> originals.teacher_id
 );
 
 drop trigger if exists quizzes_refresh_source_usage on public.quizzes;
 drop trigger if exists quiz_sessions_refresh_source_usage on public.quiz_sessions;
 create trigger quiz_sessions_refresh_source_usage
-after insert or update of source_quiz_id, class_id or delete on public.quiz_sessions
+after insert or update of source_quiz_id, class_id, teacher_id or delete on public.quiz_sessions
 for each row execute function public.refresh_source_quiz_usage();
 
 create table if not exists public.audit_logs (

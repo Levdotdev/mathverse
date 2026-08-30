@@ -74,16 +74,16 @@ the push-subscription table and ranking indexes. Quiz version restoration is
 retained because it belongs to the August 29 governance feature.
 
 Then run `2026_08_30_assignment_usage_and_attempt_integrity.sql`. It refreshes
-quiz usage as the number of distinct assigned classes, repairs unapproved
-repeat results so only the first is counted, ignores later unapproved inserts,
-and prevents client upserts from overwriting a stored attempt. The paired
+quiz usage from shared-library assignment events, repairs unapproved repeat
+results so only the first is counted, ignores later unapproved inserts, and
+prevents client upserts from overwriting a stored attempt. The paired
 `2026_08_30_assignment_usage_and_attempt_integrity_rollback.sql` restores the
 former usage and result-selection behavior without deleting result rows.
 
 Then run `2026_08_30_shared_assignment_and_quiz_reports.sql`. It makes a
 multi-class shared-quiz assignment one atomic database operation, records the
-customized assignment grade on the session, and recomputes popularity from the
-distinct classes that received the source quiz. Assignment grades must match
+customized assignment grade on the session, and recomputes popularity from
+shared-library assignment events. Assignment grades must match
 the selected classes and never modify class grade levels. It also preserves
 quiz and question snapshots for the dedicated Active, Reviewed, and Dismissed
 report queues, including when an administrator later edits or deletes the quiz.
@@ -91,6 +91,24 @@ report queues, including when an administrator later edits or deletes the quiz.
 Use `2026_08_30_shared_assignment_and_quiz_reports_rollback.sql` only after
 rolling the application back. The rollback stops if a preserved report points
 to a quiz that has since been deleted, preventing accidental report loss.
+
+If assigning a quiz or joining a class reports that
+`class_member_accommodations` does not exist, run
+`2026_08_30_remove_stale_accommodation_triggers.sql`. An early
+August 29 draft installed assignment and class-join trigger functions that
+read the former accommodations table. This standalone hotfix replaces both
+function bodies, removes the obsolete eligibility column if it remains, and
+backfills missing eligibility without deleting quizzes, classes, or results.
+
+Then run
+`2026_08_30_repeated_shared_class_uses_and_assignment_delete.sql`. Class Uses
+will count each shared-library assignment event, so assigning the same source
+quiz to the same class again after its earlier assignment ends adds another
+use. Assignments made by the source quiz's own creator do not count. The file
+also installs the atomic deletion used for waiting and active assignments;
+deleting one shared-library assignment removes one use, while ended assignment
+history remains protected. The migration corrects existing counters and is
+safe to rerun.
 
 ### Enable administrator browser push alerts
 

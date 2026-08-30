@@ -198,6 +198,19 @@ document.addEventListener('DOMContentLoaded', () => {
     showSection(section || fallback);
 });
 
+function syncTemporalInputTone(input) {
+    input?.classList.toggle('temporal-input-empty', !input.value);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('input[type="date"], input[type="datetime-local"], input[type="month"], input[type="time"]')
+        .forEach(input => {
+            syncTemporalInputTone(input);
+            input.addEventListener('input', () => syncTemporalInputTone(input));
+            input.addEventListener('change', () => syncTemporalInputTone(input));
+        });
+});
+
 const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 const AVATAR_SIZE_ERROR = 'The selected image must be 2 MB or less.';
 let oversizedAvatarInput = null;

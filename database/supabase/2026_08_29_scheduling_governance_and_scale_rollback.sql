@@ -139,6 +139,9 @@ $$;
 drop trigger if exists quiz_ratings_refresh_summary on public.quiz_ratings;
 drop trigger if exists quizzes_refresh_source_usage on public.quizzes;
 drop trigger if exists quiz_sessions_refresh_source_usage on public.quiz_sessions;
+drop trigger if exists quiz_sessions_refresh_source_usage_insert_delete on public.quiz_sessions;
+drop trigger if exists quiz_sessions_refresh_source_usage_update on public.quiz_sessions;
+drop trigger if exists quizzes_enforce_usage_count on public.quizzes;
 drop trigger if exists quizzes_auto_verify_admin on public.quizzes;
 
 drop function if exists public.enforce_quiz_result_attempt();
@@ -149,6 +152,8 @@ drop function if exists public.revoke_member_open_quiz_eligibility();
 drop function if exists public.propagate_member_accommodation();
 drop function if exists public.refresh_quiz_rating_summary();
 drop function if exists public.refresh_source_quiz_usage();
+drop function if exists public.enforce_quiz_usage_count();
+drop function if exists public.delete_open_quiz_assignment(uuid, uuid, uuid);
 drop function if exists public.auto_verify_admin_quiz();
 drop function if exists public.restore_quiz_version_v2(uuid, integer, uuid);
 drop function if exists public.restore_quiz_version(uuid, integer, uuid);

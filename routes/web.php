@@ -68,6 +68,7 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::get('/teacher/classes/{classId}/quizzes/{sessionId}/lobby', [TeacherClassController::class, 'lobby']);
     Route::get('/teacher/classes/{classId}/quizzes/{sessionId}/results', [TeacherClassController::class, 'results']);
     Route::put('/teacher/classes/{classId}/quizzes/{sessionId}', [TeacherClassController::class, 'updateAssignment']);
+    Route::delete('/teacher/classes/{classId}/quizzes/{sessionId}', [TeacherClassController::class, 'destroyAssignment']);
     Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/start', [TeacherClassController::class, 'start']);
     Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/end', [TeacherClassController::class, 'end']);
     Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/students/{studentId}/retake', [TeacherClassController::class, 'grantRetake']);

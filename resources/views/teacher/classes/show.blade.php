@@ -135,7 +135,7 @@
                             <button onclick="copyToClipboard('{{ $session['room_code'] }}')" class="text-slate-500 hover:text-white"><i class="fas fa-copy"></i></button>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 w-full xl:w-auto">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-2 w-full xl:w-auto">
                         <button onclick='openLobby(@json($class["id"]), @json($session["id"]), @json($session["topic"]), @json($session["room_code"]))'
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px]">
                             <i class="fas fa-users mr-1"></i> Lobby
@@ -156,6 +156,10 @@
                         <button onclick='openQuizAction(@json($class["id"]), @json($session["id"]), "end", @json($session["topic"]))'
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-red-500/30 text-red-400">
                             <i class="fas fa-stop mr-1"></i> End Quiz
+                        </button>
+                        <button onclick='openDeleteAssignment(@json($class["id"]), @json($session["id"]), @json($session["topic"]))'
+                                class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-red-500/30 text-red-400">
+                            <i class="fas fa-trash-alt mr-1"></i> Delete
                         </button>
                         <button onclick='openResults(@json($class["id"]), @json($session["id"]), @json($session["topic"]))'
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-cyan-500/30 text-cyan-400">
@@ -374,6 +378,28 @@
             <div class="flex flex-col-reverse sm:flex-row gap-3">
                 <button type="button" onclick="closeModal('assignmentSettingsModal')" class="btn-rect-secondary">Cancel</button>
                 <button type="submit" class="btn-rect-primary">Save Settings</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="deleteAssignmentModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="delete-assignment-title">
+    <div class="portal-frame !p-9 w-full max-w-md text-center border-red-500/50">
+        <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
+        <h3 id="delete-assignment-title" class="font-orbitron font-bold uppercase">Delete Assignment?</h3>
+        <p id="delete-assignment-topic" class="text-sm text-white font-bold mt-3"></p>
+        <p class="text-xs text-slate-400 mt-3 mb-7 leading-relaxed">
+            This permanently removes the waiting or active assignment, including its attempts and results.
+            A shared-library quiz loses one Class Use; your own VR quiz does not.
+        </p>
+        <form id="deleteAssignmentForm" method="POST">
+            @csrf
+            @method('DELETE')
+            <div class="flex flex-col-reverse sm:flex-row gap-3">
+                <button type="button" onclick="closeModal('deleteAssignmentModal')" class="btn-rect-secondary">Cancel</button>
+                <button type="submit" class="btn-rect-primary !bg-red-600 !text-white">
+                    Delete Assignment
+                </button>
             </div>
         </form>
     </div>

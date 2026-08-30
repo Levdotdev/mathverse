@@ -133,6 +133,7 @@ function openStudentException(action, classId, sessionId, studentId, studentName
     document.getElementById('exception-due-at').disabled = isExcuse;
     document.getElementById('exception-reason').value = '';
     document.getElementById('exception-due-at').value = '';
+    syncTemporalInputTone(document.getElementById('exception-due-at'));
     document.getElementById('confirmStudentException').textContent = isExcuse ? 'Mark Excused' : 'Grant Retake';
     openModal('quizStudentExceptionModal');
 }
@@ -233,12 +234,22 @@ function openAssignmentSettings(classId, sessionId, topic, timeLimit, startAt, d
     document.getElementById('assignmentSettingsForm').action = `/teacher/classes/${classId}/quizzes/${sessionId}`;
     document.getElementById('assignment-settings-topic').textContent = topic;
     document.getElementById('assignment-time-limit').value = Number(timeLimit ?? 20);
-    document.getElementById('assignment-start-at').value = startAt ?? '';
-    document.getElementById('assignment-due-at').value = dueAt ?? '';
+    const startInput = document.getElementById('assignment-start-at');
+    const dueInput = document.getElementById('assignment-due-at');
+    startInput.value = startAt ?? '';
+    dueInput.value = dueAt ?? '';
+    syncTemporalInputTone(startInput);
+    syncTemporalInputTone(dueInput);
     document.getElementById('assignment-start-tip').textContent = isActive
         ? 'This quiz is already active. Its start date cannot be moved into the future.'
         : 'If set, the assignment starts automatically. If blank, start it manually.';
     openModal('assignmentSettingsModal');
+}
+
+function openDeleteAssignment(classId, sessionId, topic) {
+    document.getElementById('deleteAssignmentForm').action = `/teacher/classes/${classId}/quizzes/${sessionId}`;
+    document.getElementById('delete-assignment-topic').textContent = topic;
+    openModal('deleteAssignmentModal');
 }
 
 function escapeClassroomHtml(value) {
