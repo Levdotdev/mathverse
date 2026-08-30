@@ -12,7 +12,6 @@ class StudentController extends Controller
     public function index()
     {
         $user = session('supabase_user');
-        $token = session('supabase_token');
         $profile = $this->supabase->adminSelect('profiles', '*', ['id' => $user['id']])[0] ?? $user;
         $gradeLevel = (int) ($profile['grade_level'] ?? 0);
 
@@ -46,11 +45,10 @@ class StudentController extends Controller
         }
         unset($student);
 
-        $memberships = $this->supabase->select(
+        $memberships = $this->supabase->adminSelect(
             'class_members',
             'class_id,joined_at',
-            ['student_id' => $user['id']],
-            $token
+            ['student_id' => $user['id']]
         );
         $membershipMap = [];
         foreach ($memberships as $membership) {

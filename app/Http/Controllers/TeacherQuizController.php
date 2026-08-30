@@ -322,7 +322,14 @@ class TeacherQuizController extends Controller
         ]);
 
         $user = session('supabase_user');
-        $sourceQuiz = $this->supabase->adminSelect('quizzes', '*', ['id' => $id])[0] ?? null;
+        $sourceQuizResult = $this->supabase->adminSelectResult('quizzes', '*', ['id' => $id]);
+        if ($sourceQuizResult['error'] !== null) {
+            return back()->withInput()->with(
+                'error',
+                $this->assignmentFailureMessage($sourceQuizResult['error'], true)
+            );
+        }
+        $sourceQuiz = $sourceQuizResult['data'][0] ?? null;
 
         if (!$sourceQuiz
             || ($sourceQuiz['teacher_id'] ?? null) === $user['id']
@@ -332,10 +339,17 @@ class TeacherQuizController extends Controller
         }
 
         $classIds = array_values($assignment['class_ids']);
-        $classes = $this->supabase->adminSelect('classes', '*', [
+        $classResult = $this->supabase->adminSelectResult('classes', '*', [
             'id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')'],
             'teacher_id' => $user['id'],
         ]);
+        if ($classResult['error'] !== null) {
+            return back()->withInput()->with(
+                'error',
+                $this->assignmentFailureMessage($classResult['error'], true)
+            );
+        }
+        $classes = $classResult['data'];
         $classesById = [];
         foreach ($classes as $class) {
             $classesById[$class['id']] = $class;
@@ -359,10 +373,17 @@ class TeacherQuizController extends Controller
                     ->with('error', 'Every selected class must match the quiz grade level.');
             }
 
-            $alreadyAssigned = $this->supabase->adminSelect('quiz_sessions', 'id,status', [
+            $existingResult = $this->supabase->adminSelectResult('quiz_sessions', 'id,status', [
                 'class_id' => $classId,
                 'source_quiz_id' => $sourceQuiz['id'],
             ]);
+            if ($existingResult['error'] !== null) {
+                return back()->withInput()->with(
+                    'error',
+                    $this->assignmentFailureMessage($existingResult['error'], true)
+                );
+            }
+            $alreadyAssigned = $existingResult['data'];
             $alreadyAssigned = array_filter(
                 $alreadyAssigned,
                 fn (array $session): bool => in_array(
@@ -404,37 +425,75 @@ class TeacherQuizController extends Controller
                 }
             }
 
-            foreach ($classesToAssign as $class) {
-                $sessionResult = $this->insertAssignmentSession([
-                    'teacher_id' => $user['id'],
-                    'source_quiz_id' => $sourceQuiz['id'],
-                    'topic' => trim($validated['topic']),
-                    'room_code' => $this->generateRoomCode(),
-                    'class_id' => $class['id'],
-                    'grade_level' => $grade,
-                    'max_members' => 60,
-                    'time_limit' => (int) $assignment['time_limit'],
-                    'assigned_at' => now()->toIso8601String(),
-                    'available_at' => $schedule['available_at'],
-                    'due_at' => $schedule['due_at'],
-                    'started_at' => $schedule['started_at'],
-                    'is_active' => $schedule['is_active'],
-                    'status' => $schedule['status'],
-                ]);
+            if (!empty($classesToAssign)) {
+                $newClassIds = array_column($classesToAssign, 'id');
+                $atomicResult = $this->supabase->adminRpcResult(
+                    'assign_shared_quiz_to_classes',
+                    [
+                        'p_teacher_id' => $user['id'],
+                        'p_source_quiz_id' => $sourceQuiz['id'],
+                        'p_class_ids' => $newClassIds,
+                        'p_topic' => trim($validated['topic']),
+                        'p_grade_level' => $grade,
+                        'p_time_limit' => (int) $assignment['time_limit'],
+                        'p_available_at' => $schedule['available_at'],
+                        'p_due_at' => $schedule['due_at'],
+                        'p_questions' => $sessionQuestions,
+                    ]
+                );
 
-                $sessionId = $sessionResult['data'][0]['id'] ?? null;
-                if (!$sessionId) {
-                    throw new \RuntimeException(
-                        $sessionResult['error'] ?? 'A class assignment could not be created.'
-                    );
-                }
-                $createdSessionIds[] = $sessionId;
+                if ($atomicResult['error'] === null) {
+                    $createdSessionIds = array_values(array_filter(array_column(
+                        $atomicResult['data'],
+                        'session_id'
+                    )));
+                    if (count($atomicResult['data']) !== count($classesToAssign)
+                        || count($createdSessionIds) !== count($classesToAssign)) {
+                        throw new \RuntimeException(
+                            'The atomic assignment returned an unexpected number of class sessions.'
+                        );
+                    }
+                } else {
+                    // Older databases may not expose the atomic function to
+                    // PostgREST yet. The direct path uses the same required
+                    // grade and schedule fields and preserves its exact error
+                    // if it also fails.
+                    foreach ($classesToAssign as $class) {
+                        $sessionResult = $this->insertAssignmentSession([
+                            'teacher_id' => $user['id'],
+                            'source_quiz_id' => $sourceQuiz['id'],
+                            'topic' => trim($validated['topic']),
+                            'room_code' => $this->generateRoomCode(),
+                            'class_id' => $class['id'],
+                            'grade_level' => $grade,
+                            'max_members' => 60,
+                            'time_limit' => (int) $assignment['time_limit'],
+                            'assigned_at' => now()->toIso8601String(),
+                            'available_at' => $schedule['available_at'],
+                            'due_at' => $schedule['due_at'],
+                            'started_at' => $schedule['started_at'],
+                            'is_active' => $schedule['is_active'],
+                            'status' => $schedule['status'],
+                        ]);
 
-                $questionResult = $this->saveSessionQuestions($sessionId, $sessionQuestions);
-                if (!$questionResult['success']) {
-                    throw new \RuntimeException(
-                        $questionResult['error'] ?? 'A class assignment could not save its questions.'
-                    );
+                        $sessionId = $sessionResult['data'][0]['id'] ?? null;
+                        if (!$sessionId) {
+                            throw new \RuntimeException(
+                                $sessionResult['error']
+                                    ?? $atomicResult['error']
+                                    ?? 'The database returned no reason.'
+                            );
+                        }
+                        $createdSessionIds[] = $sessionId;
+
+                        $questionResult = $this->saveSessionQuestions($sessionId, $sessionQuestions);
+                        if (!$questionResult['success']) {
+                            throw new \RuntimeException(
+                                $questionResult['error']
+                                    ?? 'A class assignment could not save its questions.'
+                            );
+                        }
+                    }
                 }
             }
         } catch (\Throwable $exception) {
@@ -742,8 +801,7 @@ class TeacherQuizController extends Controller
 
         $questionResult = $this->saveSessionQuestions($sessionId, $templateQuestions);
         if (!$questionResult['success']) {
-            $this->supabase->delete('questions', ['session_id' => $sessionId]);
-            $this->supabase->delete('quiz_sessions', ['id' => $sessionId]);
+            $this->rollbackSessions([$sessionId]);
 
             return back()->with(
                 'error',
@@ -907,6 +965,11 @@ class TeacherQuizController extends Controller
     private function rollbackSessions(array $sessionIds): void
     {
         foreach (array_reverse($sessionIds) as $sessionId) {
+            // The user's current schema has non-cascading foreign keys, so all
+            // possible children must be removed before the session itself.
+            $this->supabase->adminDelete('quiz_results', ['session_id' => $sessionId]);
+            $this->supabase->adminDelete('quiz_participants', ['session_id' => $sessionId]);
+            $this->supabase->adminDelete('quiz_session_students', ['session_id' => $sessionId]);
             $this->supabase->adminDelete('questions', ['session_id' => $sessionId]);
             $this->supabase->adminDelete('quiz_sessions', ['id' => $sessionId]);
         }
@@ -919,16 +982,9 @@ class TeacherQuizController extends Controller
             return $result;
         }
 
-        $error = strtolower((string) ($result['error'] ?? ''));
-        $gradeColumnUnavailable = str_contains($error, 'grade_level')
-            && (str_contains($error, 'schema cache')
-                || (str_contains($error, 'column') && str_contains($error, 'does not exist')));
-
-        if ($gradeColumnUnavailable) {
-            unset($payload['grade_level']);
-            return $this->supabase->adminInsertResult('quiz_sessions', $payload);
-        }
-
+        // grade_level is NOT NULL in the deployed schema. Retrying without it
+        // only hides a stale PostgREST schema cache error behind a second,
+        // misleading not-null failure.
         return $result;
     }
 

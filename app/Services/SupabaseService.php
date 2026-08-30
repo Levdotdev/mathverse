@@ -228,10 +228,7 @@ class SupabaseService
         ])->get("{$this->url}/rest/v1/{$table}", $params);
 
         if (!$response->successful()) {
-            $error = $response->json();
-            $message = is_array($error)
-                ? ($error['message'] ?? $error['hint'] ?? $error['details'] ?? null)
-                : null;
+            $message = $this->databaseErrorMessage($response);
 
             return [
                 'data' => [],
@@ -425,14 +422,39 @@ class SupabaseService
         ])->post("{$this->url}/rest/v1/{$table}", $data);
 
         if (!$response->successful()) {
-            $error = $response->json();
-            $message = is_array($error)
-                ? ($error['message'] ?? $error['hint'] ?? $error['details'] ?? null)
-                : null;
+            $message = $this->databaseErrorMessage($response);
 
             return [
                 'data' => [],
                 'error' => $message ?: "Database insert into {$table} failed with status {$response->status()}.",
+                'status' => $response->status(),
+            ];
+        }
+
+        return [
+            'data' => $this->responseRows($response),
+            'error' => null,
+            'status' => $response->status(),
+        ];
+    }
+
+    public function adminDeleteResult(string $table, array $filters): array
+    {
+        $query = http_build_query(
+            array_map(fn($v) => "eq.$v", $filters)
+        );
+
+        $response = Http::withHeaders([
+            'apikey'        => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Prefer'        => 'return=representation',
+        ])->delete("{$this->url}/rest/v1/{$table}?{$query}");
+
+        if (!$response->successful()) {
+            return [
+                'data' => [],
+                'error' => $this->databaseErrorMessage($response)
+                    ?: "Database delete from {$table} failed with status {$response->status()}.",
                 'status' => $response->status(),
             ];
         }
@@ -470,10 +492,7 @@ class SupabaseService
         ])->post("{$this->url}/rest/v1/rpc/{$function}", $arguments);
 
         if (!$response->successful()) {
-            $error = $response->json();
-            $message = is_array($error)
-                ? ($error['message'] ?? $error['hint'] ?? $error['details'] ?? null)
-                : null;
+            $message = $this->databaseErrorMessage($response);
 
             return [
                 'data' => [],
@@ -532,16 +551,7 @@ class SupabaseService
 
     public function adminDelete(string $table, array $filters): bool
     {
-        $query = http_build_query(
-            array_map(fn($v) => "eq.$v", $filters)
-        );
-
-        $response = Http::withHeaders([
-            'apikey'        => $this->serviceKey,
-            'Authorization' => "Bearer {$this->serviceKey}",
-        ])->delete("{$this->url}/rest/v1/{$table}?{$query}");
-
-        return $response->successful();
+        return $this->adminDeleteResult($table, $filters)['error'] === null;
     }
 
     public function updatePassword(string $token, string $password): array
@@ -566,5 +576,26 @@ class SupabaseService
         $rows = $response->json();
 
         return is_array($rows) && array_is_list($rows) ? $rows : [];
+    }
+
+    private function databaseErrorMessage($response): ?string
+    {
+        $error = $response->json();
+        if (!is_array($error)) {
+            $body = trim((string) $response->body());
+            return $body !== '' ? $body : null;
+        }
+
+        $parts = array_values(array_unique(array_filter(array_map(
+            fn ($value): string => trim((string) $value),
+            [
+                $error['message'] ?? null,
+                $error['details'] ?? null,
+                $error['hint'] ?? null,
+                $error['code'] ?? null,
+            ]
+        ))));
+
+        return $parts !== [] ? implode(' | ', $parts) : null;
     }
 }

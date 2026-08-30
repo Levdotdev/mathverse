@@ -14,15 +14,37 @@ class StudentClassController extends Controller
         $validated = $request->validate(['join_code' => 'required|string|alpha_num|size:6']);
         $user = session('supabase_user');
         $joinCode = strtoupper(trim($validated['join_code']));
-        $class = $this->supabase->adminSelect(
+        $classResult = $this->supabase->adminSelectResult(
             'classes', 'id,class_name,grade_level,archived_at', ['join_code' => $joinCode]
-        )[0] ?? null;
+        );
+        $class = $classResult['data'][0] ?? null;
+
+        if ($classResult['error'] !== null) {
+            return redirect('/student/dashboard?section=class')->with(
+                'error',
+                $this->joinFailureMessage($classResult['error'])
+            );
+        }
 
         if (!$class || !empty($class['archived_at'])) {
             return redirect('/student/dashboard?section=class')->with('error', 'That class code is invalid or archived.');
         }
 
-        $profile = $this->supabase->adminSelect('profiles', 'id,grade_level', ['id' => $user['id']])[0] ?? $user;
+        $profileResult = $this->supabase->adminSelectResult(
+            'profiles', 'id,role,grade_level', ['id' => $user['id']]
+        );
+        $profile = $profileResult['data'][0] ?? null;
+        if (!$profile) {
+            return redirect('/student/dashboard?section=class')->with(
+                'error',
+                $this->joinFailureMessage($profileResult['error'] ?? 'Your student profile could not be loaded.')
+            );
+        }
+
+        if (($profile['role'] ?? null) !== 'student') {
+            return redirect('/student/dashboard?section=class')
+                ->with('error', 'Only student accounts can join a class.');
+        }
         $studentGrade = (int) ($profile['grade_level'] ?? 0);
         $classGrade = (int) $class['grade_level'];
         if ($studentGrade !== $classGrade) {
@@ -32,20 +54,47 @@ class StudentClassController extends Controller
             );
         }
 
-        $existing = $this->supabase->adminSelect('class_members', 'student_id', [
+        $existingResult = $this->supabase->adminSelectResult('class_members', 'student_id', [
             'class_id' => $class['id'], 'student_id' => $user['id'],
         ]);
+        if ($existingResult['error'] !== null) {
+            return redirect('/student/dashboard?section=class')->with(
+                'error',
+                $this->joinFailureMessage($existingResult['error'])
+            );
+        }
+        $existing = $existingResult['data'];
         if (!empty($existing)) {
             return redirect("/student/classes/{$class['id']}")->with('error', 'You already belong to this class.');
         }
 
-        $joined = $this->supabase->insert('class_members', [
+        // The server has already authenticated the student and verified the
+        // class and grade. Use the service role for this one write so an
+        // expired browser JWT or a roster SELECT policy cannot make a valid
+        // membership insert look like it failed.
+        $joinResult = $this->supabase->adminInsertResult('class_members', [
             'student_id' => $user['id'], 'class_id' => $class['id'],
-        ], session('supabase_token'));
+        ]);
 
-        return isset($joined[0]['student_id'])
+        // Verify the durable row instead of relying only on PostgREST's
+        // returned representation. This also handles a simultaneous retry.
+        $membershipResult = $this->supabase->adminSelectResult(
+            'class_members', 'student_id,joined_at', [
+                'class_id' => $class['id'], 'student_id' => $user['id'],
+            ]
+        );
+        $membership = $membershipResult['data'][0] ?? null;
+
+        return $membership
             ? redirect("/student/classes/{$class['id']}")->with('success', 'Successfully joined the class.')
-            : redirect('/student/dashboard?section=class')->with('error', 'The class could not be joined.');
+            : redirect('/student/dashboard?section=class')->with(
+                'error',
+                $this->joinFailureMessage(
+                    $joinResult['error']
+                        ?? $membershipResult['error']
+                        ?? 'The membership row was not created.'
+                )
+            );
     }
 
     public function show(string $id)
@@ -247,6 +296,28 @@ class StudentClassController extends Controller
         return $this->supabase->adminSelect('class_members', 'student_id,joined_at', [
             'class_id' => $classId, 'student_id' => $studentId,
         ])[0] ?? null;
+    }
+
+    private function joinFailureMessage(?string $error): string
+    {
+        $message = trim(preg_replace('/\s+/', ' ', (string) $error));
+        if ($message === '') {
+            return 'The class could not be joined because the database returned no reason.';
+        }
+
+        $lower = strtolower($message);
+        if (str_contains($lower, 'does not match class grade')) {
+            return 'Your grade level does not match this class.';
+        }
+        if (str_contains($lower, 'archived class')) {
+            return 'That class has been archived and cannot accept students.';
+        }
+        if (str_contains($lower, 'duplicate key')) {
+            return 'You already belong to this class.';
+        }
+
+        return 'The class could not be joined: '
+            . \Illuminate\Support\Str::limit($message, 220);
     }
 
     private function classLeaderboard(string $classId, array $sessionIds): array
