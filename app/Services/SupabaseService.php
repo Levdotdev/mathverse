@@ -215,6 +215,11 @@ class SupabaseService
 
     public function adminSelect(string $table, string $query = '*', array $filters = []): array
     {
+        return $this->adminSelectResult($table, $query, $filters)['data'];
+    }
+
+    public function adminSelectResult(string $table, string $query = '*', array $filters = []): array
+    {
         $params = $this->buildAdminSelectParams($query, $filters);
 
         $response = Http::withHeaders([
@@ -222,7 +227,24 @@ class SupabaseService
             'Authorization' => "Bearer {$this->serviceKey}",
         ])->get("{$this->url}/rest/v1/{$table}", $params);
 
-        return $this->responseRows($response);
+        if (!$response->successful()) {
+            $error = $response->json();
+            $message = is_array($error)
+                ? ($error['message'] ?? $error['hint'] ?? $error['details'] ?? null)
+                : null;
+
+            return [
+                'data' => [],
+                'error' => $message ?: "Database query on {$table} failed with status {$response->status()}.",
+                'status' => $response->status(),
+            ];
+        }
+
+        return [
+            'data' => $this->responseRows($response),
+            'error' => null,
+            'status' => $response->status(),
+        ];
     }
 
     /**

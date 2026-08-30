@@ -347,6 +347,8 @@ class TeacherQuizController extends Controller
 
         $grade = (int) $sourceQuiz['grade_level'];
         $orderedClasses = [];
+        $classesToAssign = [];
+        $existingAssignments = [];
         foreach ($classIds as $classId) {
             $class = $classesById[$classId];
             if (!empty($class['archived_at'])) {
@@ -370,10 +372,9 @@ class TeacherQuizController extends Controller
                 )
             );
             if (!empty($alreadyAssigned)) {
-                return back()->withInput()->with(
-                    'error',
-                    "This shared quiz is already assigned or active in {$class['class_name']}."
-                );
+                $existingAssignments[$classId] = array_values($alreadyAssigned)[0];
+            } else {
+                $classesToAssign[] = $class;
             }
             $orderedClasses[] = $class;
         }
@@ -383,13 +384,34 @@ class TeacherQuizController extends Controller
 
         $createdSessionIds = [];
         try {
-            foreach ($orderedClasses as $class) {
-                $sessionResult = $this->supabase->adminInsertResult('quiz_sessions', [
+            foreach ($existingAssignments as $existingAssignment) {
+                $existingQuestionResult = $this->supabase->adminSelectResult('questions', 'id', [
+                    'session_id' => $existingAssignment['id'],
+                ]);
+                if ($existingQuestionResult['error'] !== null) {
+                    throw new \RuntimeException($existingQuestionResult['error']);
+                }
+                if (empty($existingQuestionResult['data'])) {
+                    $questionResult = $this->saveSessionQuestions(
+                        $existingAssignment['id'],
+                        $sessionQuestions
+                    );
+                    if (!$questionResult['success']) {
+                        throw new \RuntimeException(
+                            $questionResult['error'] ?? 'An existing class assignment could not save its questions.'
+                        );
+                    }
+                }
+            }
+
+            foreach ($classesToAssign as $class) {
+                $sessionResult = $this->insertAssignmentSession([
                     'teacher_id' => $user['id'],
                     'source_quiz_id' => $sourceQuiz['id'],
                     'topic' => trim($validated['topic']),
                     'room_code' => $this->generateRoomCode(),
                     'class_id' => $class['id'],
+                    'grade_level' => $grade,
                     'max_members' => 60,
                     'time_limit' => (int) $assignment['time_limit'],
                     'assigned_at' => now()->toIso8601String(),
@@ -426,16 +448,28 @@ class TeacherQuizController extends Controller
 
         $classCount = count($orderedClasses);
         $classLabel = $classCount === 1 ? '1 class' : "{$classCount} classes";
+        $newAssignmentCount = count($createdSessionIds);
+        $existingAssignmentCount = count($existingAssignments);
+
+        $this->refreshQuizUsageCount($sourceQuiz['id']);
 
         $this->supabase->audit($user, 'quiz.shared_assigned', 'quiz', $sourceQuiz['id'], [
             'class_ids' => $classIds,
             'class_count' => $classCount,
+            'new_assignment_count' => $newAssignmentCount,
+            'existing_assignment_count' => $existingAssignmentCount,
             'topic' => trim($validated['topic']),
         ]);
 
-        $destination = $classCount === 1
-            ? "/teacher/classes/{$orderedClasses[0]['id']}"
-            : '/teacher/dashboard?section=classes';
+        $destination = $this->sharedAssignmentDestination($orderedClasses);
+
+        if ($newAssignmentCount === 0) {
+            return redirect($destination)->with(
+                'success',
+                "This quiz was already assigned to the selected {$classLabel}. Opening "
+                    . ($classCount === 1 ? 'the classroom.' : 'your Classrooms section.')
+            );
+        }
 
         return redirect($destination)
             ->with('success', "Quiz assigned to {$classLabel} using the original Grade {$grade} level. The shared original and classes were not changed.");
@@ -876,6 +910,53 @@ class TeacherQuizController extends Controller
             $this->supabase->adminDelete('questions', ['session_id' => $sessionId]);
             $this->supabase->adminDelete('quiz_sessions', ['id' => $sessionId]);
         }
+    }
+
+    private function insertAssignmentSession(array $payload): array
+    {
+        $result = $this->supabase->adminInsertResult('quiz_sessions', $payload);
+        if (!empty($result['data'])) {
+            return $result;
+        }
+
+        $error = strtolower((string) ($result['error'] ?? ''));
+        $gradeColumnUnavailable = str_contains($error, 'grade_level')
+            && (str_contains($error, 'schema cache')
+                || (str_contains($error, 'column') && str_contains($error, 'does not exist')));
+
+        if ($gradeColumnUnavailable) {
+            unset($payload['grade_level']);
+            return $this->supabase->adminInsertResult('quiz_sessions', $payload);
+        }
+
+        return $result;
+    }
+
+    private function refreshQuizUsageCount(string $quizId): void
+    {
+        $result = $this->supabase->adminSelectResult(
+            'quiz_sessions',
+            'class_id',
+            ['source_quiz_id' => $quizId]
+        );
+        $assignments = $result['data'];
+        if (empty($assignments)) {
+            return;
+        }
+
+        $classIds = array_values(array_unique(array_filter(array_column($assignments, 'class_id'))));
+        $this->supabase->adminUpdate(
+            'quizzes',
+            ['usage_count' => count($classIds)],
+            ['id' => $quizId]
+        );
+    }
+
+    private function sharedAssignmentDestination(array $classes): string
+    {
+        return count($classes) === 1
+            ? "/teacher/classes/{$classes[0]['id']}"
+            : '/teacher/dashboard?section=classes';
     }
 
     private function saveSessionQuestions(string $sessionId, array $questions): array

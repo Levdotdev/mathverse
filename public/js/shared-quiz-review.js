@@ -127,12 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
         showSaveConfirmation();
     });
     confirmButton?.addEventListener('click', () => {
+        if (confirmationApproved || !form) return;
+
         confirmationApproved = true;
+        confirmButton.disabled = true;
+        confirmButton.classList.add('opacity-60', 'cursor-not-allowed');
+        if (confirmButtonLabel) {
+            confirmButtonLabel.textContent = 'Assigning...';
+        }
         closeModal('confirmSharedQuizModal');
-        form?.requestSubmit();
-        setTimeout(() => {
-            confirmationApproved = false;
-        }, 0);
+        form.requestSubmit();
     });
     filterClassesByGrade();
 });
