@@ -146,7 +146,7 @@
             <input type="hidden" id="report-delete-report-id" name="report_id">
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz and Continue</button>
         </form>
-        <button type="button" onclick="closeModal('reportDeleteQuizModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        <button type="button" onclick="closeModal('reportDeleteQuizModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -155,7 +155,7 @@
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
         <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
-        <button type="button" onclick="closeModal('logoutModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        <button type="button" onclick="closeModal('logoutModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endsection

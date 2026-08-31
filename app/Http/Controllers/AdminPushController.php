@@ -31,7 +31,7 @@ class AdminPushController extends Controller
 
         if (!isset($saved[0]['id'])) {
             return response()->json([
-                'message' => 'The browser-alert subscription could not be saved. Run the documented Supabase migrations first.',
+                'message' => 'The browser-alert subscription could not be saved. Run the documented database updates first.',
             ], 503);
         }
 

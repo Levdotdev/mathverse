@@ -551,7 +551,7 @@ class TeacherQuizController extends Controller
         $quizId = $created[0]['id'] ?? null;
         if (!$quizId) {
             return redirect('/teacher/quizzes')
-                ->with('error', 'The quiz could not be created. Run the new Supabase migration first.');
+                ->with('error', 'The quiz could not be created. Run the latest database update first.');
         }
 
         if (!$this->saveTemplateQuestions(
@@ -1236,7 +1236,7 @@ class TeacherQuizController extends Controller
         }
         if (str_contains($lower, 'assign_shared_quiz_to_classes')
             || str_contains($lower, 'could not find the function')) {
-            return $prefix . 'Run the latest shared-assignment Supabase migration, then try again.';
+            return $prefix . 'Run the latest shared-assignment database update, then try again.';
         }
         if (str_contains($lower, 'schema cache')
             || (str_contains($lower, 'column') && str_contains($lower, 'does not exist'))) {
@@ -1256,7 +1256,7 @@ class TeacherQuizController extends Controller
         if (str_contains(strtolower($message), 'schema cache')
             || str_contains(strtolower($message), 'could not find the function')
             || str_contains(strtolower($message), 'restore_quiz_version')) {
-            return 'Version restoration is missing from Supabase. Run the standalone quiz hotfix migration, then try again.';
+            return 'Version restoration is unavailable. Run the standalone quiz database update, then try again.';
         }
 
         return 'Version restore failed: ' . \Illuminate\Support\Str::limit($message, 220);

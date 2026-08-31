@@ -526,9 +526,9 @@
                 <label for="suspension-reason" class="input-label">Reason</label>
                 <textarea id="suspension-reason" name="reason" rows="4" maxlength="500" required class="input-field w-full"></textarea>
             </div>
-            <div class="flex flex-col-reverse sm:flex-row gap-3">
-                <button type="button" onclick="closeModal('suspendUserModal')" class="btn-rect-secondary">Cancel</button>
+            <div class="modal-action-stack">
                 <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black">Suspend Account</button>
+                <button type="button" onclick="closeModal('suspendUserModal')" class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -544,8 +544,7 @@
             <form id="deleteUserForm" method="POST">@csrf @method('DELETE')
                 <button class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Purge User Data</button>
             </form>
-            <button onclick="closeModal('deleteUserModal')"
-                    class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+            <button onclick="closeModal('deleteUserModal')" class="modal-cancel mt-3">Cancel</button>
         </div>
     </div>
 </div>
@@ -560,7 +559,7 @@
                 @csrf
                 <button onclick="handleLogout()" class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button>
             </form>
-            <button onclick="closeModal('logoutModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+            <button onclick="closeModal('logoutModal')" class="modal-cancel">Cancel</button>
         </div>
     </div>
 </div>

@@ -98,7 +98,7 @@
                 @csrf
                 <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black">Restore Version</button>
             </form>
-            <button type="button" onclick="closeModal('restoreQuizVersionModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+            <button type="button" onclick="closeModal('restoreQuizVersionModal')" class="modal-cancel mt-3">Cancel</button>
         </div>
     </div>
     @include('teacher.partials.logout-modal')

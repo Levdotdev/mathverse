@@ -117,7 +117,7 @@ After all August 30 files above, run
 notification center and event triggers for teacher verification, class roster
 changes, quiz assignments and scheduling, retakes and excuses, submissions,
 shared-quiz use, moderation, quiz verification, and completed Auth security
-changes. It also installs idempotent 24-hour quiz-start and 30-minute quiz-due
+changes. It also installs idempotent 5-minute quiz-start and 30-minute quiz-due
 reminders and keeps `profiles.email` synchronized after Supabase confirms an
 Auth email change.
 
@@ -148,12 +148,17 @@ additional immutable retake result and receipt. Use
 `2026_08_31_notifications_delivery_channels_rollback.sql` to remove only the
 delivery outbox and restore the prior notification function bodies.
 
-Finally run `2026_08_31_notification_delivery_policy_followup.sql`. This small
+Then run `2026_08_31_notification_delivery_policy_followup.sql`. This small
 idempotent follow-up also upgrades projects that already installed the first two
 August 31 migrations: it removes queued password/email security pushes,
 reclassifies unsent authorized-retake receipts as email, and rearms premature
 due reminders for the 30-minute window. Its paired `_rollback.sql` file restores
 the former delivery policy but cannot retract an alert that was already sent.
+
+Run `2026_08_31_quiz_starting_soon_5_minutes.sql` last. It upgrades existing
+installations to the five-minute quiz-start reminder window and removes earlier
+start reminders so eligible quizzes can be rearmed at the correct time. Alerts
+already delivered by the browser cannot be retracted.
 
 ### Configure application email delivery
 

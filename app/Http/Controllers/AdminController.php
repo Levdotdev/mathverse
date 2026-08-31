@@ -180,7 +180,7 @@ class AdminController extends Controller
         }
         if (!$this->notificationDelivery->isReady()) {
             return redirect('/admin/dashboard?section=role-verify')
-                ->with('error', 'The application was not rejected because the decision-email outbox is not installed. Run the latest Supabase delivery migration first.');
+                ->with('error', 'The application was not rejected because the decision-email outbox is not installed. Run the latest delivery database update first.');
         }
 
         $response = Http::withHeaders([
@@ -241,7 +241,7 @@ class AdminController extends Controller
         $admin = session('supabase_user');
         if (!$this->supabase->setAuthUserSuspended($id, true)) {
             return redirect("/admin/dashboard?section={$section}")
-                ->with('error', 'Supabase Auth could not suspend that account. No profile changes were made.');
+                ->with('error', 'The authentication service could not suspend that account. No profile changes were made.');
         }
         $updated = $this->supabase->adminUpdate('profiles', [
             'suspended_at' => now()->toIso8601String(),
@@ -275,7 +275,7 @@ class AdminController extends Controller
 
         if (!$this->supabase->setAuthUserSuspended($id, false)) {
             return redirect("/admin/dashboard?section={$section}")
-                ->with('error', 'Supabase Auth could not restore that account. It remains suspended.');
+                ->with('error', 'The authentication service could not restore that account. It remains suspended.');
         }
         $updated = $this->supabase->adminUpdate('profiles', [
             'suspended_at' => null,

@@ -22,11 +22,19 @@ document.addEventListener('DOMContentLoaded', () => {
             menu.classList.toggle('hidden', !willOpen);
             menu.setAttribute('aria-hidden', String(!willOpen));
             toggle.setAttribute('aria-expanded', String(willOpen));
+            if (willOpen) {
+                document.dispatchEvent(new CustomEvent('mathverse:header-menu-open', {
+                    detail: { kind: 'notifications' },
+                }));
+            }
         });
         menu.addEventListener('click', event => event.stopPropagation());
     });
 
     document.addEventListener('click', () => closeAll());
+    document.addEventListener('mathverse:header-menu-open', event => {
+        if (event.detail?.kind !== 'notifications') closeAll();
+    });
     document.addEventListener('keydown', event => {
         if (event.key !== 'Escape') return;
         const openRoot = roots.find(root => !root.querySelector('[data-notification-menu]')?.classList.contains('hidden'));

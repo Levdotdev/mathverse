@@ -8,7 +8,7 @@
                 @csrf
                 <button type="submit" class="btn-rect-primary !py-3">Confirm Logout</button>
             </form>
-            <button onclick="closeModal('logoutModal')" class="w-full text-[10px] font-bold text-slate-500 uppercase">Cancel</button>
+            <button onclick="closeModal('logoutModal')" class="modal-cancel">Cancel</button>
         </div>
     </div>
 </div>

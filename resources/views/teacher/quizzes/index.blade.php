@@ -167,7 +167,6 @@
                     <i class="fas fa-save mr-2"></i> Save Quiz
                 </button>
             </div>
-            <p class="text-center mt-4 text-[10px] text-slate-500">Updating a quiz saves its previous version. Existing class assignments remain unchanged.</p>
         </form>
     </div>
 </div>
@@ -187,7 +186,7 @@
                 @method('DELETE')
                 <button type="submit" class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Delete Quiz</button>
             </form>
-            <button onclick="closeModal('deleteQuizModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+            <button onclick="closeModal('deleteQuizModal')" class="modal-cancel mt-3">Cancel</button>
         </div>
     </div>
 

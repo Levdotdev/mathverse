@@ -160,7 +160,7 @@
         <form method="POST" action="/teacher/classes/{{ $class['id'] }}/archive">@csrf
             <button class="btn-rect-primary !bg-slate-600 !text-white">Archive Class</button>
         </form>
-        <button onclick="closeModal('archiveClassModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        <button onclick="closeModal('archiveClassModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endif
@@ -175,7 +175,7 @@
             @method('DELETE')
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Class</button>
         </form>
-        <button onclick="closeModal('deleteClassModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        <button onclick="closeModal('deleteClassModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 

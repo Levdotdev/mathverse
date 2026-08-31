@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 class NotificationDeliveryPolicyTest extends TestCase
 {
     private string $migration;
+    private string $fiveMinuteMigration;
 
     protected function setUp(): void
     {
@@ -17,6 +18,12 @@ class NotificationDeliveryPolicyTest extends TestCase
         $contents = file_get_contents($path);
         $this->assertNotFalse($contents, 'The notification policy migration must be readable.');
         $this->migration = $contents;
+
+        $fiveMinutePath = dirname(__DIR__, 2)
+            . '/database/supabase/2026_08_31_quiz_starting_soon_5_minutes.sql';
+        $fiveMinuteContents = file_get_contents($fiveMinutePath);
+        $this->assertNotFalse($fiveMinuteContents, 'The five-minute upgrade migration must be readable.');
+        $this->fiveMinuteMigration = $fiveMinuteContents;
     }
 
     public function test_completed_auth_security_events_are_not_queued_for_web_push(): void
@@ -42,5 +49,19 @@ class NotificationDeliveryPolicyTest extends TestCase
             "/due_at between[\\s\\S]{0,140}interval '30 minutes'/",
             $this->migration
         );
+    }
+
+    public function test_starting_soon_window_is_five_minutes(): void
+    {
+        $this->assertStringContainsString("Quiz starts within 5 minutes", $this->migration);
+        $this->assertStringNotContainsString("Quiz starts within 24 hours", $this->migration);
+        $this->assertMatchesRegularExpression(
+            "/available_at between[\\s\\S]{0,140}interval '5 minutes'/",
+            $this->migration
+        );
+
+        $this->assertStringContainsString("notifications.type = 'quiz_starts_soon'", $this->fiveMinuteMigration);
+        $this->assertStringContainsString("Quiz starts within 5 minutes", $this->fiveMinuteMigration);
+        $this->assertStringNotContainsString("Quiz starts within 24 hours", $this->fiveMinuteMigration);
     }
 }

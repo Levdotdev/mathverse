@@ -340,9 +340,9 @@
                 <input id="exception-due-at" name="due_at" type="datetime-local" class="input-field w-full">
                 <p class="text-[9px] text-slate-500 mt-2">If blank, the retake window remains open for 24 hours.</p>
             </div>
-            <div class="flex flex-col-reverse sm:flex-row gap-3">
-                <button type="button" onclick="closeModal('quizStudentExceptionModal')" class="btn-rect-secondary">Cancel</button>
+            <div class="modal-action-stack">
                 <button id="confirmStudentException" type="submit" class="btn-rect-primary">Grant Retake</button>
+                <button type="button" onclick="closeModal('quizStudentExceptionModal')" class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -375,9 +375,9 @@
                 <input id="assignment-due-at" name="due_at" type="datetime-local" class="input-field w-full">
                 <p class="text-[9px] text-slate-500 mt-2">If set, the assignment ends automatically. If blank, end it manually.</p>
             </div>
-            <div class="flex flex-col-reverse sm:flex-row gap-3">
-                <button type="button" onclick="closeModal('assignmentSettingsModal')" class="btn-rect-secondary">Cancel</button>
+            <div class="modal-action-stack">
                 <button type="submit" class="btn-rect-primary">Save Settings</button>
+                <button type="button" onclick="closeModal('assignmentSettingsModal')" class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -395,11 +395,11 @@
         <form id="deleteAssignmentForm" method="POST">
             @csrf
             @method('DELETE')
-            <div class="flex flex-col-reverse sm:flex-row gap-3">
-                <button type="button" onclick="closeModal('deleteAssignmentModal')" class="btn-rect-secondary">Cancel</button>
+            <div class="modal-action-stack">
                 <button type="submit" class="btn-rect-primary !bg-red-600 !text-white">
                     Delete Assignment
                 </button>
+                <button type="button" onclick="closeModal('deleteAssignmentModal')" class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -411,7 +411,7 @@
         <h3 id="quiz-action-title" class="font-orbitron font-bold uppercase text-white">Start Quiz?</h3>
         <p id="quiz-action-topic" class="text-xs text-slate-400 mt-3 mb-8"></p>
         <button id="confirmQuizAction" class="btn-rect-primary">Confirm</button>
-        <button onclick="closeModal('quizActionModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        <button onclick="closeModal('quizActionModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -423,7 +423,7 @@
         <div class="space-y-3">
             <a id="quiz-report-pdf" class="btn-rect-primary block" href="#"><i class="fas fa-file-pdf mr-2"></i> PDF</a>
             <a id="quiz-report-csv" class="btn-rect-secondary block" href="#"><i class="fas fa-file-csv mr-2"></i> CSV</a>
-            <button onclick="closeModal('quizReportModal')" class="text-[10px] text-slate-500 uppercase font-bold">Cancel</button>
+            <button onclick="closeModal('quizReportModal')" class="modal-cancel">Cancel</button>
         </div>
     </div>
 </div>
@@ -438,7 +438,7 @@
             @method('DELETE')
             <button class="btn-rect-primary !bg-red-600 !text-white">Remove Student</button>
         </form>
-        <button onclick="closeModal('removeStudentModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Cancel</button>
+        <button onclick="closeModal('removeStudentModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 

@@ -173,21 +173,27 @@
                         <label class="input-label">Password</label>
                         <div class="relative">
                             <i class="fas fa-key input-icon"></i>
-                            <input type="password" id="rPass" name="password" placeholder="Create password" required
+                            <input type="password" id="rPass" name="password" minlength="8" maxlength="128"
+                                   pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                                   title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol."
+                                   autocomplete="new-password" placeholder="Create password" required
                                    class="input-mobile-ultra pr-12">
                             <button type="button" onclick="tglPass('rPass','rIco')"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="rIco" class="fas fa-eye-slash"></i>
                             </button>
                         </div>
+                        <p class="text-[9px] text-slate-500 mt-2 leading-4">8+ characters with uppercase, lowercase, a number, and a symbol.</p>
                     </div>
 
                     <div class="form-group">
                         <label class="input-label">Confirm Password</label>
                         <div class="relative">
                             <i class="fas fa-shield-alt input-icon"></i>
-                            <input type="password" id="rcPass" name="password_confirmation"
-                                   placeholder="Re-type password" required class="input-mobile-ultra pr-12">
+                            <input type="password" id="rcPass" name="password_confirmation" minlength="8" maxlength="128"
+                                   pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                                   title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol."
+                                   autocomplete="new-password" placeholder="Re-type password" required class="input-mobile-ultra pr-12">
                             <button type="button" onclick="tglPass('rcPass','rcIco')"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="rcIco" class="fas fa-eye-slash"></i>
@@ -227,8 +233,7 @@
             </div>
             <button type="submit" class="btn-mobile-ultra !py-4 mb-4">Send Reset Link</button>
         </form>
-        <button onclick="closeForgotModal()"
-                class="w-full text-slate-500 text-[10px] font-bold uppercase tracking-widest text-center">
+        <button onclick="closeForgotModal()" class="modal-cancel">
             Cancel
         </button>
     </div>

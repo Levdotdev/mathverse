@@ -278,7 +278,7 @@
             <p class="text-[10px] text-yellow-400/80">Only students with the same profile grade can join.</p>
             <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black uppercase text-xs">Create & Generate Code</button>
         </form>
-        <button onclick="closeModal('createClassModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500 block w-full text-center">Cancel</button>
+        <button onclick="closeModal('createClassModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 

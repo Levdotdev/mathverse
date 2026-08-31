@@ -18,7 +18,6 @@
                 @csrf
                 <div>
                     <h3 class="font-orbitron text-sm font-bold uppercase"><i class="fas fa-envelope mr-2 {{ $securityAccent }}"></i> Change Email Address</h3>
-                    <p class="text-[10px] text-slate-500 mt-2 leading-4">Supabase sends a confirmation link before changing your sign-in email. With secure email change enabled, confirm from both addresses.</p>
                 </div>
                 <div class="form-group">
                     <label class="input-label">Current Email</label>
@@ -58,7 +57,7 @@
                 @csrf
                 <div>
                     <h3 class="font-orbitron text-sm font-bold uppercase"><i class="fas fa-key mr-2 {{ $securityAccent }}"></i> Change Password</h3>
-                    <p class="text-[10px] text-slate-500 mt-2 leading-4">Use at least six characters. Supabase will send a security notification after the password changes.</p>
+                    <p class="text-[10px] text-slate-500 mt-2 leading-4">Use at least 8 characters with an uppercase letter, lowercase letter, number, and symbol.</p>
                 </div>
                 <div class="form-group">
                     <label for="security-current-password" class="input-label text-orange-400">Current Password</label>
@@ -74,7 +73,7 @@
                     <label for="security-new-password" class="input-label">New Password</label>
                     <div class="relative">
                         <i class="fas fa-key input-icon"></i>
-                        <input type="password" id="security-new-password" name="new_password" minlength="6" maxlength="128" autocomplete="new-password" placeholder="Create a new password" class="input-mobile-ultra pr-12" required>
+                        <input type="password" id="security-new-password" name="new_password" minlength="8" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol." autocomplete="new-password" placeholder="Create a new password" class="input-mobile-ultra pr-12" required>
                         <button type="button" onclick="tglPass('security-new-password','security-new-password-icon')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" aria-label="Show or hide new password">
                             <i id="security-new-password-icon" class="fas fa-eye-slash"></i>
                         </button>
@@ -84,7 +83,7 @@
                     <label for="security-confirm-password" class="input-label">Confirm New Password</label>
                     <div class="relative">
                         <i class="fas fa-shield-halved input-icon"></i>
-                        <input type="password" id="security-confirm-password" name="new_password_confirmation" minlength="6" maxlength="128" autocomplete="new-password" placeholder="Repeat the new password" class="input-mobile-ultra pr-12" required>
+                        <input type="password" id="security-confirm-password" name="new_password_confirmation" minlength="8" maxlength="128" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol." autocomplete="new-password" placeholder="Repeat the new password" class="input-mobile-ultra pr-12" required>
                         <button type="button" onclick="tglPass('security-confirm-password','security-confirm-password-icon')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" aria-label="Show or hide password confirmation">
                             <i id="security-confirm-password-icon" class="fas fa-eye-slash"></i>
                         </button>

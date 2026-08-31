@@ -38,7 +38,7 @@ class TeacherClassController extends Controller
         $classId = $created[0]['id'] ?? null;
         if (!$classId) {
             return redirect('/teacher/dashboard?section=classes')
-                ->with('error', 'The class could not be created. Run the new Supabase migration first.');
+                ->with('error', 'The class could not be created. Run the latest database update first.');
         }
 
         $this->supabase->insert('class_customizations', [
@@ -260,7 +260,7 @@ class TeacherClassController extends Controller
         );
         if (!isset($updated[0]['id'])) {
             return redirect("/teacher/classes/{$id}/settings")
-                ->with('error', 'The class could not be archived. Run the latest Supabase migration first.');
+                ->with('error', 'The class could not be archived. Run the latest database update first.');
         }
 
         $openSessions = $this->supabase->adminSelect('quiz_sessions', 'id,status', ['class_id' => $id]);
@@ -560,7 +560,7 @@ class TeacherClassController extends Controller
         if ($deleted['error'] !== null || !$result) {
             $reason = trim((string) ($deleted['error'] ?? 'The database returned no deletion result.'));
             if (str_contains(strtolower($reason), 'delete_open_quiz_assignment')) {
-                $reason = 'Run 2026_08_30_repeated_shared_class_uses_and_assignment_delete.sql in Supabase, then try again.';
+                $reason = 'Run the 2026_08_30_repeated_shared_class_uses_and_assignment_delete.sql database update, then try again.';
             }
 
             return redirect("/teacher/classes/{$classId}")

@@ -23,7 +23,7 @@ Route::pattern('version', '[1-9][0-9]*');
 Route::get('/',       [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
 Route::get('/reset-password', function () { return view('auth.reset'); });
 Route::post('/update-password', [AuthController::class, 'updatePassword']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

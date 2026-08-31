@@ -294,6 +294,33 @@ body.sidebar-open {
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.modal-action-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.modal-cancel {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.25rem;
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+    transition: color 0.2s ease;
+}
+
+.modal-cancel:hover,
+.modal-cancel:focus-visible {
+    color: #fff;
+}
+
 /* INPUT WITH ICON INSIDE */
 .input-icon {
     position: absolute;
@@ -377,14 +404,14 @@ input:-webkit-autofill:focus {
     transition: background-color 5000s ease-in-out 0s;
 }
 
-#profileMenu.open {
+.profile-menu.open {
     opacity: 1;
     pointer-events: auto;
     transform: scale(1);
 }
 
-#profileMenu {
-    transform-origin: bottom;
+.profile-menu {
+    transform-origin: top right;
     transition: all 0.15s ease;
 }
 

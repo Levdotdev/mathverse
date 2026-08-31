@@ -188,9 +188,9 @@
                     <label for="report-details" class="input-label">Details</label>
                     <textarea id="report-details" name="details" rows="4" maxlength="1000" class="input-field w-full" placeholder="Include the question number and what appears incorrect."></textarea>
                 </div>
-                <div class="flex flex-col-reverse sm:flex-row gap-3">
-                    <button type="button" onclick="closeModal('reportSharedQuizModal')" class="btn-rect-secondary">Cancel</button>
+                <div class="modal-action-stack">
                     <button type="submit" class="btn-rect-primary !bg-red-600 !text-white">Submit Report</button>
+                    <button type="button" onclick="closeModal('reportSharedQuizModal')" class="modal-cancel">Cancel</button>
                 </div>
             </form>
         </div>

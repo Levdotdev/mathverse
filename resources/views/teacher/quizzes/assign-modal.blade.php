@@ -49,7 +49,6 @@
                 Assign to Class
             </button>
         </form>
-        <button onclick="closeModal('assignQuizModal')"
-                class="text-[10px] font-bold mt-4 uppercase text-slate-500 block w-full text-center">Cancel</button>
+        <button onclick="closeModal('assignQuizModal')" class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>

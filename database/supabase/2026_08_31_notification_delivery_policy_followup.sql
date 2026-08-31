@@ -3,7 +3,7 @@
 --
 -- This keeps completed password/email security events in the bell without an
 -- extra Web Push, emails every successfully stored allowed quiz attempt, and
--- moves the due-soon reminder from 24 hours to 30 minutes.
+-- uses a 5-minute quiz-start window and a 30-minute quiz-due window.
 
 begin;
 
@@ -138,7 +138,7 @@ $$;
 
 -- Remove premature due-soon bell rows so each unfinished quiz can be armed
 -- again when it actually enters its 30-minute window. Already displayed OS
--- notifications cannot be retracted, but no new 24-hour reminders are made.
+-- notifications cannot be retracted, but no new premature reminders are made.
 delete from public.notification_deliveries deliveries
 using public.notifications notifications
 where deliveries.notification_id = notifications.id
@@ -190,17 +190,17 @@ begin
                 and results.is_counted = true
           )
           and (
-              sessions.available_at between timezone('utc', now()) and timezone('utc', now()) + interval '24 hours'
+              sessions.available_at between timezone('utc', now()) and timezone('utc', now()) + interval '5 minutes'
               or sessions.due_at between timezone('utc', now()) and timezone('utc', now()) + interval '30 minutes'
           )
     loop
         if assignment_row.status = 'waiting'
-           and assignment_row.available_at between timezone('utc', now()) and timezone('utc', now()) + interval '24 hours' then
+           and assignment_row.available_at between timezone('utc', now()) and timezone('utc', now()) + interval '5 minutes' then
             notification_id := public.create_notification(
                 assignment_row.student_id,
                 'quiz_starts_soon',
-                'Quiz starts within 24 hours',
-                coalesce(assignment_row.topic, 'A quiz') || ' will become available soon.',
+                'Quiz starts within 5 minutes',
+                coalesce(assignment_row.topic, 'A quiz') || ' will become available in 5 minutes or less.',
                 '/student/classes/' || assignment_row.class_id::text,
                 jsonb_build_object('session_id', assignment_row.id, 'available_at', assignment_row.available_at),
                 'quiz-starts-soon:' || assignment_row.id::text || ':' || assignment_row.student_id::text

@@ -7,6 +7,7 @@ use App\Services\AdminPushService;
 use App\Services\SupabaseService;
 use App\Support\SupabaseAuthError;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -15,8 +16,19 @@ class AuthController extends Controller
         private AdminPushService $adminPush
     ) {}
 
-    public function showLogin()
+    public function showLogin(Request $request)
     {
+        $authAction = (string) $request->query('auth_action', '');
+
+        if ($authAction === 'signup') {
+            session()->flash('success', 'Email confirmed successfully. You can now sign in.');
+        } elseif ($authAction === 'email_change') {
+            session()->flash(
+                'success',
+                'Email confirmation received. Complete any other confirmation link to finish updating your email address.'
+            );
+        }
+
         // If already logged in, redirect to correct dashboard
         if ($user = session('supabase_user')) {
             return $this->redirectByRole($user['role']);
@@ -81,7 +93,13 @@ class AuthController extends Controller
 
         $validated = $request->validate([
             'email' => 'required|email|max:254',
-            'password' => 'required|string|min:6|max:128|confirmed',
+            'password' => [
+                'required',
+                'string',
+                'max:128',
+                'confirmed',
+                Password::min(8)->mixedCase()->numbers()->symbols(),
+            ],
             'role' => 'required|in:student,pending_teacher',
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
@@ -99,7 +117,7 @@ class AuthController extends Controller
             $validated['first_name'],
             $validated['last_name'],
             $gradeLevel,
-            url('/')
+            url('/?auth_action=signup')
         );
 
         if (!$auth['successful']) {
@@ -148,8 +166,35 @@ class AuthController extends Controller
     public function forgotPassword(Request $request)
     {
         $validated = $request->validate(['email' => 'required|email|max:254']);
+        $email = mb_strtolower(trim($validated['email']));
+
+        try {
+            $account = $this->supabase->adminSelectResult('profiles', 'id', [
+                'email' => $email,
+                'limit' => 1,
+            ]);
+        } catch (\Throwable) {
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'MathVerse could not verify that email address. Please try again.'
+            );
+        }
+
+        if ($account['error'] !== null) {
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'MathVerse could not verify that email address. Please try again.'
+            );
+        }
+
+        if ($account['data'] === []) {
+            return back()->withInput($request->only('email'))->withErrors([
+                'email' => 'No MathVerse account is registered with that email address.',
+            ]);
+        }
+
         $result = $this->supabase->resetPassword(
-            $validated['email'],
+            $email,
             url('/reset-password')
         );
         if (!$result['successful']) {
@@ -178,7 +223,13 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'current_password' => 'required|string|max:128',
-            'new_password' => 'required|string|min:6|max:128|confirmed',
+            'new_password' => [
+                'required',
+                'string',
+                'max:128',
+                'confirmed',
+                Password::min(8)->mixedCase()->numbers()->symbols(),
+            ],
         ]);
         $user = session('supabase_user');
         $redirect = $this->securityRedirect($user['role'] ?? 'student');
@@ -223,7 +274,7 @@ class AuthController extends Controller
         $result = $this->supabase->updateAuthUser(
             $check['access_token'],
             ['email' => $newEmail],
-            url('/')
+            url('/?auth_action=email_change')
         );
         if (!$result['successful']) {
             return redirect($redirect)->with('error', $result['error'] ?? 'The email change could not be started.');
@@ -236,14 +287,20 @@ class AuthController extends Controller
 
         return redirect($redirect)->with(
             'success',
-            "Email change requested. Check {$newEmail} for the confirmation link; Supabase may also ask you to confirm from your current address."
+            "Email change requested. Check {$newEmail} and your current email address for confirmation links."
         );
     }
 
     public function updatePassword(Request $request)
     {
         $validated = $request->validate([
-            'password' => 'required|string|min:6|max:128|confirmed',
+            'password' => [
+                'required',
+                'string',
+                'max:128',
+                'confirmed',
+                Password::min(8)->mixedCase()->numbers()->symbols(),
+            ],
             'token' => 'required|string|max:2048',
         ]);
 

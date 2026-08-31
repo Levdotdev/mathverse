@@ -1,31 +1,50 @@
 (() => {
-    const profileMenu = document.getElementById('profileMenu');
-    const profileArrow = document.getElementById('profileArrow');
-    const profileButton = document.querySelector('[data-profile-toggle]');
+    const roots = [...document.querySelectorAll('[data-profile-root]')];
 
-    function closeProfileMenu() {
-        if (!profileMenu || !profileButton) return;
-        profileMenu.classList.remove('open');
-        profileArrow?.classList.remove('rotate-180');
-        profileButton.setAttribute('aria-expanded', 'false');
+    function closeAll(except = null) {
+        roots.forEach(root => {
+            if (root === except) return;
+            root.querySelector('[data-profile-menu]')?.classList.remove('open');
+            root.querySelector('[data-profile-menu]')?.setAttribute('aria-hidden', 'true');
+            root.querySelector('[data-profile-toggle]')?.setAttribute('aria-expanded', 'false');
+        });
     }
 
-    window.toggleProfileMenu = event => {
-        event?.stopPropagation();
-        if (!profileMenu || !profileButton) return;
-        const willOpen = !profileMenu.classList.contains('open');
-        profileMenu.classList.toggle('open', willOpen);
-        profileArrow?.classList.toggle('rotate-180', willOpen);
-        profileButton.setAttribute('aria-expanded', String(willOpen));
-    };
+    roots.forEach(root => {
+        const toggle = root.querySelector('[data-profile-toggle]');
+        const menu = root.querySelector('[data-profile-menu]');
+        if (!toggle || !menu) return;
 
-    document.addEventListener('click', event => {
-        if (!profileMenu?.contains(event.target) && !profileButton?.contains(event.target)) {
-            closeProfileMenu();
-        }
+        toggle.addEventListener('click', event => {
+            event.stopPropagation();
+            const willOpen = !menu.classList.contains('open');
+            closeAll(root);
+            menu.classList.toggle('open', willOpen);
+            menu.setAttribute('aria-hidden', String(!willOpen));
+            toggle.setAttribute('aria-expanded', String(willOpen));
+            if (willOpen) {
+                document.dispatchEvent(new CustomEvent('mathverse:header-menu-open', {
+                    detail: { kind: 'profile' },
+                }));
+            }
+        });
+        menu.addEventListener('click', event => {
+            event.stopPropagation();
+            if (event.target.closest('a, button')) closeAll();
+        });
     });
+
+    document.addEventListener('mathverse:header-menu-open', event => {
+        if (event.detail?.kind !== 'profile') closeAll();
+    });
+    document.addEventListener('click', () => closeAll());
 
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') closeProfileMenu();
+        if (event.key !== 'Escape') return;
+        const openRoot = roots.find(root => root.querySelector('[data-profile-menu]')?.classList.contains('open'));
+        closeAll();
+        openRoot?.querySelector('[data-profile-toggle]')?.focus();
     });
+    window.addEventListener('resize', () => closeAll());
+    window.addEventListener('orientationchange', () => closeAll());
 })();

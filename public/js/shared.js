@@ -70,6 +70,40 @@ function hideToast() {
     toast.classList.add('opacity-0', 'pointer-events-none');
 }
 
+function handleAuthConfirmationReturn() {
+    const url = new URL(window.location.href);
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+    const action = url.searchParams.get('auth_action') || hashParams.get('type');
+    const hasAuthError = url.searchParams.has('error') || hashParams.has('error');
+    const messages = {
+        signup: 'Email confirmed successfully. You can now sign in.',
+        email_change: 'Email confirmation received. Complete any other confirmation link to finish updating your email address.',
+        email_change_current: 'Email confirmation received. Complete any other confirmation link to finish updating your email address.',
+        email_change_new: 'Email confirmation received. Complete any other confirmation link to finish updating your email address.',
+    };
+    const isConfirmationReturn = Object.prototype.hasOwnProperty.call(messages, action);
+
+    if (!isConfirmationReturn) return;
+
+    showToast(
+        hasAuthError ? 'This email confirmation link is invalid or expired.' : messages[action],
+        hasAuthError
+    );
+
+    ['auth_action', 'code', 'token', 'token_hash', 'type', 'error', 'error_code', 'error_description']
+        .forEach(parameter => url.searchParams.delete(parameter));
+    url.hash = '';
+    const cleanUrl = url.pathname + (url.searchParams.size ? `?${url.searchParams.toString()}` : '');
+    window.history.replaceState(window.history.state, document.title, cleanUrl);
+}
+
+const scheduleAuthConfirmationReturn = () => window.setTimeout(handleAuthConfirmationReturn, 0);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scheduleAuthConfirmationReturn, { once: true });
+} else {
+    scheduleAuthConfirmationReturn();
+}
+
 function tglPass(id, icoId) {
     const inp = document.getElementById(id);
     const ico = document.getElementById(icoId);

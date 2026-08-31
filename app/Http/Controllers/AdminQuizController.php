@@ -948,7 +948,7 @@ class AdminQuizController extends Controller
         if (str_contains(strtolower($message), 'schema cache')
             || str_contains(strtolower($message), 'could not find the function')
             || str_contains(strtolower($message), 'restore_quiz_version')) {
-            return 'Version restoration is missing from Supabase. Run the standalone quiz hotfix migration, then try again.';
+            return 'Version restoration is unavailable. Run the standalone quiz database update, then try again.';
         }
 
         return 'Version restore failed: ' . \Illuminate\Support\Str::limit($message, 220);

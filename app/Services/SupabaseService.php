@@ -599,7 +599,7 @@ class SupabaseService
             'data' => $data,
             'error' => $response->successful()
                 ? null
-                : ($data['error_description'] ?? $data['msg'] ?? $data['message'] ?? $data['error'] ?? 'Supabase Auth request failed.'),
+                : ($data['error_description'] ?? $data['msg'] ?? $data['message'] ?? $data['error'] ?? 'Authentication request failed.'),
             'status' => $response->status(),
         ];
     }
