@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
         roots.forEach(root => {
             if (root === except) return;
             root.querySelector('[data-notification-menu]')?.classList.add('hidden');
+            root.querySelector('[data-notification-menu]')?.setAttribute('aria-hidden', 'true');
             root.querySelector('[data-notification-toggle]')?.setAttribute('aria-expanded', 'false');
         });
     }
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const willOpen = menu.classList.contains('hidden');
             closeAll(root);
             menu.classList.toggle('hidden', !willOpen);
+            menu.setAttribute('aria-hidden', String(!willOpen));
             toggle.setAttribute('aria-expanded', String(willOpen));
         });
         menu.addEventListener('click', event => event.stopPropagation());
@@ -26,6 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.addEventListener('click', () => closeAll());
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') closeAll();
+        if (event.key !== 'Escape') return;
+        const openRoot = roots.find(root => !root.querySelector('[data-notification-menu]')?.classList.contains('hidden'));
+        closeAll();
+        openRoot?.querySelector('[data-notification-toggle]')?.focus();
     });
+    window.addEventListener('resize', () => closeAll());
+    window.addEventListener('orientationchange', () => closeAll());
 });

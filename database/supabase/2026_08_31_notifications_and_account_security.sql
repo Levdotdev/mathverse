@@ -742,7 +742,7 @@ begin
           )
           and (
               sessions.available_at between timezone('utc', now()) and timezone('utc', now()) + interval '24 hours'
-              or sessions.due_at between timezone('utc', now()) and timezone('utc', now()) + interval '24 hours'
+              or sessions.due_at between timezone('utc', now()) and timezone('utc', now()) + interval '30 minutes'
           )
     loop
         if assignment_row.status = 'waiting'
@@ -760,12 +760,12 @@ begin
             if notification_id is not null then inserted_count := inserted_count + 1; end if;
         end if;
 
-        if assignment_row.due_at between timezone('utc', now()) and timezone('utc', now()) + interval '24 hours' then
+        if assignment_row.due_at between timezone('utc', now()) and timezone('utc', now()) + interval '30 minutes' then
             notification_id := public.create_notification(
                 assignment_row.student_id,
                 'quiz_due_soon',
-                'Quiz due within 24 hours',
-                coalesce(assignment_row.topic, 'A quiz') || ' is due soon.',
+                'Quiz due within 30 minutes',
+                coalesce(assignment_row.topic, 'A quiz') || ' is due in 30 minutes or less.',
                 '/student/classes/' || assignment_row.class_id::text,
                 jsonb_build_object('session_id', assignment_row.id, 'due_at', assignment_row.due_at),
                 'quiz-due-soon:' || assignment_row.id::text || ':' || assignment_row.student_id::text

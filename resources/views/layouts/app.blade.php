@@ -1,10 +1,15 @@
+@php
+    $flashToastMessage = $errors->first() ?: (session('success') ?? session('error'));
+    $flashToastIsError = $errors->any() || session()->has('error');
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#05070d">
+    <meta name="color-scheme" content="dark">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>MathVerse | @yield('title', 'Academic Portal')</title>
 
@@ -18,7 +23,7 @@
 
     @stack('head')
 </head>
-<body class="@yield('body-class', 'flex items-center justify-center p-4 min-h-screen')">
+<body class="app-body @yield('body-class', 'flex items-center justify-center p-4 min-h-screen')">
 
     {{-- Background effects used on every page --}}
     <div class="stars-container"></div>
@@ -67,20 +72,37 @@
     @endif
 
     {{-- Toast notification - available on every page --}}
-    <div id="toast" role="status" aria-live="polite" aria-atomic="true" class="fixed bottom-6 right-4 bg-cyan-500 text-black font-bold px-6 py-3 rounded shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-[10000] text-xs uppercase">
-        <i class="fas fa-info-circle mr-2"></i>
-        <span id="toast-msg">Success</span>
+    <div id="toast"
+         role="{{ $flashToastIsError ? 'alert' : 'status' }}"
+         aria-live="{{ $flashToastIsError ? 'assertive' : 'polite' }}"
+         aria-atomic="true"
+         aria-hidden="{{ $flashToastMessage ? 'false' : 'true' }}"
+         data-initial-visible="{{ $flashToastMessage ? 'true' : 'false' }}"
+         class="global-toast fixed z-[10000] flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-bold leading-5 shadow-2xl transition-all duration-300 {{ $flashToastIsError ? 'bg-red-500 text-white' : 'bg-cyan-500 text-black' }} {{ $flashToastMessage ? 'opacity-100' : 'opacity-0 pointer-events-none' }}">
+        <i class="fas {{ $flashToastIsError ? 'fa-circle-exclamation' : 'fa-circle-check' }} mt-0.5 shrink-0" data-toast-icon aria-hidden="true"></i>
+        <span id="toast-msg" class="min-w-0 flex-1 break-words">{{ $flashToastMessage ?: 'Success' }}</span>
+        <button type="button" class="toast-close -m-1 ml-1 min-h-8 min-w-8 rounded p-1" aria-label="Dismiss notification" onclick="hideToast()">
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+        </button>
     </div>
 
     <script src="{{ asset('js/shared.js') }}?v={{ filemtime(public_path('js/shared.js')) }}"></script>
 
     {{-- One toast path for validation errors and redirect flash messages. --}}
-    @if($errors->any() || session('success') || session('error'))
+    @if($flashToastMessage)
     <script>
-        showToast(
-            @json($errors->first() ?: (session('success') ?? session('error'))),
-            @json($errors->any() || session()->has('error'))
-        );
+        (() => {
+            const displayFlashToast = () => showToast(
+                @json($flashToastMessage),
+                @json($flashToastIsError)
+            );
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', displayFlashToast, { once: true });
+            } else {
+                displayFlashToast();
+            }
+        })();
     </script>
     @endif
 

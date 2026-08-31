@@ -12,45 +12,68 @@ function _spawn() {
     c.appendChild(p);
     setTimeout(() => p.remove(), 10000);
 }
-const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+const reducedMotionQuery = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : { matches: false };
 let particleTimer = null;
 
 function syncBackgroundMotion() {
     if (reducedMotionQuery.matches) {
         clearInterval(particleTimer);
         particleTimer = null;
-        document.getElementById('particle-container')?.replaceChildren();
+        const particleContainer = document.getElementById('particle-container');
+        if (particleContainer) particleContainer.textContent = '';
         return;
     }
     if (!particleTimer) particleTimer = setInterval(_spawn, 1500);
 }
 
 syncBackgroundMotion();
-reducedMotionQuery.addEventListener?.('change', syncBackgroundMotion);
+if (typeof reducedMotionQuery.addEventListener === 'function') {
+    reducedMotionQuery.addEventListener('change', syncBackgroundMotion);
+} else if (typeof reducedMotionQuery.addListener === 'function') {
+    reducedMotionQuery.addListener(syncBackgroundMotion);
+}
 
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     if (!toast) return;
-    document.getElementById('toast-msg').innerText = message;
+    const messageNode = document.getElementById('toast-msg');
+    if (messageNode) messageNode.textContent = String(message ?? '');
     toast.setAttribute('role', isError ? 'alert' : 'status');
     toast.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+    toast.setAttribute('aria-hidden', 'false');
+    toast.dataset.initialVisible = 'false';
     toast.classList.toggle('bg-red-500', isError);
     toast.classList.toggle('bg-cyan-500', !isError);
+    toast.classList.toggle('text-white', isError);
+    toast.classList.toggle('text-black', !isError);
 
-    // Show
+    const icon = toast.querySelector('[data-toast-icon]');
+    if (icon) {
+        icon.classList.toggle('fa-circle-exclamation', isError);
+        icon.classList.toggle('fa-circle-check', !isError);
+    }
+
     toast.classList.remove('opacity-0', 'pointer-events-none');
     toast.classList.add('opacity-100');
 
-    clearTimeout(globalThis.mathVerseToastTimer);
-    globalThis.mathVerseToastTimer = setTimeout(() => {
-        toast.classList.remove('opacity-100');
-        toast.classList.add('opacity-0', 'pointer-events-none');
-    }, 4500);
+    window.clearTimeout(window.mathVerseToastTimer);
+    window.mathVerseToastTimer = window.setTimeout(hideToast, 6000);
+}
+
+function hideToast() {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.setAttribute('aria-hidden', 'true');
+    toast.classList.remove('opacity-100');
+    toast.classList.add('opacity-0', 'pointer-events-none');
 }
 
 function tglPass(id, icoId) {
     const inp = document.getElementById(id);
     const ico = document.getElementById(icoId);
+    if (!inp || !ico) return;
     if (inp.type === 'password') {
         inp.type = 'text';
         ico.classList.replace('fa-eye-slash', 'fa-eye');
@@ -62,9 +85,25 @@ function tglPass(id, icoId) {
     }
 }
 
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text);
-    showToast('Code Copied: ' + text);
+async function copyToClipboard(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const helper = document.createElement('textarea');
+            helper.value = text;
+            helper.setAttribute('readonly', '');
+            helper.style.position = 'fixed';
+            helper.style.opacity = '0';
+            document.body.appendChild(helper);
+            helper.select();
+            if (!document.execCommand('copy')) throw new Error('Copy failed');
+            helper.remove();
+        }
+        showToast('Code copied: ' + text);
+    } catch (error) {
+        showToast('The code could not be copied. Select and copy it manually.', true);
+    }
 }
 
 function openModal(id) {
@@ -135,7 +174,7 @@ function ensureModalLabel(modal, id) {
 
 document.addEventListener('keydown', event => {
     const modals = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
-    const modal = modals.at(-1);
+    const modal = modals[modals.length - 1];
     if (!modal) return;
 
     if (event.key === 'Escape') {
@@ -152,7 +191,7 @@ document.addEventListener('keydown', event => {
         return;
     }
     const first = focusable[0];
-    const last = focusable.at(-1);
+    const last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
@@ -162,9 +201,20 @@ document.addEventListener('keydown', event => {
     }
 });
 
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('-translate-x-full');
-    document.getElementById('sidebar-overlay').classList.toggle('hidden');
+function toggleSidebar(forceOpen = null) {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (!sidebar || !overlay) return;
+
+    const currentlyOpen = !sidebar.classList.contains('-translate-x-full');
+    const shouldOpen = forceOpen === null ? !currentlyOpen : Boolean(forceOpen);
+    sidebar.classList.toggle('-translate-x-full', !shouldOpen);
+    overlay.classList.toggle('hidden', !shouldOpen);
+    document.body.classList.toggle('sidebar-open', shouldOpen && window.innerWidth < 768);
+    document.querySelectorAll('[data-sidebar-toggle]').forEach(button => {
+        button.setAttribute('aria-expanded', String(shouldOpen));
+        button.setAttribute('aria-label', shouldOpen ? 'Close navigation' : 'Open navigation');
+    });
 }
 
 function showSection(id) {
@@ -181,8 +231,20 @@ function showSection(id) {
     sec.classList.add('animate-fade-in');
     document.getElementById('btn-' + id)?.classList.add('active');
 
+    if (window.innerWidth < 768) toggleSidebar(false);
+
     return true;
 }
+
+window.addEventListener('resize', () => {
+    if (window.innerWidth >= 768) {
+        document.getElementById('sidebar-overlay')?.classList.add('hidden');
+        document.body.classList.remove('sidebar-open');
+        document.querySelectorAll('[data-sidebar-toggle]').forEach(button => {
+            button.setAttribute('aria-expanded', 'false');
+        });
+    }
+});
 
 // Read CSRF token from meta tag (set in layout)
 function csrfToken() {

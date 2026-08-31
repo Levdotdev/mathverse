@@ -19,7 +19,7 @@ begin
              and tgname = 'quiz_results_00_explicit_retake_guard'
              and not tgisinternal
        ) then
-        raise exception 'The first-attempt guard is missing. Run 2026_08_30_assignment_usage_and_attempt_integrity.sql first.';
+        raise exception 'The explicit-retake guard is missing. Run 2026_08_30_assignment_usage_and_attempt_integrity.sql first.';
     end if;
 end
 $$;
@@ -76,17 +76,18 @@ as $$
 declare
     delivery_channel text;
     recipient record;
-    result_attempt integer := 1;
 begin
     -- These two browser pushes are sent immediately by the existing Laravel
-    -- admin broadcast calls. Excluding them here prevents duplicate alerts.
-    if new.type in ('teacher_verification', 'quiz_report_submitted') then
+    -- admin broadcast calls. Password and completed email-address changes are
+    -- already sent by Supabase Auth. Excluding all four here prevents duplicate
+    -- operating-system alerts while keeping their bell entries available.
+    if new.type in (
+        'teacher_verification',
+        'quiz_report_submitted',
+        'password_changed',
+        'email_changed'
+    ) then
         return new;
-    end if;
-
-    if new.type = 'quiz_result_recorded'
-       and coalesce(new.data ->> 'attempt_number', '') ~ '^[0-9]+$' then
-        result_attempt := (new.data ->> 'attempt_number')::integer;
     end if;
 
     delivery_channel := case
@@ -99,9 +100,9 @@ begin
             'quiz_started',
             'quiz_retake_granted',
             'quiz_excused',
-            'removed_from_class'
+            'removed_from_class',
+            'quiz_result_recorded'
         ) then 'email'
-        when new.type = 'quiz_result_recorded' and result_attempt = 1 then 'email'
         else 'web_push'
     end;
 
@@ -366,9 +367,9 @@ begin
 end;
 $$;
 
--- Duplicate client inserts are already stopped by the explicit-retake guard.
--- Include the server-assigned attempt number so only attempt 1 receives an
--- email receipt; an authorized retake remains a separate immutable result.
+-- Duplicate client inserts are already stopped by the explicit-retake and
+-- allowance guards. Include the server-assigned attempt number so the initial
+-- result and each separately teacher-authorized retake receive one receipt.
 create or replace function public.notify_quiz_result_created()
 returns trigger
 language plpgsql

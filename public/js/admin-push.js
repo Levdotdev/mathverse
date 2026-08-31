@@ -4,13 +4,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const statuses = [...document.querySelectorAll('[data-push-status]')];
 
     const publicKey = buttons[0].dataset.vapidKey ?? '';
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
     const supported = 'serviceWorker' in navigator
         && 'PushManager' in window
         && 'Notification' in window;
 
+    if (isIos && !isStandalone) {
+        setButtonsDisabled(true);
+        setStatus('On iPhone or iPad, add MathVerse to the Home Screen, open the installed app, then enable Browser Alerts.');
+        return;
+    }
+
+    if (!window.isSecureContext) {
+        setButtonsDisabled(true);
+        setStatus('Browser Alerts require the secure HTTPS version of MathVerse.');
+        return;
+    }
+
     if (!supported) {
         setButtonsDisabled(true);
-        setStatus('This browser does not support Web Push.');
+        setStatus('This browser or operating-system version does not support Web Push. Bell notifications remain available.');
         return;
     }
 
@@ -83,7 +99,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function setButtonsDisabled(disabled) {
-        buttons.forEach(button => { button.disabled = disabled; });
+        buttons.forEach(button => {
+            button.disabled = disabled;
+            button.setAttribute('aria-disabled', String(disabled));
+        });
     }
 
     function setButtonText(message) {

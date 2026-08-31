@@ -31,9 +31,9 @@
     ];
 @endphp
 
-<div class="relative" data-notification-root>
-    <button type="button" data-notification-toggle aria-expanded="false" aria-label="Open notifications"
-            class="relative w-11 h-11 rounded border border-white/10 bg-black/70 hover:border-cyan-400/50 hover:bg-white/5 transition-colors flex items-center justify-center">
+<div class="notification-root relative shrink-0" data-notification-root>
+    <button type="button" data-notification-toggle aria-expanded="false" aria-haspopup="dialog" aria-label="Open notifications"
+            class="notification-toggle relative w-11 h-11 rounded border border-white/10 bg-black/70 hover:border-cyan-400/50 hover:bg-white/5 transition-colors flex items-center justify-center">
         <i class="fas fa-bell text-slate-300"></i>
         @if($notificationUnread > 0)
             <span class="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-black">
@@ -42,8 +42,8 @@
         @endif
     </button>
 
-    <div data-notification-menu
-         class="hidden absolute right-0 mt-3 w-[min(24rem,calc(100vw-2rem))] max-h-[70vh] overflow-hidden rounded-lg border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl z-[200]">
+    <div data-notification-menu role="dialog" aria-label="Notifications" aria-hidden="true"
+         class="notification-menu hidden absolute right-0 mt-3 w-[min(24rem,calc(100vw-2rem))] max-h-[70vh] overflow-hidden rounded-lg border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl z-[200]">
         <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10">
             <div>
                 <p class="font-orbitron text-xs font-bold uppercase">Notifications</p>
@@ -57,7 +57,7 @@
             @endif
         </div>
 
-        <div class="max-h-[58vh] overflow-y-auto">
+        <div class="notification-list max-h-[58vh] overflow-y-auto overscroll-contain">
             @forelse($notificationRows as $notification)
                 @php
                     [$notificationIcon, $notificationColor] = $notificationIcons[$notification['type'] ?? '']
@@ -74,10 +74,10 @@
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="flex items-start gap-2">
-                                <span class="text-xs font-bold text-white leading-5">{{ $notification['title'] }}</span>
+                                <span class="min-w-0 break-words text-xs font-bold text-white leading-5">{{ $notification['title'] }}</span>
                                 @if($isUnread)<span class="w-2 h-2 mt-1 rounded-full bg-cyan-400 shrink-0"></span>@endif
                             </span>
-                            <span class="block text-[10px] text-slate-400 leading-4 mt-1">{{ $notification['message'] }}</span>
+                            <span class="block break-words text-[10px] text-slate-400 leading-4 mt-1">{{ $notification['message'] }}</span>
                             <span class="block text-[9px] text-slate-600 mt-2">
                                 {{ \Carbon\Carbon::parse($notification['created_at'])->timezone(config('app.timezone'))->diffForHumans() }}
                             </span>

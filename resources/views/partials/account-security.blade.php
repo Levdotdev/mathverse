@@ -103,7 +103,7 @@
                 <button type="button" data-push-toggle
                         data-subscription-url="/push-subscription"
                         data-vapid-key="{{ config('services.web_push.public_key') }}"
-                        class="btn-rect-secondary !py-3 !px-5 !w-auto shrink-0">
+                        class="browser-alert-button btn-rect-secondary !py-3 !px-5 !w-auto shrink-0">
                     Enable Browser Alerts
                 </button>
             </div>

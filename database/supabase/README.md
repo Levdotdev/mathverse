@@ -117,8 +117,9 @@ After all August 30 files above, run
 notification center and event triggers for teacher verification, class roster
 changes, quiz assignments and scheduling, retakes and excuses, submissions,
 shared-quiz use, moderation, quiz verification, and completed Auth security
-changes. It also installs idempotent 24-hour quiz start/due reminders and keeps
-`profiles.email` synchronized after Supabase confirms an Auth email change.
+changes. It also installs idempotent 24-hour quiz-start and 30-minute quiz-due
+reminders and keeps `profiles.email` synchronized after Supabase confirms an
+Auth email change.
 
 The application remains usable before this migration is applied, but the bell
 will stay empty and email-change completion will not synchronize the profile
@@ -132,18 +133,27 @@ Then run `2026_08_31_notifications_delivery_channels.sql`. It adds a protected,
 retryable delivery outbox. The requested application events are sent as
 designed Laravel emails: teacher application receipt and decision, account
 suspension/restoration, quiz assignment/availability, retake, excuse,
-first-attempt submission receipt, and removal from a class. Other bell events
-are routed to targeted Web Push. The original all-admin teacher-registration
-and quiz-report pushes are deliberately excluded from the outbox because their
-existing immediate broadcasts remain in place.
+submission receipts for the initial attempt and each teacher-authorized retake,
+and removal from a class. Other bell events are routed to targeted Web Push.
+Completed password and email-address changes stay in the bell but do not create
+Web Push because Supabase Auth already sends their security emails. The original
+all-admin teacher-registration and quiz-report pushes are deliberately excluded
+from the outbox because their existing immediate broadcasts remain in place.
 
 Unapproved repeat result inserts are still ignored by
 `2026_08_30_assignment_usage_and_attempt_integrity.sql`. A submission-receipt
-email is queued only when the database-assigned `attempt_number` is `1`.
-Teacher-authorized retakes remain separate immutable results and do not receive
-another receipt email. Use
+email is queued for every result row the database successfully accepts. The
+initial attempt receives one receipt, and each teacher grant permits exactly one
+additional immutable retake result and receipt. Use
 `2026_08_31_notifications_delivery_channels_rollback.sql` to remove only the
 delivery outbox and restore the prior notification function bodies.
+
+Finally run `2026_08_31_notification_delivery_policy_followup.sql`. This small
+idempotent follow-up also upgrades projects that already installed the first two
+August 31 migrations: it removes queued password/email security pushes,
+reclassifies unsent authorized-retake receipts as email, and rearms premature
+due reminders for the 30-minute window. Its paired `_rollback.sql` file restores
+the former delivery policy but cannot retract an alert that was already sent.
 
 ### Configure application email delivery
 
@@ -166,7 +176,8 @@ MAIL_FROM_NAME="Math MetaVerse"
 ```
 
 Keep `APP_URL` equal to the deployed HTTPS root URL; email buttons are built
-from it. The server must also invoke Laravel's scheduler every minute:
+from it. Laravel Cloud runs the schedule declared in `routes/console.php`
+automatically. For a self-hosted server, invoke Laravel's scheduler every minute:
 
 ```bash
 php artisan schedule:run

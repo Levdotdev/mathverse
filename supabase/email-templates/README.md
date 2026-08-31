@@ -40,13 +40,14 @@ The matching local Supabase CLI settings are included in `supabase/config.toml`.
 ## Application-event emails
 
 Teacher decisions, account-status changes, assignments, quiz availability,
-retakes, excuses, first-attempt receipts, and class removal are normal
-application events rather than Supabase Auth events. Do not paste their shared
-Blade design into the Supabase Auth template editor. Laravel renders
+retakes, excuses, initial-attempt and authorized-retake receipts, and class
+removal are normal application events rather than Supabase Auth events. Do not
+paste their shared Blade design into the Supabase Auth template editor. Laravel renders
 `resources/views/emails/mathverse-event.blade.php` and sends those messages
 from the notification delivery outbox.
 
 Configure Laravel's `MAIL_*` variables with a production SMTP service. If
 Supabase Auth already uses Custom SMTP, the same provider credentials and
 verified sender can be used so both kinds of email have one sender identity.
-Also run Laravel's scheduler every minute so queued messages are delivered.
+Laravel Cloud runs the schedule automatically. On other hosts, run Laravel's
+scheduler every minute so queued messages are delivered.

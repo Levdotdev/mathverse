@@ -4,9 +4,9 @@
 
 @section('content')
 
-<div id="sidebar-overlay" class="fixed inset-0 bg-black/80 z-40 hidden" onclick="toggleSidebar()"></div>
+<button type="button" id="sidebar-overlay" class="fixed inset-0 bg-black/80 z-40 hidden md:hidden" onclick="toggleSidebar(false)" aria-label="Close navigation"></button>
 
-<aside id="sidebar" class="fixed inset-y-0 left-0 w-64 border-r @yield('sidebar-border', 'border-white/10') backdrop-blur-xl bg-black/60 flex flex-col p-6 z-50 transform -translate-x-full transition-transform duration-300 md:sticky md:top-0 md:h-screen md:translate-x-0">
+<aside id="sidebar" aria-label="Primary navigation" class="dashboard-sidebar fixed inset-y-0 left-0 w-64 border-r @yield('sidebar-border', 'border-white/10') backdrop-blur-xl bg-black/60 flex flex-col p-6 z-50 transform -translate-x-full transition-transform duration-300 md:sticky md:top-0 md:h-screen md:translate-x-0">
     <div class="mb-10 text-center">
         <h1 class="font-orbitron text-xl font-black tracking-tighter text-white">
             MATH<span class="@yield('accent-color', 'text-cyan-400')">VERSE</span>
@@ -21,14 +21,15 @@
     </nav>
 
     <div class="relative mb-6">
-        <button onclick="toggleProfileMenu(event)"
+        <button type="button" onclick="toggleProfileMenu(event)" aria-haspopup="true" aria-expanded="false" data-profile-toggle
             class="flex items-center gap-3 w-full">
 
             <img src="{{ $user['avatar_url'] ?: asset('default.png') }}"
-                class="w-10 h-10 rounded-full object-cover border border-white/10">
+                alt="{{ trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'User' }} profile image"
+                width="40" height="40" class="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0">
 
-            <div class="text-left">
-                <p class="text-xs font-bold">
+            <div class="text-left min-w-0">
+                <p class="text-xs font-bold truncate">
                     {{ trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'User' }}
                 </p>
                 <p class="text-[10px] text-slate-500">
@@ -74,20 +75,20 @@
     </div>
 </aside>
 
-<main class="flex-1 min-w-0 p-4 md:p-8 z-20 relative">
+<main id="main-content" class="app-shell-main flex-1 min-w-0 w-full p-4 md:p-8 z-20 relative">
 
     {{-- Mobile header --}}
-    <div class="md:hidden relative z-[300] overflow-visible flex items-center justify-between mb-8 p-4 rounded-xl border border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl @yield('mobile-border', '')">
-        <button onclick="toggleSidebar()" class="text-2xl @yield('accent-color', 'text-cyan-400')">
+    <div class="mobile-dashboard-header md:hidden relative z-[300] overflow-visible flex items-center justify-between gap-3 mb-8 p-4 rounded-xl border border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl @yield('mobile-border', '')">
+        <button type="button" onclick="toggleSidebar()" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation" class="min-w-11 min-h-11 text-2xl @yield('accent-color', 'text-cyan-400')">
             <i class="fas fa-bars"></i>
         </button>
-        <h1 class="font-orbitron font-bold text-xs tracking-widest uppercase">
+        <h1 class="min-w-0 truncate font-orbitron font-bold text-xs tracking-widest uppercase">
             @yield('mobile-title')
         </h1>
         @include('partials.notifications')
     </div>
 
-    <div class="hidden md:flex justify-end mb-4">
+    <div class="desktop-notification-bar hidden md:flex justify-end mb-4">
         @include('partials.notifications')
     </div>
 

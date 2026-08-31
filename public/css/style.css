@@ -6,21 +6,54 @@
     --neon-white: white;
 }
 
+html {
+    width: 100%;
+    min-height: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    color-scheme: dark;
+}
+
 * {
     -webkit-tap-highlight-color: transparent;
-    user-select: none;
     box-sizing: border-box;
+}
+
+button,
+[role="button"] {
+    touch-action: manipulation;
+    user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+    user-select: text;
+}
+
+img,
+svg,
+video,
+canvas {
+    max-width: 100%;
 }
 
 body {
     font-family: 'Rajdhani', sans-serif;
     background-color: var(--deep-space);
     min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+    max-width: 100%;
+    overflow-x: hidden;
     overflow-x: clip;
 }
 
-body.modal-open {
+body.modal-open,
+body.sidebar-open {
     overflow: hidden;
+    overscroll-behavior: none;
 }
 
 :focus-visible {
@@ -53,6 +86,7 @@ body.modal-open {
     background-size: 45px 45px;
     transform: perspective(500px) rotateX(65deg);
     opacity: 0.12;
+    -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0));
     mask-image: linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0));
     z-index: -3;
 }
@@ -94,9 +128,11 @@ body.modal-open {
 /* --- UI COMPONENTS --- */
 .portal-frame {
     background: rgba(10, 10, 15, 0.94);
+    -webkit-backdrop-filter: blur(25px);
     backdrop-filter: blur(25px);
     border: 1px solid rgba(0, 242, 255, 0.25);
     box-shadow: 0 0 50px rgba(0,0,0,0.9);
+    -webkit-clip-path: polygon(0 25px, 25px 0, calc(100% - 25px) 0, 100% 25px, 100% calc(100% - 25px), calc(100% - 25px) 100%, 25px 100%, 0 calc(100% - 25px));
     clip-path: polygon(0 25px, 25px 0, calc(100% - 25px) 0, 100% 25px, 100% calc(100% - 25px), calc(100% - 25px) 100%, 25px 100%, 0 calc(100% - 25px));
     transition: filter 0.5s ease;
 }
@@ -135,7 +171,7 @@ body.modal-open {
     background: linear-gradient(135deg, var(--neon-white), var(--neon-cyan), var(--neon-cyan));
     color: #000; font-family: 'Orbitron', sans-serif;
     font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase;
-    padding: 15px 0; clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+    padding: 15px 0; -webkit-clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%); clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
     width: 100%; cursor: pointer; border: none;
     transition: filter 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s;
 }
@@ -203,8 +239,9 @@ body.modal-open {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.5);
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
-    z-index: 100;
+    z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -465,4 +502,216 @@ select.input-mobile-ultra:required:invalid {
     color: #64748b !important;
     -webkit-text-fill-color: #64748b !important;
     font-weight: 400 !important;
+}
+
+/* Cross-platform shell --------------------------------------------------- */
+.app-body,
+.app-shell-main,
+.content-section,
+.portal-frame,
+form,
+fieldset {
+    min-width: 0;
+}
+
+.app-body {
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+}
+
+.app-shell-main {
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.dashboard-sidebar {
+    height: 100vh;
+    height: 100dvh;
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    overscroll-behavior: contain;
+}
+
+.mobile-dashboard-header,
+.notification-menu {
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+}
+
+.notification-list {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+}
+
+.overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+}
+
+.notification-menu,
+.global-toast,
+.portal-frame,
+.input-field,
+.input-mobile-ultra {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.global-toast {
+    right: 1rem;
+    bottom: 1.5rem;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+    width: min(30rem, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+}
+
+.toast-close {
+    color: currentColor;
+    opacity: 0.75;
+}
+
+.toast-close:hover,
+.toast-close:focus-visible {
+    opacity: 1;
+}
+
+.browser-alert-button {
+    max-width: 100%;
+    min-height: 44px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .portal-frame,
+    .dashboard-sidebar,
+    .mobile-dashboard-header,
+    .notification-menu,
+    .modal-overlay {
+        background-color: rgb(5, 7, 13) !important;
+    }
+}
+
+@media (max-width: 767px) {
+    input,
+    select,
+    textarea,
+    .input-field,
+    .input-mobile-ultra {
+        font-size: 16px;
+    }
+
+    .app-shell-main {
+        padding-top: max(1rem, env(safe-area-inset-top));
+    }
+
+    .mobile-dashboard-header {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .notification-menu {
+        position: fixed !important;
+        top: 5.25rem;
+        right: 0.75rem !important;
+        left: 0.75rem !important;
+        top: max(5.25rem, calc(env(safe-area-inset-top) + 4.5rem));
+        right: max(0.75rem, env(safe-area-inset-right)) !important;
+        left: max(0.75rem, env(safe-area-inset-left)) !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: calc(100vh - 6.5rem) !important;
+        max-height: calc(100dvh - 6.5rem) !important;
+        margin-top: 0 !important;
+    }
+
+    .notification-list {
+        max-height: calc(100vh - 12rem) !important;
+        max-height: calc(100dvh - 12rem) !important;
+    }
+
+    .global-toast {
+        right: 0.75rem;
+        left: 0.75rem;
+        bottom: 0.75rem;
+        right: max(0.75rem, env(safe-area-inset-right));
+        left: max(0.75rem, env(safe-area-inset-left));
+        bottom: max(0.75rem, calc(env(safe-area-inset-bottom) + 0.5rem));
+        width: auto;
+        max-width: none;
+    }
+
+    .modal-overlay {
+        align-items: flex-start;
+        overflow-y: auto;
+        padding-top: max(1rem, env(safe-area-inset-top));
+        padding-right: max(1rem, env(safe-area-inset-right));
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        padding-left: max(1rem, env(safe-area-inset-left));
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .modal-overlay > .portal-frame,
+    .modal-overlay > form,
+    .modal-overlay > div {
+        width: 100%;
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+        margin: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 374px) {
+    .portal-frame {
+        -webkit-clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px));
+        clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px));
+    }
+
+    .mobile-dashboard-header {
+        padding: 0.75rem;
+    }
+}
+
+@media (hover: none), (pointer: coarse) {
+    .btn-rect-primary:hover,
+    .btn-mobile-ultra:hover {
+        transform: none;
+    }
+}
+
+@media (forced-colors: active) {
+    :focus-visible {
+        outline-color: Highlight;
+    }
+
+    .portal-frame,
+    .notification-menu,
+    .input-field,
+    .input-mobile-ultra,
+    button,
+    a {
+        forced-color-adjust: auto;
+    }
+}
+
+@media (prefers-contrast: more) {
+    .portal-frame,
+    .notification-menu,
+    .input-field,
+    .input-mobile-ultra {
+        border-width: 2px;
+    }
+
+    .text-slate-500,
+    .text-slate-600 {
+        color: #cbd5e1 !important;
+    }
 }

@@ -236,7 +236,7 @@ class NotificationDeliveryService
                 'action_label' => 'View Quiz Result',
                 'eyebrow' => 'Submission Receipt',
                 'accent' => '#22d3ee',
-                'note' => 'This receipt is sent only for the first successfully stored attempt.',
+                'note' => 'One receipt is sent for the initial attempt and for each separately teacher-authorized retake.',
             ],
             'removed_from_class' => [
                 'action_label' => 'Open Student Dashboard',
@@ -262,10 +262,16 @@ class NotificationDeliveryService
         if (($delivery['event_type'] ?? '') === 'quiz_result_recorded') {
             $correct = isset($data['correct_answers']) ? (int) $data['correct_answers'] : null;
             $total = isset($data['total_questions']) ? (int) $data['total_questions'] : null;
+            $attempt = max(1, (int) ($data['attempt_number'] ?? 1));
             if ($correct !== null && $total !== null) {
                 $details[] = ['label' => 'Recorded score', 'value' => "{$correct} of {$total} correct"];
             }
-            $details[] = ['label' => 'Receipt', 'value' => 'First saved attempt'];
+            $details[] = [
+                'label' => 'Attempt',
+                'value' => $attempt === 1
+                    ? 'Initial attempt'
+                    : 'Authorized retake ' . ($attempt - 1) . " (attempt {$attempt})",
+            ];
         }
 
         foreach ([

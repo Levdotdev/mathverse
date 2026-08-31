@@ -1,51 +1,31 @@
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('-translate-x-full');
-    document.getElementById('sidebar-overlay').classList.toggle('hidden');
-}
+(() => {
+    const profileMenu = document.getElementById('profileMenu');
+    const profileArrow = document.getElementById('profileArrow');
+    const profileButton = document.querySelector('[data-profile-toggle]');
 
-function showSection(id) {
-    const sec = document.getElementById('sec-' + id);
-    if (!sec) return false;
-
-    document.querySelectorAll('.content-section').forEach(s => {
-        s.classList.add('hidden');
-        s.classList.remove('animate-fade-in');
-    });
-    document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
-
-    sec.classList.remove('hidden');
-    void sec.offsetWidth;
-    sec.classList.add('animate-fade-in');
-    document.getElementById('btn-' + id)?.classList.add('active');
-
-    if (window.innerWidth < 768) {
-        document.getElementById('sidebar')
-            .classList.add('-translate-x-full');
-
-        document.getElementById('sidebar-overlay')
-            .classList.add('hidden');
-    }
-
-    return true;
-}
-
-const profileMenu = document.getElementById('profileMenu');
-const profileArrow = document.getElementById('profileArrow');
-const profileBtn = document.querySelector('#sidebar button');
-
-function toggleProfileMenu(e) {
-    e.stopPropagation();
-    profileMenu.classList.toggle('open');
-    profileArrow.classList.toggle('rotate-180');
-}
-
-document.addEventListener('click', function (e) {
-    const isClickInside =
-        profileMenu.contains(e.target) ||
-        profileBtn.contains(e.target);
-
-    if (!isClickInside) {
+    function closeProfileMenu() {
+        if (!profileMenu || !profileButton) return;
         profileMenu.classList.remove('open');
-        profileArrow.classList.remove('rotate-180');
+        profileArrow?.classList.remove('rotate-180');
+        profileButton.setAttribute('aria-expanded', 'false');
     }
-});
+
+    window.toggleProfileMenu = event => {
+        event?.stopPropagation();
+        if (!profileMenu || !profileButton) return;
+        const willOpen = !profileMenu.classList.contains('open');
+        profileMenu.classList.toggle('open', willOpen);
+        profileArrow?.classList.toggle('rotate-180', willOpen);
+        profileButton.setAttribute('aria-expanded', String(willOpen));
+    };
+
+    document.addEventListener('click', event => {
+        if (!profileMenu?.contains(event.target) && !profileButton?.contains(event.target)) {
+            closeProfileMenu();
+        }
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeProfileMenu();
+    });
+})();
