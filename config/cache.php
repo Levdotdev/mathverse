@@ -19,6 +19,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate Limiter Store
+    |--------------------------------------------------------------------------
+    |
+    | Authentication throttles must remain available even when the optional
+    | application cache table has not been created on a deployment.
+    |
+    */
+
+    'limiter' => env('CACHE_LIMITER', 'file'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |

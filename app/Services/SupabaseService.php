@@ -137,7 +137,7 @@ class SupabaseService
 
     public function resetPassword(string $email, ?string $redirectTo = null): array
     {
-        $request = Http::withHeaders([
+        $request = Http::connectTimeout(5)->timeout(15)->withHeaders([
             'apikey'       => $this->anonKey,
             'Content-Type' => 'application/json',
         ]);

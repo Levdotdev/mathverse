@@ -7,6 +7,7 @@ use App\Services\AdminPushService;
 use App\Services\SupabaseService;
 use App\Support\SupabaseAuthError;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -180,25 +181,40 @@ class AuthController extends Controller
             );
         }
 
-        if ($account['error'] !== null) {
+        if (($account['error'] ?? 'Account lookup failed.') !== null) {
             return back()->withInput($request->only('email'))->with(
                 'error',
                 'MathVerse could not verify that email address. Please try again.'
             );
         }
 
-        if ($account['data'] === []) {
+        if (($account['data'] ?? []) === []) {
             return back()->withInput($request->only('email'))->withErrors([
                 'email' => 'No MathVerse account is registered with that email address.',
             ]);
         }
 
-        $result = $this->supabase->resetPassword(
-            $email,
-            url('/reset-password')
-        );
-        if (!$result['successful']) {
-            return back()->with('error', 'The recovery email could not be sent. Please try again later.');
+        try {
+            $result = $this->supabase->resetPassword(
+                $email,
+                url('/reset-password')
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Password recovery request failed.', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'The recovery email could not be sent. Please try again later.'
+            );
+        }
+
+        if (!($result['successful'] ?? false)) {
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'The recovery email could not be sent. Please try again later.'
+            );
         }
 
         return back()->with('success', 'Recovery link sent.');
@@ -266,28 +282,61 @@ class AuthController extends Controller
             return redirect($redirect)->with('error', 'Enter a different email address.');
         }
 
-        $check = $this->supabase->signIn($user['email'], $validated['current_password']);
+        try {
+            $check = $this->supabase->signIn($user['email'], $validated['current_password']);
+        } catch (\Throwable $exception) {
+            Log::warning('Email change password verification failed.', [
+                'user_id' => $user['id'] ?? null,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return redirect($redirect)->with(
+                'error',
+                'MathVerse could not verify your password. Please try again.'
+            );
+        }
+
         if (!isset($check['access_token'])) {
             return redirect($redirect)->with('error', 'Current password is incorrect.');
         }
 
-        $result = $this->supabase->updateAuthUser(
-            $check['access_token'],
-            ['email' => $newEmail],
-            url('/?auth_action=email_change')
-        );
-        if (!$result['successful']) {
+        try {
+            $result = $this->supabase->updateAuthUser(
+                $check['access_token'],
+                ['email' => $newEmail],
+                url('/?auth_action=email_change')
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Email change request failed.', [
+                'user_id' => $user['id'] ?? null,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return redirect($redirect)->with(
+                'error',
+                'The email change could not be started. Please try again.'
+            );
+        }
+
+        if (!($result['successful'] ?? false)) {
             return redirect($redirect)->with('error', $result['error'] ?? 'The email change could not be started.');
         }
 
         session(['supabase_token' => $check['access_token']]);
-        $this->supabase->audit($user, 'account.email_change_requested', 'profile', $user['id'], [
-            'new_email' => $newEmail,
-        ]);
+        try {
+            $this->supabase->audit($user, 'account.email_change_requested', 'profile', $user['id'], [
+                'new_email' => $newEmail,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Email change audit could not be recorded.', [
+                'user_id' => $user['id'] ?? null,
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
-        return redirect($redirect)->with(
+        return redirect($redirect . '&notice=email-change-requested')->with(
             'success',
-            "Email change requested. Check {$newEmail} and your current email address for confirmation links."
+            'Email change requested. Check both email addresses for confirmation links.'
         );
     }
 

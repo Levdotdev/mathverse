@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\SupabaseAuth;
 use App\Services\SupabaseService;
 use Tests\TestCase;
 
@@ -82,6 +83,85 @@ class AuthSecurityFlowTest extends TestCase
 
         $response->assertRedirect('/');
         $response->assertSessionHas('success', 'Recovery link sent.');
+    }
+
+    public function test_password_reset_failure_returns_an_error_instead_of_a_server_error(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('adminSelectResult')
+            ->once()
+            ->andReturn([
+                'data' => [['id' => 'user-id']],
+                'error' => null,
+                'status' => 200,
+            ]);
+        $supabase->shouldReceive('resetPassword')
+            ->once()
+            ->andThrow(new \RuntimeException('Connection failed'));
+
+        $response = $this->from('/')->post('/forgot-password', [
+            'email' => 'student@example.com',
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionHas(
+            'error',
+            'The recovery email could not be sent. Please try again later.'
+        );
+    }
+
+    public function test_email_change_request_redirects_with_a_durable_toast_notice(): void
+    {
+        $this->withoutMiddleware(SupabaseAuth::class);
+
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signIn')
+            ->once()
+            ->with('old@example.com', 'Current1!')
+            ->andReturn(['access_token' => 'fresh-token']);
+        $supabase->shouldReceive('updateAuthUser')
+            ->once()
+            ->with(
+                'fresh-token',
+                ['email' => 'new@example.com'],
+                url('/?auth_action=email_change')
+            )
+            ->andReturn([
+                'successful' => true,
+                'data' => [],
+                'error' => null,
+                'status' => 200,
+            ]);
+        $supabase->shouldReceive('audit')->once()->andReturn(true);
+
+        $response = $this->withSession([
+            'supabase_token' => 'old-token',
+            'supabase_user' => [
+                'id' => 'user-id',
+                'role' => 'student',
+                'email' => 'old@example.com',
+            ],
+        ])->post('/change-email', [
+            'current_password' => 'Current1!',
+            'new_email' => 'New@Example.com',
+            'new_email_confirmation' => 'New@Example.com',
+        ]);
+
+        $response->assertRedirect('/student/dashboard?section=security&notice=email-change-requested');
+        $response->assertSessionHas(
+            'success',
+            'Email change requested. Check both email addresses for confirmation links.'
+        );
+    }
+
+    public function test_email_change_notice_is_rendered_without_relying_on_flash_session_data(): void
+    {
+        $this->mock(SupabaseService::class);
+
+        $response = $this->get('/?notice=email-change-requested');
+
+        $response->assertOk();
+        $response->assertSee('Email change requested. Check both email addresses for confirmation links.');
     }
 
     public function test_signup_confirmation_return_shows_a_success_toast(): void

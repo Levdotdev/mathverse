@@ -1,5 +1,10 @@
 @php
-    $flashToastMessage = $errors->first() ?: (session('success') ?? session('error'));
+    $queryToastMessages = [
+        'email-change-requested' => 'Email change requested. Check both email addresses for confirmation links.',
+    ];
+    $queryToastKey = (string) request()->query('notice', '');
+    $queryToastMessage = $queryToastMessages[$queryToastKey] ?? null;
+    $flashToastMessage = $errors->first() ?: (session('success') ?? session('error') ?? $queryToastMessage);
     $flashToastIsError = $errors->any() || session()->has('error');
 @endphp
 <!DOCTYPE html>
@@ -96,6 +101,16 @@
                 @json($flashToastMessage),
                 @json($flashToastIsError)
             );
+
+            @if($queryToastMessage)
+            const url = new URL(window.location.href);
+            url.searchParams.delete('notice');
+            window.history.replaceState(
+                window.history.state,
+                document.title,
+                url.pathname + (url.searchParams.size ? `?${url.searchParams.toString()}` : '') + url.hash
+            );
+            @endif
 
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', displayFlashToast, { once: true });
