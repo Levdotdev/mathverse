@@ -26,7 +26,7 @@ class AuthController extends Controller
         } elseif ($authAction === 'email_change') {
             session()->flash(
                 'success',
-                'Email confirmation received. Complete any other confirmation link to finish updating your email address.'
+                'Email address changed successfully.'
             );
         }
 
@@ -181,14 +181,16 @@ class AuthController extends Controller
             );
         }
 
-        if (($account['error'] ?? 'Account lookup failed.') !== null) {
+        if (!array_key_exists('error', $account)
+            || $account['error'] !== null
+            || !is_array($account['data'] ?? null)) {
             return back()->withInput($request->only('email'))->with(
                 'error',
                 'MathVerse could not verify that email address. Please try again.'
             );
         }
 
-        if (($account['data'] ?? []) === []) {
+        if ($account['data'] === []) {
             return back()->withInput($request->only('email'))->withErrors([
                 'email' => 'No MathVerse account is registered with that email address.',
             ]);
@@ -336,7 +338,7 @@ class AuthController extends Controller
 
         return redirect($redirect . '&notice=email-change-requested')->with(
             'success',
-            'Email change requested. Check both email addresses for confirmation links.'
+            'Email change requested. Check your new email address to confirm the change.'
         );
     }
 

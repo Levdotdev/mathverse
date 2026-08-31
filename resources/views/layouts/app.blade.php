@@ -1,6 +1,6 @@
 @php
     $queryToastMessages = [
-        'email-change-requested' => 'Email change requested. Check both email addresses for confirmation links.',
+        'email-change-requested' => 'Email change requested. Check your new email address to confirm the change.',
     ];
     $queryToastKey = (string) request()->query('notice', '');
     $queryToastMessage = $queryToastMessages[$queryToastKey] ?? null;

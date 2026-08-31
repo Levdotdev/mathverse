@@ -150,7 +150,7 @@ class AuthSecurityFlowTest extends TestCase
         $response->assertRedirect('/student/dashboard?section=security&notice=email-change-requested');
         $response->assertSessionHas(
             'success',
-            'Email change requested. Check both email addresses for confirmation links.'
+            'Email change requested. Check your new email address to confirm the change.'
         );
     }
 
@@ -161,7 +161,7 @@ class AuthSecurityFlowTest extends TestCase
         $response = $this->get('/?notice=email-change-requested');
 
         $response->assertOk();
-        $response->assertSee('Email change requested. Check both email addresses for confirmation links.');
+        $response->assertSee('Email change requested. Check your new email address to confirm the change.');
     }
 
     public function test_signup_confirmation_return_shows_a_success_toast(): void
@@ -192,7 +192,7 @@ class AuthSecurityFlowTest extends TestCase
         $response->assertSessionHas('supabase_user');
         $response->assertSessionHas(
             'success',
-            'Email confirmation received. Complete any other confirmation link to finish updating your email address.'
+            'Email address changed successfully.'
         );
     }
 }

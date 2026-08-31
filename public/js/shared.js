@@ -77,9 +77,9 @@ function handleAuthConfirmationReturn() {
     const hasAuthError = url.searchParams.has('error') || hashParams.has('error');
     const messages = {
         signup: 'Email confirmed successfully. You can now sign in.',
-        email_change: 'Email confirmation received. Complete any other confirmation link to finish updating your email address.',
-        email_change_current: 'Email confirmation received. Complete any other confirmation link to finish updating your email address.',
-        email_change_new: 'Email confirmation received. Complete any other confirmation link to finish updating your email address.',
+        email_change: 'Email address changed successfully.',
+        email_change_current: 'Email address changed successfully.',
+        email_change_new: 'Email address changed successfully.',
     };
     const isConfirmationReturn = Object.prototype.hasOwnProperty.call(messages, action);
 
