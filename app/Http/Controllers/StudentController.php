@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\SupabaseService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
 class StudentController extends Controller
@@ -193,6 +194,141 @@ class StudentController extends Controller
             'user', 'profile', 'rank', 'leaderboard', 'quizHistory', 'missedQuizzes',
             'studentAnalytics', 'classes', 'gradeLevel'
         ));
+    }
+
+    public function reportProgress(Request $request)
+    {
+        $user = session('supabase_user');
+        $format = $request->query('format', 'pdf');
+
+        $eligibilityRows = $this->supabase->adminSelect(
+            'quiz_session_students',
+            'session_id,eligibility_status,excuse_reason',
+            ['student_id' => $user['id']]
+        );
+        $resultRows = $this->supabase->adminSelect(
+            'quiz_results',
+            'session_id,correct_answers,total_questions,created_at',
+            [
+                'student_id' => $user['id'],
+                'is_counted' => true,
+                'order' => 'created_at.asc',
+            ]
+        );
+        $sessionIds = array_values(array_unique(array_merge(
+            array_column($eligibilityRows, 'session_id'),
+            array_column($resultRows, 'session_id')
+        )));
+        $sessions = empty($sessionIds) ? [] : $this->supabase->adminSelect(
+            'quiz_sessions',
+            'id,class_id,topic,room_code,status,created_at,ended_at',
+            [
+                'id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+                'status' => 'completed',
+                'order' => 'ended_at.desc,created_at.desc',
+            ]
+        );
+
+        $classIds = array_values(array_unique(array_filter(array_column($sessions, 'class_id'))));
+        $classes = empty($classIds) ? [] : $this->supabase->adminSelect(
+            'classes',
+            'id,class_name',
+            ['id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
+        );
+        $classMap = array_column($classes, null, 'id');
+        $eligibilityMap = array_column($eligibilityRows, null, 'session_id');
+        $resultMap = [];
+        foreach ($resultRows as $result) {
+            $resultMap[$result['session_id']] ??= $result;
+        }
+
+        $rows = [];
+        foreach ($sessions as $session) {
+            $result = $resultMap[$session['id']] ?? null;
+            $eligibility = $eligibilityMap[$session['id']] ?? null;
+            $isExcused = !$result && ($eligibility['eligibility_status'] ?? '') === 'excused';
+
+            if ($result) {
+                $total = (int) ($result['total_questions'] ?? 0);
+                $correct = (int) ($result['correct_answers'] ?? 0);
+                $accuracy = $total > 0 ? round(($correct / $total) * 100, 1) : 0;
+                $status = $accuracy >= 75 ? 'Passed' : 'Failed';
+                $score = "{$correct} / {$total}";
+                $date = \Carbon\Carbon::parse($result['created_at'])->format('M d, Y h:i A');
+            } else {
+                $accuracy = null;
+                $status = $isExcused ? 'Excused' : 'Missed';
+                $score = '—';
+                $date = '—';
+            }
+
+            $rows[] = [
+                'topic' => $session['topic'] ?? 'Untitled Quiz',
+                'class_name' => $classMap[$session['class_id']]['class_name'] ?? 'Former Class',
+                'room_code' => $session['room_code'] ?? '—',
+                'score' => $score,
+                'accuracy' => $accuracy,
+                'status' => $status,
+                'date' => $date,
+            ];
+        }
+
+        $attemptRows = array_values(array_filter($rows, fn (array $row): bool => $row['accuracy'] !== null));
+        $attempts = count($attemptRows);
+        $passed = count(array_filter($rows, fn (array $row): bool => $row['status'] === 'Passed'));
+        $failed = count(array_filter($rows, fn (array $row): bool => $row['status'] === 'Failed'));
+        $missed = count(array_filter($rows, fn (array $row): bool => $row['status'] === 'Missed'));
+        $excused = count(array_filter($rows, fn (array $row): bool => $row['status'] === 'Excused'));
+        $accuracies = array_column($attemptRows, 'accuracy');
+        $summary = [
+            'student' => trim(($user['last_name'] ?? '') . ', ' . ($user['first_name'] ?? ''), ', '),
+            'grade' => 'Grade ' . ($user['grade_level'] ?? 'N/A'),
+            'ended' => count($rows),
+            'attempts' => $attempts,
+            'passed' => $passed,
+            'failed' => $failed,
+            'missed' => $missed,
+            'excused' => $excused,
+            'average' => $attempts > 0 ? round(array_sum($accuracies) / $attempts, 1) : null,
+            'best' => $attempts > 0 ? max($accuracies) : null,
+            'generated' => now()->format('M d, Y h:i A'),
+        ];
+
+        if ($format === 'csv') {
+            return response()->streamDownload(function () use ($summary, $rows) {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, ['MathVerse Personal Progress Report']);
+                fputcsv($out, ['Student', $summary['student']]);
+                fputcsv($out, ['Grade', $summary['grade']]);
+                fputcsv($out, ['Ended Assignments', $summary['ended']]);
+                fputcsv($out, ['Completed Attempts', $summary['attempts']]);
+                fputcsv($out, ['Passed', $summary['passed']]);
+                fputcsv($out, ['Failed', $summary['failed']]);
+                fputcsv($out, ['Missed', $summary['missed']]);
+                fputcsv($out, ['Excused', $summary['excused']]);
+                fputcsv($out, ['Average Attempt Accuracy', $summary['average'] === null ? '—' : $summary['average'] . '%']);
+                fputcsv($out, ['Best Accuracy', $summary['best'] === null ? '—' : $summary['best'] . '%']);
+                fputcsv($out, []);
+                fputcsv($out, ['Quiz', 'Class', 'Room Code', 'Score', 'Accuracy', 'Status', 'Date Taken']);
+                foreach ($rows as $row) {
+                    fputcsv($out, [
+                        $row['topic'],
+                        $row['class_name'],
+                        $row['room_code'],
+                        $row['score'],
+                        $row['accuracy'] === null ? '—' : $row['accuracy'] . '%',
+                        $row['status'],
+                        $row['date'],
+                    ]);
+                }
+                fclose($out);
+            }, 'my-mathverse-progress.csv', ['Content-Type' => 'text/csv']);
+        }
+
+        $pdf = Pdf::loadView('reports.student-personal', compact('summary', 'rows'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->download('my-mathverse-progress.pdf');
     }
 
     public function updateProfile(Request $request)

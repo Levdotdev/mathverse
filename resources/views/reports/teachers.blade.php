@@ -25,7 +25,7 @@
             <td>{{ $r['joined'] }}</td>
         </tr>
         @empty
-        <tr><td colspan="6" class="text-center">No teachers found.</td></tr>
+        <tr><td colspan="5" class="text-center">No teachers found.</td></tr>
         @endforelse
     </tbody>
 </table>

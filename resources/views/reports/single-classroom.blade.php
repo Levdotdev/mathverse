@@ -46,7 +46,9 @@
     <tbody>
         @forelse($rows as $i => $r)
         @php
-            $accColor = $r['avg_acc'] >= 75 ? '#22c55e' : '#ef4444';
+            $accColor = $r['avg_acc'] === null
+                ? '#64748b'
+                : ($r['avg_acc'] >= 75 ? '#22c55e' : '#ef4444');
         @endphp
         <tr>
             <td class="text-center"><strong>#{{ $i + 1 }}</strong></td>
@@ -56,7 +58,7 @@
             <td class="text-center">{{ $r['trophies'] }}</td>
             <td class="text-center">{{ $r['quizzes'] }}</td>
             <td class="text-center" style="color:{{ $accColor }}; font-weight:700;">
-                {{ $r['avg_acc'] }}%
+                {{ $r['avg_acc'] === null ? '—' : $r['avg_acc'] . '%' }}
             </td>
             <td>{{ $r['joined'] }}</td>
         </tr>

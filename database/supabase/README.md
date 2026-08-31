@@ -110,6 +110,24 @@ deleting one shared-library assignment removes one use, while ended assignment
 history remains protected. The migration corrects existing counters and is
 safe to rerun.
 
+## Notifications and account security
+
+After all August 30 files above, run
+`2026_08_31_notifications_and_account_security.sql`. It creates the in-app
+notification center and event triggers for teacher verification, class roster
+changes, quiz assignments and scheduling, retakes and excuses, submissions,
+shared-quiz use, moderation, quiz verification, and completed Auth security
+changes. It also installs idempotent 24-hour quiz start/due reminders and keeps
+`profiles.email` synchronized after Supabase confirms an Auth email change.
+
+The application remains usable before this migration is applied, but the bell
+will stay empty and email-change completion will not synchronize the profile
+email. Use `2026_08_31_notifications_and_account_security_rollback.sql` to
+remove only this notification/security layer.
+
+Copy the hosted Auth email templates and enable the two security notification
+emails by following `supabase/email-templates/README.md`.
+
 ### Enable administrator browser push alerts
 
 The push alert appears through the browser/operating system even when the

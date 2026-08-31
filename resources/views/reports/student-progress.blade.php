@@ -4,7 +4,7 @@
 @section('generated', $generated)
 @section('report-content')
 <div class="report-title">Student Progress Report</div>
-<div class="meta">Teacher: {{ $teacher['last_name'] ?? '' }}, {{ $teacher['username'] ?? '' }} &nbsp;|&nbsp; Total Students: {{ count($rows) }}</div>
+<div class="meta">Teacher: {{ trim(($teacher['last_name'] ?? '') . ', ' . ($teacher['first_name'] ?? ''), ', ') }} &nbsp;|&nbsp; Total Students: {{ count($rows) }}</div>
 <table>
     <thead>
         <tr>
@@ -21,7 +21,7 @@
             <td><strong>{{ $r['name'] }}</strong></td>
             <td>{{ $r['grade'] }}</td>
             <td class="text-center">{{ $r['quizzes'] }}</td>
-            <td class="text-center">{{ $r['avg_acc'] }}%</td>
+            <td class="text-center">{{ $r['avg_acc'] === null ? '—' : $r['avg_acc'] . '%' }}</td>
             <td class="text-center">{{ $r['trophies'] }}</td>
         </tr>
         @empty

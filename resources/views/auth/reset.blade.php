@@ -20,13 +20,13 @@
 
         <div class="p-6">
 
-            {{-- REGISTER PANEL --}}
+            {{-- PASSWORD RECOVERY PANEL --}}
             <div id="regMod">
                 <div class="flex justify-between items-center mb-6 border-b border-purple-500/30 pb-4">
                     <h2 class="text-2xl font-orbitron font-black text-white tracking-tighter uppercase">
-                        Register <span class="text-purple-500">Account</span>
+                        Reset <span class="text-purple-500">Password</span>
                     </h2>
-                    <i class="fas fa-user-plus text-2xl text-purple-500/40"></i>
+                    <i class="fas fa-key text-2xl text-purple-500/40"></i>
                 </div>
 
                 <form id="resetForm" method="POST" action="/update-password" class="space-y-4">
@@ -38,7 +38,7 @@
                         <label class="input-label">New Password</label>
                         <div class="relative">
                             <i class="fas fa-key input-icon"></i>
-                            <input type="password" id="rPass" name="password" placeholder="Enter new password" required
+                            <input type="password" id="rPass" name="password" minlength="6" maxlength="128" autocomplete="new-password" placeholder="Enter new password" required
                                    class="input-mobile-ultra pr-12">
                             <button type="button" onclick="tglPass('rPass','rIco')"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
@@ -51,7 +51,7 @@
                         <label class="input-label">Confirm New Password</label>
                         <div class="relative">
                             <i class="fas fa-shield-alt input-icon"></i>
-                            <input type="password" id="rcPass" name="password_confirmation"
+                            <input type="password" id="rcPass" name="password_confirmation" minlength="6" maxlength="128" autocomplete="new-password"
                                    placeholder="Re-type password" required class="input-mobile-ultra pr-12">
                             <button type="button" onclick="tglPass('rcPass','rcIco')"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
@@ -80,11 +80,13 @@
     const params = new URLSearchParams(window.location.search);
     const token  = params.get('token_hash');  // reads token_hash from URL
 
+    const tokenInput = document.getElementById('token');
+    const resetForm = document.getElementById('resetForm');
     if (!token) {
-        alert('No reset token found in URL. Please use the link from your email.');
+        resetForm.querySelector('button[type="submit"]').disabled = true;
+        showToast('This reset link is incomplete. Request a new password reset email.', true);
+    } else {
+        tokenInput.value = token;
     }
-
-    document.getElementById('token').value = token;
-    console.log('Token set:', token); // check this in console
 </script>
 @endpush

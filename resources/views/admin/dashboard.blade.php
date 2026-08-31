@@ -366,55 +366,11 @@
     </div>
 </section>
 
-<section id="sec-password" class="content-section hidden">
-    <div class="portal-frame !p-6 md:!p-10 border-red-500/20">
-        <h2 class="text-xl font-orbitron font-bold mb-10 uppercase">
-            <i class="fas fa-user-secret mr-2"></i> CHANGE <span class="text-red-500">PASSWORD</span>
-        </h2>
-        <form method="POST" action="/change-password" class="space-y-6 max-w-2xl mx-auto">
-            @csrf
-            <div class="form-group sm:col-span-2 mt-2">
-                <label class="input-label text-orange-400">Current Password</label>
-                <div class="relative">
-                    <i class="fas fa-unlock-alt input-icon"></i>
-                    <input type="password" id="s-curr-pass" name="current_password"
-                            class="input-mobile-ultra pr-12" placeholder="Enter current password" required>
-                    <button type="button" onclick="tglPass('s-curr-pass','s-ico-curr')"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                        <i id="s-ico-curr" class="fas fa-eye-slash"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="form-group border-t border-white/10 pt-4 mt-2">
-                <label class="input-label">New Password</label>
-                <div class="relative">
-                    <i class="fas fa-key input-icon"></i>
-                    <input type="password" id="s-new-pass" name="new_password"
-                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
-                    <button type="button" onclick="tglPass('s-new-pass','s-ico-new')"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                        <i id="s-ico-new" class="fas fa-eye-slash"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="input-label">Confirm Password</label>
-                <div class="relative">
-                    <i class="fas fa-lock input-icon"></i>
-                    <input type="password" id="s-conf-pass" name="new_password_confirmation"
-                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
-                    <button type="button" onclick="tglPass('s-conf-pass','s-ico-conf')"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="s-ico-conf" class="fas fa-eye-slash"></i>
-                    </button>
-                </div>
-            </div>
-            <button type="submit" class="btn-rect-primary !bg-red-600 !text-white mt-4">
-                <i class="fas fa-database mr-2"></i> Update Password
-            </button>
-        </form>
-    </div>
-</section>
+@include('partials.account-security', [
+    'securityAccent' => 'text-red-500',
+    'securityBorder' => 'border-red-500/20',
+    'securityButton' => '!bg-red-600 !text-white',
+])
 
 {{-- PROFILE SECTION --}}
 <section id="sec-profile" class="content-section hidden">
@@ -475,7 +431,7 @@
         Export <span class="text-green-400">Reports</span>
     </h2>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
         <div class="portal-frame !p-6 border-l-4 border-cyan-500">
             <i class="fas fa-user-graduate text-3xl text-cyan-400 mb-4 block"></i>
@@ -506,6 +462,26 @@
                    class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center">
                     <i class="fas fa-file-csv mr-1"></i> CSV
                 </a>
+            </div>
+        </div>
+
+        <div class="portal-frame !p-6 border-l-4 border-purple-500">
+            <i class="fas fa-vr-cardboard text-3xl text-purple-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Quiz Performance</h3>
+            <p class="text-slate-500 text-xs mb-6">Every class assignment with attempts, average accuracy, and pass rate.</p>
+            <div class="flex gap-2">
+                <a href="/admin/report/quizzes?format=pdf" class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center"><i class="fas fa-file-pdf mr-1"></i> PDF</a>
+                <a href="/admin/report/quizzes?format=csv" class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center"><i class="fas fa-file-csv mr-1"></i> CSV</a>
+            </div>
+        </div>
+
+        <div class="portal-frame !p-6 border-l-4 border-yellow-500">
+            <i class="fas fa-school text-3xl text-yellow-400 mb-4 block"></i>
+            <h3 class="font-orbitron font-bold uppercase mb-1">Classroom Activity</h3>
+            <p class="text-slate-500 text-xs mb-6">Class status, enrollment, assignments, attempts, and average accuracy.</p>
+            <div class="flex gap-2">
+                <a href="/admin/report/classrooms?format=pdf" class="flex-1 btn-rect-primary !py-2 !text-[10px] text-center"><i class="fas fa-file-pdf mr-1"></i> PDF</a>
+                <a href="/admin/report/classrooms?format=csv" class="flex-1 btn-rect-secondary !py-2 !text-[10px] text-center"><i class="fas fa-file-csv mr-1"></i> CSV</a>
             </div>
         </div>
 

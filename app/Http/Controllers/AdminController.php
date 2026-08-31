@@ -457,8 +457,8 @@ class AdminController extends Controller
 
         if ($format === 'csv') {
             return $this->downloadCsv($rows,
-                ['Name', 'Email', 'Grade', 'Quizzes Created', 'Date Joined'],
-                ['name', 'email', 'grade', 'quizzes', 'joined'],
+                ['Name', 'Email', 'Quizzes Created', 'Date Joined'],
+                ['name', 'email', 'quizzes', 'joined'],
                 'teacher-registry-report'
             );
         }
@@ -540,6 +540,175 @@ class AdminController extends Controller
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('platform-summary-report.pdf');
+    }
+
+    public function reportQuizzes(Request $request)
+    {
+        $format = $request->query('format', 'pdf');
+        $sessions = $this->supabase->adminSelect(
+            'quiz_sessions',
+            'id,teacher_id,class_id,topic,room_code,status,created_at,ended_at',
+            [
+                'class_id' => ['operator' => 'not.is', 'value' => 'null'],
+                'order' => 'created_at.desc',
+            ]
+        );
+        $sessionIds = array_column($sessions, 'id');
+        $classIds = array_values(array_unique(array_filter(array_column($sessions, 'class_id'))));
+        $teacherIds = array_values(array_unique(array_filter(array_column($sessions, 'teacher_id'))));
+
+        $results = empty($sessionIds) ? [] : $this->supabase->adminSelect(
+            'quiz_results',
+            'session_id,correct_answers,total_questions',
+            [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+                'is_counted' => true,
+            ]
+        );
+        $questions = empty($sessionIds) ? [] : $this->supabase->adminSelect(
+            'questions',
+            'id,session_id',
+            ['session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')']]
+        );
+        $classes = empty($classIds) ? [] : $this->supabase->adminSelect(
+            'classes',
+            'id,class_name',
+            ['id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
+        );
+        $teachers = empty($teacherIds) ? [] : $this->supabase->adminSelect(
+            'profiles',
+            'id,first_name,last_name',
+            ['id' => ['operator' => 'in', 'value' => '(' . implode(',', $teacherIds) . ')']]
+        );
+
+        $classMap = array_column($classes, null, 'id');
+        $teacherMap = array_column($teachers, null, 'id');
+        $resultsBySession = [];
+        foreach ($results as $result) {
+            $resultsBySession[$result['session_id']][] = $result;
+        }
+        $questionCounts = array_count_values(array_column($questions, 'session_id'));
+
+        $rows = [];
+        foreach ($sessions as $session) {
+            $sessionResults = $resultsBySession[$session['id']] ?? [];
+            $accuracies = array_map(
+                fn (array $result): float => (int) ($result['total_questions'] ?? 0) > 0
+                    ? ((int) ($result['correct_answers'] ?? 0) / (int) $result['total_questions']) * 100
+                    : 0,
+                $sessionResults
+            );
+            $passed = count(array_filter($accuracies, fn (float $accuracy): bool => $accuracy >= 75));
+            $teacher = $teacherMap[$session['teacher_id']] ?? [];
+
+            $rows[] = [
+                'topic' => $session['topic'] ?? 'Untitled Quiz',
+                'class_name' => $classMap[$session['class_id']]['class_name'] ?? 'Deleted Class',
+                'teacher' => trim(($teacher['last_name'] ?? '') . ', ' . ($teacher['first_name'] ?? ''), ', ') ?: 'Deleted User',
+                'room_code' => $session['room_code'] ?? '—',
+                'status' => ucfirst((string) ($session['status'] ?? 'waiting')),
+                'questions' => $questionCounts[$session['id']] ?? 0,
+                'attempts' => count($sessionResults),
+                'avg_accuracy' => $accuracies !== [] ? round(array_sum($accuracies) / count($accuracies), 1) : null,
+                'pass_rate' => $sessionResults !== [] ? round(($passed / count($sessionResults)) * 100, 1) : null,
+                'created' => \Carbon\Carbon::parse($session['created_at'])->format('M d, Y'),
+            ];
+        }
+
+        if ($format === 'csv') {
+            return $this->downloadCsv(
+                $rows,
+                ['Quiz', 'Class', 'Teacher', 'Room Code', 'Status', 'Questions', 'Attempts', 'Avg Accuracy %', 'Pass Rate %', 'Assigned'],
+                ['topic', 'class_name', 'teacher', 'room_code', 'status', 'questions', 'attempts', 'avg_accuracy', 'pass_rate', 'created'],
+                'platform-quiz-performance-report'
+            );
+        }
+
+        return Pdf::loadView('reports.admin-quizzes', [
+            'rows' => $rows,
+            'generated' => now()->format('M d, Y h:i A'),
+        ])->setPaper('a4', 'landscape')->download('platform-quiz-performance-report.pdf');
+    }
+
+    public function reportClassrooms(Request $request)
+    {
+        $format = $request->query('format', 'pdf');
+        $classes = $this->supabase->adminSelect('classes', '*', ['order' => 'created_at.desc']);
+        $classIds = array_column($classes, 'id');
+        $teacherIds = array_values(array_unique(array_filter(array_column($classes, 'teacher_id'))));
+        $members = empty($classIds) ? [] : $this->supabase->adminSelect(
+            'class_members',
+            'class_id,student_id',
+            ['class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
+        );
+        $sessions = empty($classIds) ? [] : $this->supabase->adminSelect(
+            'quiz_sessions',
+            'id,class_id',
+            ['class_id' => ['operator' => 'in', 'value' => '(' . implode(',', $classIds) . ')']]
+        );
+        $sessionIds = array_column($sessions, 'id');
+        $results = empty($sessionIds) ? [] : $this->supabase->adminSelect(
+            'quiz_results',
+            'session_id,correct_answers,total_questions',
+            [
+                'session_id' => ['operator' => 'in', 'value' => '(' . implode(',', $sessionIds) . ')'],
+                'is_counted' => true,
+            ]
+        );
+        $teachers = empty($teacherIds) ? [] : $this->supabase->adminSelect(
+            'profiles',
+            'id,first_name,last_name',
+            ['id' => ['operator' => 'in', 'value' => '(' . implode(',', $teacherIds) . ')']]
+        );
+
+        $teacherMap = array_column($teachers, null, 'id');
+        $memberCounts = array_count_values(array_column($members, 'class_id'));
+        $sessionCounts = array_count_values(array_column($sessions, 'class_id'));
+        $sessionClassMap = array_column($sessions, 'class_id', 'id');
+        $resultsByClass = [];
+        foreach ($results as $result) {
+            $classId = $sessionClassMap[$result['session_id']] ?? null;
+            if ($classId !== null) {
+                $resultsByClass[$classId][] = $result;
+            }
+        }
+
+        $rows = [];
+        foreach ($classes as $class) {
+            $classResults = $resultsByClass[$class['id']] ?? [];
+            $accuracies = array_map(
+                fn (array $result): float => (int) ($result['total_questions'] ?? 0) > 0
+                    ? ((int) ($result['correct_answers'] ?? 0) / (int) $result['total_questions']) * 100
+                    : 0,
+                $classResults
+            );
+            $teacher = $teacherMap[$class['teacher_id']] ?? [];
+            $rows[] = [
+                'class_name' => $class['class_name'] ?? 'Untitled Class',
+                'teacher' => trim(($teacher['last_name'] ?? '') . ', ' . ($teacher['first_name'] ?? ''), ', ') ?: 'Deleted User',
+                'grade' => 'Grade ' . ($class['grade_level'] ?? 'N/A'),
+                'status' => empty($class['archived_at']) ? 'Active' : 'Archived',
+                'students' => $memberCounts[$class['id']] ?? 0,
+                'assignments' => $sessionCounts[$class['id']] ?? 0,
+                'attempts' => count($classResults),
+                'avg_accuracy' => $accuracies !== [] ? round(array_sum($accuracies) / count($accuracies), 1) : null,
+                'created' => \Carbon\Carbon::parse($class['created_at'])->format('M d, Y'),
+            ];
+        }
+
+        if ($format === 'csv') {
+            return $this->downloadCsv(
+                $rows,
+                ['Class', 'Teacher', 'Grade', 'Status', 'Students', 'Quiz Assignments', 'Attempts', 'Avg Accuracy %', 'Created'],
+                ['class_name', 'teacher', 'grade', 'status', 'students', 'assignments', 'attempts', 'avg_accuracy', 'created'],
+                'platform-classroom-activity-report'
+            );
+        }
+
+        return Pdf::loadView('reports.admin-classrooms', [
+            'rows' => $rows,
+            'generated' => now()->format('M d, Y h:i A'),
+        ])->setPaper('a4', 'landscape')->download('platform-classroom-activity-report.pdf');
     }
 
     private function manageableProfile(string $id): ?array

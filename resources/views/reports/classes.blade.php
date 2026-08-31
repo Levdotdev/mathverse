@@ -4,7 +4,7 @@
 @section('generated', $generated)
 @section('report-content')
 <div class="report-title">Classroom Report</div>
-<div class="meta">Teacher: {{ $teacher['last_name'] ?? '' }}, {{ $teacher['username'] ?? '' }} &nbsp;|&nbsp; Total Classes: {{ count($rows) }}</div>
+<div class="meta">Teacher: {{ trim(($teacher['last_name'] ?? '') . ', ' . ($teacher['first_name'] ?? ''), ', ') }} &nbsp;|&nbsp; Total Classes: {{ count($rows) }}</div>
 <table>
     <thead>
         <tr>

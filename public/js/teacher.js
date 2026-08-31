@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const requested = new URLSearchParams(window.location.search).get('section') ?? 'overview';
-    const section = ['overview', 'classes', 'stats', 'profile', 'password'].includes(requested)
-        ? requested
+    const normalized = requested === 'password' ? 'security' : requested;
+    const section = ['overview', 'classes', 'stats', 'profile', 'security'].includes(normalized)
+        ? normalized
         : 'overview';
 
     showSection(section);

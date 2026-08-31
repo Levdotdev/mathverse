@@ -56,9 +56,9 @@
                 <i class="fas fa-user mr-2"></i> Profile
             </a>
 
-            <a href="{{ $roleDashboard }}?section=password" id="btn-password"
+            <a href="{{ $roleDashboard }}?section=security" id="btn-security"
                 class="block w-full text-left px-4 py-3 text-xs hover:bg-white/5">
-                <i class="fas fa-key mr-2"></i> Change Password
+                <i class="fas fa-shield-halved mr-2"></i> Account Security
             </a>
 
             <form method="POST" action="/logout">
@@ -84,7 +84,11 @@
         <h1 class="font-orbitron font-bold text-xs tracking-widest uppercase">
             @yield('mobile-title')
         </h1>
-        <span class="w-6" aria-hidden="true"></span>
+        @include('partials.notifications')
+    </div>
+
+    <div class="hidden md:flex justify-end mb-4">
+        @include('partials.notifications')
     </div>
 
     @yield('dashboard-content')
@@ -98,4 +102,5 @@
 
 @push('scripts')
 <script src="{{ asset('js/dashboard.js') }}"></script>
+<script src="{{ asset('js/notifications.js') }}?v={{ filemtime(public_path('js/notifications.js')) }}"></script>
 @endpush

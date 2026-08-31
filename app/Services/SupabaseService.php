@@ -40,12 +40,18 @@ class SupabaseService
         string $role,
         string $first_name,
         string $last_name,
-        ?int $grade_level = null
+        ?int $grade_level = null,
+        ?string $redirectTo = null
     ): array {
-        $response = Http::withHeaders([
+        $request = Http::withHeaders([
             'apikey'       => $this->anonKey,
             'Content-Type' => 'application/json',
-        ])->post("{$this->url}/auth/v1/signup", [
+        ]);
+        if ($redirectTo !== null) {
+            $request = $request->withQueryParameters(['redirect_to' => $redirectTo]);
+        }
+
+        $response = $request->post("{$this->url}/auth/v1/signup", [
             'email'    => $email,
             'password' => $password,
             'data' => [
@@ -56,7 +62,7 @@ class SupabaseService
             ],
         ]);
 
-        return $response->json();
+        return $this->authResponse($response);
     }
 
     public function getUserByEmail(string $email): array
@@ -68,7 +74,7 @@ class SupabaseService
             'email' => $email
         ]);
 
-        return $response->json();
+        return $response->json() ?? [];
     }
 
     public function uploadAvatar(string $userId, $file): ?string
@@ -129,16 +135,40 @@ class SupabaseService
         return $this->responseRows($response);
     }
 
-    public function resetPassword(string $email): array
+    public function resetPassword(string $email, ?string $redirectTo = null): array
     {
-        $response = Http::withHeaders([
+        $request = Http::withHeaders([
             'apikey'       => $this->anonKey,
             'Content-Type' => 'application/json',
-        ])->post("{$this->url}/auth/v1/recover", [
+        ]);
+        if ($redirectTo !== null) {
+            $request = $request->withQueryParameters(['redirect_to' => $redirectTo]);
+        }
+
+        $response = $request->post("{$this->url}/auth/v1/recover", [
             'email' => $email,
         ]);
 
-        return $response->json();
+        return $this->authResponse($response);
+    }
+
+    public function updateAuthUser(
+        string $token,
+        array $attributes,
+        ?string $redirectTo = null
+    ): array {
+        $request = Http::withHeaders([
+            'apikey' => $this->anonKey,
+            'Authorization' => "Bearer {$token}",
+            'Content-Type' => 'application/json',
+        ]);
+        if ($redirectTo !== null) {
+            $request = $request->withQueryParameters(['redirect_to' => $redirectTo]);
+        }
+
+        return $this->authResponse(
+            $request->put("{$this->url}/auth/v1/user", $attributes)
+        );
     }
 
     // ── Database (uses JWT token from logged-in user) ─────
@@ -393,16 +423,16 @@ class SupabaseService
 
     public function adminUpdate(string $table, array $data, array $filters): array
     {
-        $query = http_build_query(
-            array_map(fn($v) => "eq.$v", $filters)
-        );
+        $query = $this->buildAdminSelectParams('*', $filters);
+        unset($query['select'], $query['order'], $query['limit'], $query['offset']);
 
         $response = Http::withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type'  => 'application/json',
             'Prefer'        => 'return=representation',
-        ])->patch("{$this->url}/rest/v1/{$table}?{$query}", $data);
+        ])->withQueryParameters($query)
+          ->patch("{$this->url}/rest/v1/{$table}", $data);
 
         return $this->responseRows($response);
     }
@@ -556,15 +586,22 @@ class SupabaseService
 
     public function updatePassword(string $token, string $password): array
     {
-        $response = Http::withHeaders([
-            'apikey'        => $this->anonKey,
-            'Authorization' => "Bearer {$token}",
-            'Content-Type'  => 'application/json',
-        ])->put("{$this->url}/auth/v1/user", [
-            'password' => $password,
-        ]);
+        return $this->updateAuthUser($token, ['password' => $password]);
+    }
 
-        return $response->json();
+    private function authResponse($response): array
+    {
+        $data = $response->json();
+        $data = is_array($data) ? $data : [];
+
+        return [
+            'successful' => $response->successful(),
+            'data' => $data,
+            'error' => $response->successful()
+                ? null
+                : ($data['error_description'] ?? $data['msg'] ?? $data['message'] ?? $data['error'] ?? 'Supabase Auth request failed.'),
+            'status' => $response->status(),
+        ];
     }
 
     private function responseRows($response): array

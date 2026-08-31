@@ -10,6 +10,7 @@ use App\Http\Controllers\TeacherQuizController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminQuizController;
 use App\Http\Controllers\AdminPushController;
+use App\Http\Controllers\NotificationController;
 
 Route::pattern('id', '[0-9a-fA-F-]{36}');
 Route::pattern('classId', '[0-9a-fA-F-]{36}');
@@ -25,8 +26,14 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::get('/reset-password', function () { return view('auth.reset'); });
 Route::post('/update-password', [AuthController::class, 'updatePassword']);
-Route::post('/change-password', [AuthController::class, 'changePassword']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+Route::middleware('auth.supabase')->group(function () {
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::post('/change-email', [AuthController::class, 'changeEmail']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'read']);
+});
 
 // Student routes
 Route::middleware('auth.supabase:student')->group(function () {
@@ -34,6 +41,7 @@ Route::middleware('auth.supabase:student')->group(function () {
     Route::post('/student/classes/join', [StudentClassController::class, 'join']);
     Route::get('/student/classes/{id}', [StudentClassController::class, 'show']);
     Route::get('/student/classes/{classId}/quizzes/{sessionId}/review', [StudentClassController::class, 'review']);
+    Route::get('/student/report/progress', [StudentController::class, 'reportProgress']);
     Route::post('/student/profile', [StudentController::class, 'updateProfile']);
 });
 
@@ -119,5 +127,7 @@ Route::middleware('auth.supabase:teacher')->group(function () {
 Route::middleware('auth.supabase:admin')->group(function () {
     Route::get('/admin/report/students', [AdminController::class, 'reportStudents']);
     Route::get('/admin/report/teachers', [AdminController::class, 'reportTeachers']);
+    Route::get('/admin/report/quizzes', [AdminController::class, 'reportQuizzes']);
+    Route::get('/admin/report/classrooms', [AdminController::class, 'reportClassrooms']);
     Route::get('/admin/report/summary',  [AdminController::class, 'reportSummary']);
 });

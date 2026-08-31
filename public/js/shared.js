@@ -192,7 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sections = [...document.querySelectorAll('.content-section')];
     if (!sections.length) return;
 
-    const section = new URLSearchParams(window.location.search).get('section');
+    const requested = new URLSearchParams(window.location.search).get('section');
+    const section = requested === 'password' ? 'security' : requested;
     const visible = sections.find(item => !item.classList.contains('hidden'));
     const fallback = visible?.id.replace(/^sec-/, '') ?? 'stats';
     showSection(section || fallback);

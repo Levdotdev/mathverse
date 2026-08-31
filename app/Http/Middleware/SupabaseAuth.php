@@ -64,6 +64,24 @@ class SupabaseAuth
         // The database function is idempotent and returns an empty result before
         // the scheduling migration has been installed.
         $this->supabase->adminRpc('advance_quiz_session_schedule');
+        $this->supabase->adminRpc('generate_upcoming_quiz_notifications', [
+            'p_user_id' => $user['id'],
+        ]);
+
+        $notifications = $this->supabase->adminSelect(
+            'notifications',
+            'id,type,title,message,action_url,data,read_at,created_at',
+            [
+                'user_id' => $user['id'],
+                'order' => 'created_at.desc',
+                'limit' => 12,
+            ]
+        );
+        $unreadNotificationCount = $this->supabase->adminCount('notifications', [
+            'user_id' => $user['id'],
+            'read_at' => ['operator' => 'is', 'value' => 'null'],
+        ]);
+        view()->share(compact('notifications', 'unreadNotificationCount'));
 
         $response = $next($request);
 

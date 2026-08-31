@@ -12,9 +12,19 @@
 
 {{-- STATS SECTION --}}
 <section id="sec-stats" class="content-section">
-    <h2 class="text-xl md:text-2xl font-orbitron font-bold mb-6 uppercase border-b border-white/10 pb-2">
-        Academic <span class="text-cyan-400">Progress</span>
-    </h2>
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-white/10 pb-4">
+        <h2 class="text-xl md:text-2xl font-orbitron font-bold uppercase">
+            Academic <span class="text-cyan-400">Progress</span>
+        </h2>
+        <div class="flex gap-2">
+            <a href="/student/report/progress?format=pdf" class="btn-rect-primary !w-auto !py-2 px-4 text-[10px]">
+                <i class="fas fa-file-pdf mr-1"></i> My PDF Report
+            </a>
+            <a href="/student/report/progress?format=csv" class="btn-rect-secondary !w-auto !py-2 px-4 text-[10px]">
+                <i class="fas fa-file-csv mr-1"></i> CSV
+            </a>
+        </div>
+    </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div class="portal-frame !p-5 border-b-2 border-cyan-500">
@@ -191,55 +201,7 @@
     </div>
 </section>
 
-<section id="sec-password" class="content-section hidden">
-    <div class="portal-frame !p-6 md:!p-10">
-        <h2 class="text-xl font-orbitron font-bold mb-10 uppercase">
-            <i class="fas fa-key mr-2"></i> CHANGE <span class="text-cyan-400">PASSWORD</span>
-        </h2>
-        <form method="POST" action="/change-password" class="space-y-6 max-w-2xl mx-auto">
-            @csrf
-            <div class="form-group sm:col-span-2 mt-2">
-                <label class="input-label text-orange-400">Current Password</label>
-                <div class="relative">
-                    <i class="fas fa-unlock-alt input-icon"></i>
-                    <input type="password" id="s-curr-pass" name="current_password"
-                            class="input-mobile-ultra pr-12" placeholder="Enter current password" required>
-                    <button type="button" onclick="tglPass('s-curr-pass','s-ico-curr')"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                        <i id="s-ico-curr" class="fas fa-eye-slash"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="form-group border-t border-white/10 pt-4 mt-2">
-                <label class="input-label">New Password</label>
-                <div class="relative">
-                    <i class="fas fa-key input-icon"></i>
-                    <input type="password" id="s-new-pass" name="new_password"
-                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
-                    <button type="button" onclick="tglPass('s-new-pass','s-ico-new')"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                        <i id="s-ico-new" class="fas fa-eye-slash"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="input-label">Confirm Password</label>
-                <div class="relative">
-                    <i class="fas fa-lock input-icon"></i>
-                    <input type="password" id="s-conf-pass" name="new_password_confirmation"
-                           class="input-mobile-ultra pr-12" placeholder="••••••••" required>
-                    <button type="button" onclick="tglPass('s-conf-pass','s-ico-conf')"
-                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
-                            <i id="s-ico-conf" class="fas fa-eye-slash"></i>
-                    </button>
-                </div>
-            </div>
-            <button type="submit" class="btn-rect-primary mt-4">
-                <i class="fas fa-save mr-2"></i> Update Password
-            </button>
-        </form>
-    </div>
-</section>
+@include('partials.account-security')
 
 {{-- PROFILE SECTION --}}
 <section id="sec-profile" class="content-section hidden">

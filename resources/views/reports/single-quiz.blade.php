@@ -25,15 +25,15 @@
         <div class="value">{{ $summary['total_students'] }}</div>
     </div>
     <div class="summary-card">
-        <div class="label">Avg Accuracy</div>
+        <div class="label">Avg Attempt Accuracy</div>
         <div class="value" style="color:#00f2ff;">{{ $summary['avg_accuracy'] }}%</div>
     </div>
     <div class="summary-card">
-        <div class="label">Pass Rate (≥75%)</div>
+        <div class="label">Pass Rate of Attempts (≥75%)</div>
         <div class="value" style="color:#22c55e;">{{ $summary['pass_rate'] }}%</div>
     </div>
     <div class="summary-card">
-        <div class="label">Passed / Excused</div>
+        <div class="label">Passed</div>
         <div class="value" style="color:#22c55e;">{{ $summary['passed'] }}</div>
     </div>
     <div class="summary-card">
@@ -49,8 +49,12 @@
         <div class="value" style="color:#ef4444;">{{ $summary['missed'] }}</div>
     </div>
     <div class="summary-card">
-        <div class="label">Excused (100%)</div>
+        <div class="label">Excused</div>
         <div class="value" style="color:#a78bfa;">{{ $summary['excused'] }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">Completion Rate</div>
+        <div class="value" style="color:#f59e0b;">{{ $summary['completion_rate'] }}%</div>
     </div>
 </div>
 
@@ -70,7 +74,7 @@
         <tr>
             <td class="text-center">{{ $i + 1 }}</td>
             <td>{{ $q['question'] }}</td>
-            <td style="color:#22c55e; font-weight:700;">{{ $q['correct_answer'] }}</td>
+            <td style="color:#22c55e; font-weight:700;">{{ $q['correct_answer_label'] }}</td>
         </tr>
         @endforeach
     </tbody>
@@ -96,14 +100,16 @@
         @php
             $statusColor = $r['status'] === 'Excused'
                 ? '#a78bfa'
-                : ($r['accuracy'] >= 75 ? '#22c55e' : '#ef4444');
+                : ($r['status'] === 'Missed'
+                    ? '#f59e0b'
+                    : (($r['accuracy'] ?? 0) >= 75 ? '#22c55e' : '#ef4444'));
         @endphp
         <tr>
             <td class="text-center"><strong>#{{ $i + 1 }}</strong></td>
             <td><strong>{{ $r['name'] }}</strong></td>
             <td>{{ $r['grade'] }}</td>
             <td class="text-center">{{ $r['score'] }}</td>
-            <td class="text-center">{{ $r['accuracy'] }}%</td>
+            <td class="text-center">{{ $r['accuracy'] === null ? '—' : $r['accuracy'] . '%' }}</td>
             <td style="color:{{ $statusColor }}; font-weight:700;">{{ $r['status'] }}</td>
             <td style="font-size:9px;">{{ $r['date'] }}</td>
         </tr>

@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const requested = new URLSearchParams(window.location.search).get('section') ?? 'overview';
-    const allowed = ['overview', 'stats', 'students', 'teachers', 'role-verify', 'audit', 'reports', 'profile', 'password'];
-    showSection(allowed.includes(requested) ? requested : 'overview');
+    const normalized = requested === 'password' ? 'security' : requested;
+    const allowed = ['overview', 'stats', 'students', 'teachers', 'role-verify', 'audit', 'reports', 'profile', 'security'];
+    showSection(allowed.includes(normalized) ? normalized : 'overview');
 
     if (typeof applyChartDefaults === 'function') {
         applyChartDefaults();
