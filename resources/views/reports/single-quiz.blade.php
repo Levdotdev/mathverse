@@ -49,6 +49,10 @@
         <div class="value" style="color:#ef4444;">{{ $summary['missed'] }}</div>
     </div>
     <div class="summary-card">
+        <div class="label">Pending</div>
+        <div class="value" style="color:#38bdf8;">{{ $summary['pending'] }}</div>
+    </div>
+    <div class="summary-card">
         <div class="label">Excused</div>
         <div class="value" style="color:#a78bfa;">{{ $summary['excused'] }}</div>
     </div>
@@ -96,16 +100,18 @@
         </tr>
     </thead>
     <tbody>
-        @forelse($rows as $i => $r)
+        @forelse($rows as $r)
         @php
             $statusColor = $r['status'] === 'Excused'
                 ? '#a78bfa'
-                : ($r['status'] === 'Missed'
-                    ? '#f59e0b'
-                    : (($r['accuracy'] ?? 0) >= 75 ? '#22c55e' : '#ef4444'));
+                : ($r['status'] === 'Pending'
+                    ? '#38bdf8'
+                    : ($r['status'] === 'Missed'
+                        ? '#f59e0b'
+                        : (($r['accuracy'] ?? 0) >= 75 ? '#22c55e' : '#ef4444')));
         @endphp
         <tr>
-            <td class="text-center"><strong>#{{ $i + 1 }}</strong></td>
+            <td class="text-center"><strong>{{ $r['rank'] === null ? '—' : '#' . $r['rank'] }}</strong></td>
             <td><strong>{{ $r['name'] }}</strong></td>
             <td>{{ $r['grade'] }}</td>
             <td class="text-center">{{ $r['score'] }}</td>

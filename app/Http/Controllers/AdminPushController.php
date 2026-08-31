@@ -18,10 +18,10 @@ class AdminPushController extends Controller
             'keys.p256dh' => 'required|string|max:500',
             'keys.auth' => 'required|string|max:500',
         ]);
-        $admin = session('supabase_user');
+        $user = session('supabase_user');
 
         $saved = $this->supabase->adminUpsert('push_subscriptions', [
-            'user_id' => $admin['id'],
+            'user_id' => $user['id'],
             'endpoint' => $validated['endpoint'],
             'p256dh' => $validated['keys']['p256dh'],
             'auth' => $validated['keys']['auth'],
@@ -31,7 +31,7 @@ class AdminPushController extends Controller
 
         if (!isset($saved[0]['id'])) {
             return response()->json([
-                'message' => 'The push subscription could not be saved. Run the August 30 hotfix migration first.',
+                'message' => 'The browser-alert subscription could not be saved. Run the documented Supabase migrations first.',
             ], 503);
         }
 
@@ -43,11 +43,11 @@ class AdminPushController extends Controller
         $validated = $request->validate([
             'endpoint' => 'required|url|max:2048',
         ]);
-        $admin = session('supabase_user');
+        $user = session('supabase_user');
 
         $deleted = $this->supabase->adminDelete('push_subscriptions', [
             'endpoint' => $validated['endpoint'],
-            'user_id' => $admin['id'],
+            'user_id' => $user['id'],
         ]);
 
         return $deleted

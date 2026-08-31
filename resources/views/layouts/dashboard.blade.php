@@ -77,7 +77,7 @@
 <main class="flex-1 min-w-0 p-4 md:p-8 z-20 relative">
 
     {{-- Mobile header --}}
-    <div class="md:hidden flex items-center justify-between mb-8 p-4 portal-frame @yield('mobile-border', '')">
+    <div class="md:hidden relative z-[300] overflow-visible flex items-center justify-between mb-8 p-4 rounded-xl border border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl @yield('mobile-border', '')">
         <button onclick="toggleSidebar()" class="text-2xl @yield('accent-color', 'text-cyan-400')">
             <i class="fas fa-bars"></i>
         </button>
@@ -103,4 +103,5 @@
 @push('scripts')
 <script src="{{ asset('js/dashboard.js') }}"></script>
 <script src="{{ asset('js/notifications.js') }}?v={{ filemtime(public_path('js/notifications.js')) }}"></script>
+<script src="{{ asset('js/admin-push.js') }}?v={{ filemtime(public_path('js/admin-push.js')) }}"></script>
 @endpush

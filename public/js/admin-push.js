@@ -1,22 +1,22 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const button = document.getElementById('admin-push-toggle');
-    const status = document.getElementById('admin-push-status');
-    if (!button || !status) return;
+    const buttons = [...document.querySelectorAll('[data-push-toggle]')];
+    if (!buttons.length) return;
+    const statuses = [...document.querySelectorAll('[data-push-status]')];
 
-    const publicKey = button.dataset.vapidKey ?? '';
+    const publicKey = buttons[0].dataset.vapidKey ?? '';
     const supported = 'serviceWorker' in navigator
         && 'PushManager' in window
         && 'Notification' in window;
 
     if (!supported) {
-        button.disabled = true;
-        status.textContent = 'This browser does not support Web Push.';
+        setButtonsDisabled(true);
+        setStatus('This browser does not support Web Push.');
         return;
     }
 
     if (!publicKey) {
-        button.disabled = true;
-        status.textContent = 'Push keys still need to be configured.';
+        setButtonsDisabled(true);
+        setStatus('Push keys still need to be configured.');
         return;
     }
 
@@ -25,64 +25,78 @@ document.addEventListener('DOMContentLoaded', async () => {
         registration = await navigator.serviceWorker.register('/mathverse-sw.js');
         await updateButton(registration);
     } catch (error) {
-        button.disabled = true;
-        status.textContent = 'The notification service worker could not start.';
+        setButtonsDisabled(true);
+        setStatus('The notification service worker could not start.');
         return;
     }
 
-    button.addEventListener('click', async () => {
-        button.disabled = true;
-        try {
-            const existing = await registration.pushManager.getSubscription();
-            if (existing) {
-                await removeSubscription(existing);
-                await existing.unsubscribe();
-                showToast('Browser alerts disabled.');
-            } else {
-                const permission = await Notification.requestPermission();
-                if (permission !== 'granted') {
-                    throw new Error('Notification permission was not granted.');
-                }
+    buttons.forEach(button => {
+        button.addEventListener('click', async () => {
+            setButtonsDisabled(true);
+            try {
+                const existing = await registration.pushManager.getSubscription();
+                if (existing) {
+                    await removeSubscription(existing, button.dataset.subscriptionUrl);
+                    await existing.unsubscribe();
+                    showToast('Browser alerts disabled.');
+                } else {
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') {
+                        throw new Error('Notification permission was not granted.');
+                    }
 
-                const subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(publicKey),
-                });
+                    const subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(publicKey),
+                    });
 
-                try {
-                    await saveSubscription(subscription);
-                } catch (error) {
-                    await subscription.unsubscribe();
-                    throw error;
+                    try {
+                        await saveSubscription(subscription, button.dataset.subscriptionUrl);
+                    } catch (error) {
+                        await subscription.unsubscribe();
+                        throw error;
+                    }
+                    showToast('Browser alerts enabled.');
                 }
-                showToast('Browser alerts enabled.');
+            } catch (error) {
+                showToast(error.message || 'Browser alerts could not be updated.', true);
+            } finally {
+                await updateButton(registration);
             }
-        } catch (error) {
-            showToast(error.message || 'Browser alerts could not be updated.', true);
-        } finally {
-            await updateButton(registration);
-        }
+        });
     });
 
     async function updateButton(activeRegistration) {
         const subscription = await activeRegistration.pushManager.getSubscription();
         const enabled = subscription !== null;
         if (!enabled && Notification.permission === 'denied') {
-            button.disabled = true;
-            button.textContent = 'Permission Blocked';
-            status.textContent = 'Allow MathVerse notifications in your browser settings.';
+            setButtonsDisabled(true);
+            setButtonText('Permission Blocked');
+            setStatus('Allow MathVerse notifications in your browser settings.');
             return;
         }
-        button.disabled = false;
-        button.textContent = enabled ? 'Disable Browser Alerts' : 'Enable Browser Alerts';
-        status.textContent = enabled
+        setButtonsDisabled(false);
+        setButtonText(enabled ? 'Disable Browser Alerts' : 'Enable Browser Alerts');
+        setStatus(enabled
             ? 'OS notifications are enabled on this device.'
-            : 'Enable alerts for teacher registrations and quiz reports.';
+            : 'Enable operating-system alerts for non-email MathVerse events.');
+    }
+
+    function setButtonsDisabled(disabled) {
+        buttons.forEach(button => { button.disabled = disabled; });
+    }
+
+    function setButtonText(message) {
+        buttons.forEach(button => { button.textContent = message; });
+    }
+
+    function setStatus(message) {
+        statuses.forEach(status => { status.textContent = message; });
     }
 });
 
-async function saveSubscription(subscription) {
-    const response = await fetch('/admin/push-subscription', {
+async function saveSubscription(subscription, endpoint = '/push-subscription') {
+    const response = await fetch(endpoint || '/push-subscription', {
         method: 'POST',
         headers: pushHeaders(),
         body: JSON.stringify(subscription.toJSON()),
@@ -91,8 +105,8 @@ async function saveSubscription(subscription) {
     if (!response.ok) throw new Error(payload.message || 'The subscription could not be saved.');
 }
 
-async function removeSubscription(subscription) {
-    const response = await fetch('/admin/push-subscription', {
+async function removeSubscription(subscription, endpoint = '/push-subscription') {
+    const response = await fetch(endpoint || '/push-subscription', {
         method: 'DELETE',
         headers: pushHeaders(),
         body: JSON.stringify({ endpoint: subscription.endpoint }),

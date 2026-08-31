@@ -3,17 +3,17 @@ self.addEventListener('push', event => {
     try {
         payload = event.data?.json() ?? {};
     } catch (error) {
-        payload = { body: event.data?.text() ?? 'MathVerse has a new admin alert.' };
+        payload = { body: event.data?.text() ?? 'MathVerse has a new notification.' };
     }
 
-    const title = payload.title || 'MathVerse Admin Alert';
+    const title = payload.title || 'MathVerse Notification';
     const options = {
         body: payload.body || 'A new item needs your attention.',
         icon: '/logo.png',
         badge: '/logo.png',
-        tag: payload.tag || 'mathverse-admin-alert',
+        tag: payload.tag || 'mathverse-notification',
         renotify: true,
-        data: { url: payload.url || '/admin/dashboard' },
+        data: { url: payload.url || '/' },
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
@@ -21,7 +21,7 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
     event.notification.close();
-    const destination = new URL(event.notification.data?.url || '/admin/dashboard', self.location.origin).href;
+    const destination = new URL(event.notification.data?.url || '/', self.location.origin).href;
 
     event.waitUntil((async () => {
         const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });

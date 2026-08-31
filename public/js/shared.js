@@ -41,11 +41,11 @@ function showToast(message, isError = false) {
     toast.classList.remove('opacity-0', 'pointer-events-none');
     toast.classList.add('opacity-100');
 
-    // Hide after 2.5s
-    setTimeout(() => {
+    clearTimeout(globalThis.mathVerseToastTimer);
+    globalThis.mathVerseToastTimer = setTimeout(() => {
         toast.classList.remove('opacity-100');
         toast.classList.add('opacity-0', 'pointer-events-none');
-    }, 2500);
+    }, 4500);
 }
 
 function tglPass(id, icoId) {

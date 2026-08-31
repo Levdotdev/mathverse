@@ -92,6 +92,22 @@
                 </div>
                 <button type="submit" class="btn-rect-primary {{ $securityButton }}"><i class="fas fa-save mr-2"></i> Update Password</button>
             </form>
+
+            @if(($user['role'] ?? '') !== 'admin')
+            <div class="space-y-5 rounded-lg border border-white/10 bg-white/[0.025] p-5 md:p-6 xl:col-span-2 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+                <div>
+                    <h3 class="font-orbitron text-sm font-bold uppercase"><i class="fas fa-bell mr-2 {{ $securityAccent }}"></i> Browser Alerts</h3>
+                    <p data-push-status class="text-[10px] text-slate-500 mt-2 leading-4">Checking whether this device supports Web Push…</p>
+                    <p class="text-[10px] text-slate-600 mt-1 leading-4">Receive operating-system alerts for MathVerse events that are not sent by email.</p>
+                </div>
+                <button type="button" data-push-toggle
+                        data-subscription-url="/push-subscription"
+                        data-vapid-key="{{ config('services.web_push.public_key') }}"
+                        class="btn-rect-secondary !py-3 !px-5 !w-auto shrink-0">
+                    Enable Browser Alerts
+                </button>
+            </div>
+            @endif
         </div>
     </div>
 </section>

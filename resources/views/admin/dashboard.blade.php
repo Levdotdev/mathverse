@@ -131,11 +131,12 @@
             <div class="flex items-start justify-between gap-4">
                 <div>
                     <p class="text-[9px] text-yellow-300 uppercase font-bold tracking-widest">Browser Alerts</p>
-                    <p id="admin-push-status" class="text-xs text-slate-400 mt-2">Checking this device…</p>
+                    <p id="admin-push-status" data-push-status class="text-xs text-slate-400 mt-2">Checking this device…</p>
                 </div>
                 <i class="fas fa-bell text-2xl text-yellow-400 opacity-70"></i>
             </div>
             <button type="button" id="admin-push-toggle"
+                    data-push-toggle data-subscription-url="/push-subscription"
                     data-vapid-key="{{ config('services.web_push.public_key') }}"
                     class="btn-rect-secondary !py-2 !px-3 !w-auto text-yellow-300 !border-yellow-500/30 text-[10px]">
                 Enable Browser Alerts
@@ -569,7 +570,6 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="{{ asset('js/admin.js') }}?v={{ filemtime(public_path('js/admin.js')) }}"></script>
-<script src="{{ asset('js/admin-push.js') }}?v={{ filemtime(public_path('js/admin-push.js')) }}"></script>
 <script src="{{ asset('js/charts.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {

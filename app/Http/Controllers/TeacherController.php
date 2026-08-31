@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\SupabaseService;
 use App\Support\QuizAnswer;
+use App\Support\QuizReportStatus;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class TeacherController extends Controller
@@ -466,7 +467,7 @@ class TeacherController extends Controller
         $resultMap = array_column($results, null, 'student_id');
         $eligibility = $this->supabase->adminSelect(
             'quiz_session_students',
-            'student_id,eligibility_status,excuse_reason',
+            'student_id,eligibility_status,allowed_attempts,retake_due_at,excuse_reason',
             ['session_id' => $id]
         );
         $eligibilityMap = array_column($eligibility, null, 'student_id');
@@ -501,6 +502,16 @@ class TeacherController extends Controller
             $studentEligibility = $eligibilityMap[$studentId] ?? null;
             $isExcused = !$result
                 && ($studentEligibility['eligibility_status'] ?? '') === 'excused';
+            $deadlineOpen = empty($quiz['due_at'])
+                || now()->lt(\Carbon\Carbon::parse($quiz['due_at']));
+            $canStillSubmit = $deadlineOpen && (
+                !($quiz['retake_mode'] ?? false)
+                || (int) ($studentEligibility['allowed_attempts'] ?? 0) > 0
+            );
+            if (!empty($studentEligibility['retake_due_at'])
+                && now()->gte(\Carbon\Carbon::parse($studentEligibility['retake_due_at']))) {
+                $canStillSubmit = false;
+            }
 
             if ($result) {
                 $total = (int) ($result['total_questions'] ?? 0);
@@ -508,17 +519,15 @@ class TeacherController extends Controller
                 $accuracy = $total > 0 ? round(($correct / $total) * 100, 1) : 0;
                 $status = $accuracy >= 75 ? 'Passed' : 'Failed';
                 $date = \Carbon\Carbon::parse($result['created_at'])->format('M d, Y h:i A');
-            } elseif ($isExcused) {
-                $total = null;
-                $correct = null;
-                $accuracy = null;
-                $status = 'Excused';
-                $date = '—';
             } else {
                 $total = null;
                 $correct = null;
                 $accuracy = null;
-                $status = 'Missed';
+                $status = QuizReportStatus::withoutResult(
+                    $isExcused ? 'excused' : ($studentEligibility['eligibility_status'] ?? null),
+                    $quiz['status'] ?? null,
+                    $canStillSubmit
+                );
                 $date = '—';
             }
 
@@ -532,12 +541,17 @@ class TeacherController extends Controller
             ];
         }
 
-        $statusOrder = ['Passed' => 0, 'Failed' => 1, 'Missed' => 2, 'Excused' => 3];
+        $statusOrder = ['Passed' => 0, 'Failed' => 1, 'Pending' => 2, 'Missed' => 3, 'Excused' => 4];
         usort($rows, fn ($a, $b) =>
             (($statusOrder[$a['status']] ?? 9) <=> ($statusOrder[$b['status']] ?? 9))
             ?: (($b['accuracy'] ?? -1) <=> ($a['accuracy'] ?? -1))
             ?: strcmp($a['name'], $b['name'])
         );
+        $completedRank = 0;
+        foreach ($rows as &$row) {
+            $row['rank'] = $row['accuracy'] === null ? null : ++$completedRank;
+        }
+        unset($row);
 
         $totalStudents = count($rows);
         $totalAttempts = count($results);
@@ -551,6 +565,7 @@ class TeacherController extends Controller
         $passed  = count(array_filter($rows, fn($r) => $r['status'] === 'Passed'));
         $failed  = count(array_filter($rows, fn($r) => $r['status'] === 'Failed'));
         $missed = count(array_filter($rows, fn($r) => $r['status'] === 'Missed'));
+        $pending = count(array_filter($rows, fn($r) => $r['status'] === 'Pending'));
         $excused = count(array_filter($rows, fn($r) => $r['status'] === 'Excused'));
         $eligibleStudents = max(0, $totalStudents - $excused);
 
@@ -564,6 +579,7 @@ class TeacherController extends Controller
             'passed'          => $passed,
             'failed'          => $failed,
             'missed'          => $missed,
+            'pending'         => $pending,
             'excused'         => $excused,
             'pass_rate'       => $totalAttempts > 0 ? round(($passed / $totalAttempts) * 100, 1) : 0,
             'completion_rate' => $eligibleStudents > 0
@@ -586,6 +602,7 @@ class TeacherController extends Controller
                 fputcsv($out, ['Total Students',   $summary['total_students']]);
                 fputcsv($out, ['Total Attempts',   $summary['total_attempts']]);
                 fputcsv($out, ['Missed',           $summary['missed']]);
+                fputcsv($out, ['Pending',          $summary['pending']]);
                 fputcsv($out, ['Excused',           $summary['excused']]);
                 fputcsv($out, ['Passed',            $summary['passed']]);
                 fputcsv($out, ['Failed',            $summary['failed']]);
@@ -606,9 +623,9 @@ class TeacherController extends Controller
                 // Results section
                 fputcsv($out, ['Student Results']);
                 fputcsv($out, ['Rank', 'Student Name', 'Grade', 'Score', 'Accuracy', 'Status', 'Date Taken']);
-                foreach ($rows as $i => $r) {
+                foreach ($rows as $r) {
                     fputcsv($out, [
-                        $i + 1,
+                        $r['rank'] ?? '—',
                         $r['name'],
                         $r['grade'],
                         $r['score'],

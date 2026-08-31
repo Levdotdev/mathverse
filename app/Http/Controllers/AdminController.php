@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Services\SupabaseService;
+use App\Services\NotificationDeliveryService;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private NotificationDeliveryService $notificationDelivery,
+    ) {}
 
     public function index(Request $request)
     {
@@ -174,6 +178,10 @@ class AdminController extends Controller
             return redirect('/admin/dashboard?section=role-verify')
                 ->with('error', 'Only a pending teacher application can be rejected.');
         }
+        if (!$this->notificationDelivery->isReady()) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'The application was not rejected because the decision-email outbox is not installed. Run the latest Supabase delivery migration first.');
+        }
 
         $response = Http::withHeaders([
             'apikey'        => config('services.supabase.anon_key'),
@@ -186,13 +194,30 @@ class AdminController extends Controller
                 ->with('error', 'Failed to reject application.');
         }
 
+        $teacherName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+        $decisionEmailQueued = $this->notificationDelivery->queueStandaloneEmail(
+            eventType: 'teacher_denied',
+            recipientEmail: (string) ($profile['email'] ?? ''),
+            recipientName: $teacherName,
+            title: 'Teacher application not approved',
+            message: 'An administrator reviewed your MathVerse teacher application, did not approve it, and closed the pending registration.',
+            actionUrl: '/',
+            data: [],
+            deliveryKey: 'teacher-denied:' . $id,
+        );
+
         $this->supabase->audit(session('supabase_user'), 'teacher.rejected', 'profile', $id, [
-            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
+            'name' => $teacherName,
             'email' => $profile['email'] ?? null,
+            'decision_email_queued' => $decisionEmailQueued,
         ]);
 
-        return redirect('/admin/dashboard?section=role-verify')
-            ->with('success', 'Application rejected.');
+        $redirect = redirect('/admin/dashboard?section=role-verify');
+        if (!$decisionEmailQueued) {
+            return $redirect->with('error', 'Application rejected, but its decision email could not be queued. Check the delivery migration and mail settings.');
+        }
+
+        return $redirect->with('success', 'Application rejected. The decision email is queued.');
     }
 
     public function suspendUser(Request $request, string $id)

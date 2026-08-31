@@ -33,6 +33,8 @@ Route::middleware('auth.supabase')->group(function () {
     Route::post('/change-email', [AuthController::class, 'changeEmail']);
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'read']);
+    Route::post('/push-subscription', [AdminPushController::class, 'store']);
+    Route::delete('/push-subscription', [AdminPushController::class, 'destroy']);
 });
 
 // Student routes

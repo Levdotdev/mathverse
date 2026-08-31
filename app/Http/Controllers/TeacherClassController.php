@@ -435,12 +435,15 @@ class TeacherClassController extends Controller
             $item['remaining_attempts'] = $retakeExpired
                 ? 0
                 : max(0, (int) $item['allowed_attempts'] - $attemptsUsed);
+            $hasRemainingAttempt = $item['remaining_attempts'] > 0;
             $item['can_grant_retake'] = ($session['status'] ?? '') === 'completed'
                 || (bool) ($session['retake_mode'] ?? false);
             $item['assignment_status'] = ($item['eligibility_status'] ?? '') === 'excused'
                 ? 'excused'
                 : ($result ? 'completed' : (
-                    ($session['status'] ?? '') === 'completed' || $retakeExpired ? 'missed' : 'available'
+                    ($session['status'] ?? '') === 'completed' || !$hasRemainingAttempt
+                        ? 'missed'
+                        : 'available'
                 ));
             $rows[] = $item;
         }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\AdminPushService;
 use App\Services\SupabaseService;
+use App\Support\SupabaseAuthError;
 use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
@@ -30,10 +31,18 @@ class AuthController extends Controller
             'password' => 'required|string|max:128',
         ]);
 
-        $result = $this->supabase->signIn($validated['email'], $validated['password']);
+        try {
+            $result = $this->supabase->signIn($validated['email'], $validated['password']);
+        } catch (\Throwable) {
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'MathVerse could not reach the sign-in service. Please try again.'
+            );
+        }
 
         if (isset($result['error']) || !isset($result['access_token'])) {
-            return back()->with('error', $result['error_description'] ?? 'Login failed.');
+            return back()->withInput($request->only('email'))
+                ->with('error', SupabaseAuthError::loginMessage($result));
         }
 
         // Fetch profile to get role
@@ -41,11 +50,13 @@ class AuthController extends Controller
         $profile  = $profiles[0] ?? null;
 
         if (!$profile) {
-            return back()->with('error', 'Profile not found.');
+            return back()->withInput($request->only('email'))
+                ->with('error', 'Your sign-in succeeded, but your MathVerse profile is unavailable. Contact an administrator.');
         }
 
         if ($profile['role'] === 'pending_teacher') {
-            return back()->with('error', 'Your teacher account is pending admin approval.');
+            return back()->withInput($request->only('email'))
+                ->with('error', 'Your teacher application is still waiting for administrator approval.');
         }
 
         // Store user info and token in session
@@ -225,7 +236,7 @@ class AuthController extends Controller
 
         return redirect($redirect)->with(
             'success',
-            'Confirmation sent. Check the new email and, when secure email change is enabled, the current email too.'
+            "Email change requested. Check {$newEmail} for the confirmation link; Supabase may also ask you to confirm from your current address."
         );
     }
 

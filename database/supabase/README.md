@@ -128,11 +128,64 @@ remove only this notification/security layer.
 Copy the hosted Auth email templates and enable the two security notification
 emails by following `supabase/email-templates/README.md`.
 
-### Enable administrator browser push alerts
+Then run `2026_08_31_notifications_delivery_channels.sql`. It adds a protected,
+retryable delivery outbox. The requested application events are sent as
+designed Laravel emails: teacher application receipt and decision, account
+suspension/restoration, quiz assignment/availability, retake, excuse,
+first-attempt submission receipt, and removal from a class. Other bell events
+are routed to targeted Web Push. The original all-admin teacher-registration
+and quiz-report pushes are deliberately excluded from the outbox because their
+existing immediate broadcasts remain in place.
+
+Unapproved repeat result inserts are still ignored by
+`2026_08_30_assignment_usage_and_attempt_integrity.sql`. A submission-receipt
+email is queued only when the database-assigned `attempt_number` is `1`.
+Teacher-authorized retakes remain separate immutable results and do not receive
+another receipt email. Use
+`2026_08_31_notifications_delivery_channels_rollback.sql` to remove only the
+delivery outbox and restore the prior notification function bodies.
+
+### Configure application email delivery
+
+Supabase Auth continues to send sign-up, recovery, change-email, password
+changed, and email-address-changed messages. The new event emails are not
+Supabase Auth templates, so Laravel sends them through `MAIL_*`. Configure the
+same custom SMTP provider credentials in both Supabase Auth and the deployed
+Laravel environment when one sender/provider should handle all mail:
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=null
+MAIL_HOST=smtp.provider.example
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_TIMEOUT=10
+MAIL_FROM_ADDRESS=notifications@your-domain.example
+MAIL_FROM_NAME="Math MetaVerse"
+```
+
+Keep `APP_URL` equal to the deployed HTTPS root URL; email buttons are built
+from it. The server must also invoke Laravel's scheduler every minute:
+
+```bash
+php artisan schedule:run
+```
+
+To verify the outbox manually after deployment, run:
+
+```bash
+php artisan notifications:deliver --limit=50
+```
+
+### Enable browser push alerts
 
 The push alert appears through the browser/operating system even when the
-MathVerse tab is closed. Each administrator must click **Enable Browser
-Alerts** once on the Mainframe and allow notification permission.
+MathVerse tab is closed. Students and teachers enable it in **Account
+Security**; administrators enable it on the Mainframe. Permission is per
+browser/device. Production must use HTTPS. On iPhone/iPad, install MathVerse to
+the Home Screen before enabling alerts; the included web manifest supports that
+browser requirement.
 
 1. Generate one VAPID key pair from the project root:
 

@@ -6,6 +6,7 @@ type PushPayload = {
   body?: string;
   url?: string;
   tag?: string;
+  user_ids?: string[];
 };
 
 Deno.serve(async (request: Request) => {
@@ -41,28 +42,44 @@ Deno.serve(async (request: Request) => {
 
   let payload: PushPayload;
   try {
-    payload = await request.json();
+    const decoded = await request.json();
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+      return json({ message: "The JSON payload must be an object." }, 422);
+    }
+    payload = decoded as PushPayload;
   } catch (_error) {
     return json({ message: "Invalid JSON payload." }, 422);
   }
 
+  const targetUserIds = normalizeUserIds(payload.user_ids);
+  if (payload.user_ids !== undefined && targetUserIds === null) {
+    return json({ message: "user_ids must contain 1 to 100 UUIDs." }, 422);
+  }
+
   const notification = JSON.stringify({
-    title: String(payload.title ?? "MathVerse Admin Alert").slice(0, 100),
+    title: String(payload.title ?? "MathVerse Notification").slice(0, 100),
     body: String(payload.body ?? "A new item needs your attention.").slice(
       0,
       240,
     ),
-    url: safeAdminPath(payload.url),
-    tag: String(payload.tag ?? "mathverse-admin-alert").slice(0, 100),
+    url: safeAppPath(payload.url),
+    tag: String(payload.tag ?? "mathverse-notification").slice(0, 100),
   });
 
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: subscriptions, error } = await supabase
+  let subscriptionQuery = supabase
     .from("push_subscriptions")
-    .select("id,endpoint,p256dh,auth,profiles!inner(role)")
-    .eq("profiles.role", "admin");
+    .select("id,user_id,endpoint,p256dh,auth,profiles!inner(role)");
+
+  // No recipient list intentionally retains the original all-admin behavior
+  // used by teacher-registration and quiz-report alerts.
+  subscriptionQuery = targetUserIds === null
+    ? subscriptionQuery.eq("profiles.role", "admin")
+    : subscriptionQuery.in("user_id", targetUserIds);
+
+  const { data: subscriptions, error } = await subscriptionQuery;
 
   if (error) return json({ message: error.message }, 500);
 
@@ -97,7 +114,7 @@ Deno.serve(async (request: Request) => {
         expired++;
       } else {
         failed++;
-        console.error("Admin browser push rejected", {
+        console.error("MathVerse browser push rejected", {
           subscriptionId: subscription.id,
           statusCode,
           message:
@@ -122,11 +139,21 @@ function safeEqual(left: string, right: string): boolean {
   return difference === 0;
 }
 
-function safeAdminPath(value: unknown): string {
-  const path = String(value ?? "/admin/dashboard");
-  return path.startsWith("/admin/") || path === "/admin/dashboard"
-    ? path
-    : "/admin/dashboard";
+function normalizeUserIds(value: unknown): string[] | null {
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 100) {
+    return null;
+  }
+
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const ids = [...new Set(value.map((item) => String(item)))];
+
+  return ids.every((item) => uuid.test(item)) ? ids : null;
+}
+
+function safeAppPath(value: unknown): string {
+  const path = String(value ?? "/");
+  return path.startsWith("/") && !path.startsWith("//") ? path : "/";
 }
 
 function json(payload: Record<string, unknown>, status = 200): Response {

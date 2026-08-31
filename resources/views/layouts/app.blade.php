@@ -4,10 +4,14 @@
     <meta charset="UTF-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#05070d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>MathVerse | @yield('title', 'Academic Portal')</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" href="{{ asset('logo.png') }}" type="image/png">
+    <link rel="apple-touch-icon" href="{{ asset('logo.png') }}">
+    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/style.css') }}?v={{ filemtime(public_path('css/style.css')) }}">
@@ -68,39 +72,17 @@
         <span id="toast-msg">Success</span>
     </div>
 
-    {{-- Flash messages from Laravel converted to toast --}}
-    @if(session('success') || session('error'))
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const msg   = @json(session('success') ?? session('error'));
-            const toast = document.getElementById('toast');
-            const span  = document.getElementById('toast-msg');
-            if (toast && msg) {
-                span.innerText = msg;
-                @if(session('error'))
-                toast.classList.remove('bg-cyan-500');
-                toast.classList.add('bg-red-500');
-                @endif
-                toast.classList.remove('opacity-0', 'pointer-events-none');
-                toast.classList.add('opacity-100');
-                setTimeout(() => {
-                    toast.classList.remove('opacity-100');
-                    toast.classList.add('opacity-0', 'pointer-events-none');
-                }, 3000);
-            }
-        });
-    </script>
-    @endif
-
-    @if($errors->any())
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            showToast(@json($errors->first()), true);
-        });
-    </script>
-    @endif
-    
     <script src="{{ asset('js/shared.js') }}?v={{ filemtime(public_path('js/shared.js')) }}"></script>
+
+    {{-- One toast path for validation errors and redirect flash messages. --}}
+    @if($errors->any() || session('success') || session('error'))
+    <script>
+        showToast(
+            @json($errors->first() ?: (session('success') ?? session('error'))),
+            @json($errors->any() || session()->has('error'))
+        );
+    </script>
+    @endif
 
     @stack('scripts')
 </body>

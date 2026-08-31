@@ -3,7 +3,9 @@
     $notificationUnread = $unreadNotificationCount ?? 0;
     $notificationIcons = [
         'teacher_verification' => ['fa-user-shield', 'text-orange-400'],
+        'teacher_application_received' => ['fa-file-circle-check', 'text-cyan-400'],
         'teacher_approved' => ['fa-circle-check', 'text-green-400'],
+        'account_suspended' => ['fa-lock', 'text-red-400'],
         'account_restored' => ['fa-unlock', 'text-green-400'],
         'student_joined_class' => ['fa-user-plus', 'text-cyan-400'],
         'class_joined' => ['fa-school', 'text-green-400'],
