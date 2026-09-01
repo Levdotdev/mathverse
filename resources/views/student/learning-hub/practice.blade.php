@@ -138,10 +138,16 @@
             <section class="portal-frame !p-5 border-yellow-500/20">
                 <div class="flex items-center gap-3">
                     <i class="fas fa-brain text-yellow-400"></i>
-                    <p class="font-bold text-sm">MathVerse is choosing for you</p>
+                    <p class="font-bold text-sm">
+                        {{ $practiceState['session']['mode'] === 'focus' ? 'Focused on your chosen topic' : 'MathVerse is choosing for you' }}
+                    </p>
                 </div>
                 <p class="text-[10px] text-slate-500 mt-3 leading-relaxed">
-                    Correct streaks unlock harder problems. Mistakes activate hints, easier examples, and scheduled review.
+                    @if($practiceState['session']['mode'] === 'focus')
+                        Every problem stays within {{ $practiceState['question']['competency_title'] }}. Difficulty still adapts to your answers.
+                    @else
+                        Correct streaks unlock harder problems. Mistakes activate hints, easier examples, and scheduled review.
+                    @endif
                 </p>
             </section>
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\PracticeCurriculum;
 use App\Support\PracticePathSelector;
 use App\Support\PracticeProblemGenerator;
 use Carbon\CarbonImmutable;
@@ -46,6 +47,22 @@ class AdaptivePracticeService
         $history = [];
         $activeSession = null;
         if ($configured) {
+            $activeSessionResult = $this->supabase->adminSelectResult(
+                'practice_sessions',
+                'id,mode,focus_competency_key,questions_answered,correct_answers,xp_earned,current_combo,last_activity_at',
+                [
+                    'student_id' => $student['id'],
+                    'grade_level' => $grade,
+                    'status' => 'active',
+                    'order' => 'last_activity_at.desc',
+                    'limit' => 1,
+                ]
+            );
+            $configured = $activeSessionResult['error'] === null;
+            $activeSession = $configured ? ($activeSessionResult['data'][0] ?? null) : null;
+        }
+
+        if ($configured) {
             $history = $this->supabase->adminSelect(
                 'practice_questions',
                 'answered_at,is_correct,xp_awarded,competency_key',
@@ -59,17 +76,6 @@ class AdaptivePracticeService
                     'limit' => 1000,
                 ]
             );
-            $activeSession = $this->supabase->adminSelect(
-                'practice_sessions',
-                'id,mode,questions_answered,correct_answers,xp_earned,current_combo,last_activity_at',
-                [
-                    'student_id' => $student['id'],
-                    'grade_level' => $grade,
-                    'status' => 'active',
-                    'order' => 'last_activity_at.desc',
-                    'limit' => 1,
-                ]
-            )[0] ?? null;
         }
 
         $timezone = (string) config('app.timezone', 'UTC');
@@ -118,11 +124,22 @@ class AdaptivePracticeService
         $averageMastery = count($skills) > 0
             ? (int) round(array_sum(array_column($skills, 'mastery')) / count($skills))
             : 0;
+        $terms = [];
+        foreach (PracticeCurriculum::TERMS as $term) {
+            $termSkills = array_values(array_filter(
+                $skills,
+                fn (array $skill): bool => $skill['term'] === $term
+            ));
+            if ($termSkills !== []) {
+                $terms[] = ['label' => $term, 'skills' => $termSkills];
+            }
+        }
 
         return [
             'configured' => $configured,
             'grade' => $grade,
             'skills' => $skills,
+            'terms' => $terms,
             'recommended' => $recommended,
             'average_mastery' => $averageMastery,
             'mastered_count' => count(array_filter($skills, fn (array $skill): bool => $skill['mastery'] >= 90)),
@@ -139,21 +156,33 @@ class AdaptivePracticeService
         ];
     }
 
-    public function startOrResume(array $student, string $mode): array
+    public function startOrResume(array $student, string $mode, ?string $focusCompetency = null): array
     {
         $mode = $this->mode($mode);
         $grade = $this->grade($student);
+        if ($mode === 'focus') {
+            $focusCompetency = trim((string) $focusCompetency);
+            if ($focusCompetency === '' || !$this->generator->isVisibleCompetency($grade, $focusCompetency)) {
+                throw new RuntimeException('This curriculum topic is unavailable for your grade.');
+            }
+        } else {
+            $focusCompetency = null;
+        }
+        $sessionFilters = [
+            'student_id' => $student['id'],
+            'grade_level' => $grade,
+            'mode' => $mode,
+            'status' => 'active',
+            'order' => 'last_activity_at.desc',
+            'limit' => 1,
+        ];
+        if ($mode === 'focus') {
+            $sessionFilters['focus_competency_key'] = $focusCompetency;
+        }
         $sessionResult = $this->supabase->adminSelectResult(
             'practice_sessions',
             '*',
-            [
-                'student_id' => $student['id'],
-                'grade_level' => $grade,
-                'mode' => $mode,
-                'status' => 'active',
-                'order' => 'last_activity_at.desc',
-                'limit' => 1,
-            ]
+            $sessionFilters
         );
 
         if ($sessionResult['error'] !== null) {
@@ -162,33 +191,38 @@ class AdaptivePracticeService
 
         $session = $sessionResult['data'][0] ?? null;
         if (!$session) {
-            $created = $this->supabase->adminInsertResult('practice_sessions', [
+            $sessionData = [
                 'student_id' => $student['id'],
                 'grade_level' => $grade,
                 'mode' => $mode,
-            ]);
+            ];
+            if ($mode === 'focus') {
+                $sessionData['focus_competency_key'] = $focusCompetency;
+            }
+            $created = $this->supabase->adminInsertResult('practice_sessions', $sessionData);
             $session = $created['data'][0] ?? null;
 
             if (!$session) {
                 // A simultaneous request may have won the unique active-session
                 // race, so recover the row before reporting a failure.
-                $session = $this->supabase->adminSelect(
-                    'practice_sessions',
-                    '*',
-                    [
-                        'student_id' => $student['id'],
-                        'grade_level' => $grade,
-                        'mode' => $mode,
-                        'status' => 'active',
-                        'limit' => 1,
-                    ]
-                )[0] ?? null;
+                unset($sessionFilters['order']);
+                $session = $this->supabase->adminSelect('practice_sessions', '*', $sessionFilters)[0] ?? null;
             }
         }
 
         if (!$session) {
             throw new RuntimeException('MathVerse could not start this practice adventure.');
         }
+
+        // A learner may keep several topic-focus paths active. Touch the path
+        // they deliberately opened so the dashboard's Continue action returns
+        // to that topic, even when its unanswered question was created earlier.
+        $touchedSession = $this->supabase->adminUpdate(
+            'practice_sessions',
+            ['last_activity_at' => CarbonImmutable::now()->utc()->toIso8601String()],
+            ['id' => $session['id'], 'student_id' => $student['id']]
+        );
+        $session = $touchedSession[0] ?? $session;
 
         $question = $this->nextQuestion($student, $session['id']);
         $profile = $this->supabase->adminSelect(
@@ -261,15 +295,23 @@ class AdaptivePracticeService
         $catalog = $this->generator->catalogForGrade($grade);
         // A missed answer immediately receives a new variation of the same
         // skill. Correct answers resume the broader autonomous path.
-        $competency = isset($lastQuestion['is_correct']) && $lastQuestion['is_correct'] === false
-            ? $this->generator->competency($grade, (string) $lastQuestion['competency_key'])
-            : $this->selector->select(
-                $catalog,
-                $masteryRows,
-                $lastQuestion['competency_key'] ?? null,
-                (int) ($session['questions_answered'] ?? 0),
-                (string) ($session['mode'] ?? 'adventure')
-            );
+        if (($session['mode'] ?? null) === 'focus') {
+            $focusCompetency = (string) ($session['focus_competency_key'] ?? '');
+            if (!$this->generator->isVisibleCompetency($grade, $focusCompetency)) {
+                throw new RuntimeException('This focused curriculum topic is no longer available.');
+            }
+            $competency = $this->generator->competency($grade, $focusCompetency);
+        } else {
+            $competency = isset($lastQuestion['is_correct']) && $lastQuestion['is_correct'] === false
+                ? $this->generator->competency($grade, (string) $lastQuestion['competency_key'])
+                : $this->selector->select(
+                    $catalog,
+                    $masteryRows,
+                    $lastQuestion['competency_key'] ?? null,
+                    (int) ($session['questions_answered'] ?? 0),
+                    (string) ($session['mode'] ?? 'adventure')
+                );
+        }
         $masteryMap = array_column($masteryRows, null, 'competency_key');
         $difficulty = (int) ($masteryMap[$competency['key']]['difficulty'] ?? 1);
         $sequence = (int) ($session['questions_answered'] ?? 0) + 1;
@@ -403,6 +445,7 @@ class AdaptivePracticeService
         return [
             'id' => $session['id'],
             'mode' => $session['mode'],
+            'focus_competency_key' => $session['focus_competency_key'] ?? null,
             'questions_answered' => (int) ($session['questions_answered'] ?? 0),
             'correct_answers' => (int) ($session['correct_answers'] ?? 0),
             'xp_earned' => (int) ($session['xp_earned'] ?? 0),
@@ -443,7 +486,7 @@ class AdaptivePracticeService
 
     private function mode(string $mode): string
     {
-        return in_array($mode, ['adventure', 'daily', 'review'], true)
+        return in_array($mode, ['adventure', 'daily', 'review', 'focus'], true)
             ? $mode
             : 'adventure';
     }
@@ -453,6 +496,7 @@ class AdaptivePracticeService
         return match ($mode) {
             'daily' => 'Daily Quest',
             'review' => 'Weak Skill Rescue',
+            'focus' => 'Topic Focus',
             default => 'Endless Adventure',
         };
     }

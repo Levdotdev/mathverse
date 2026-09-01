@@ -25,12 +25,14 @@ class LearningHubController extends Controller
     public function practice(Request $request): View|RedirectResponse
     {
         $mode = $request->validate([
-            'mode' => 'nullable|in:adventure,daily,review',
+            'mode' => 'nullable|in:adventure,daily,review,focus',
+            'topic' => 'nullable|string|max:80|regex:/^[a-z0-9-]+$/',
         ])['mode'] ?? 'adventure';
+        $topic = $request->input('topic');
         $user = session('supabase_user');
 
         try {
-            $practiceState = $this->practice->startOrResume($user, $mode);
+            $practiceState = $this->practice->startOrResume($user, $mode, $topic);
         } catch (RuntimeException $exception) {
             return redirect('/student/learning-hub')->with('error', $exception->getMessage());
         }

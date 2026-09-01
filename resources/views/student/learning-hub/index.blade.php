@@ -9,6 +9,30 @@
 @endsection
 
 @section('dashboard-content')
+@php
+    $activeSession = $hub['active_session'];
+    $activeMode = $activeSession['mode'] ?? 'adventure';
+    $activeQuery = ['mode' => $activeMode];
+    if ($activeMode === 'focus' && !empty($activeSession['focus_competency_key'])) {
+        $activeQuery['topic'] = $activeSession['focus_competency_key'];
+    }
+    $activePracticeUrl = '/student/learning-hub/practice?'.http_build_query($activeQuery);
+    $activeLabel = match ($activeMode) {
+        'daily' => 'Continue Daily Quest',
+        'review' => 'Continue Skill Rescue',
+        'focus' => 'Continue Topic Focus',
+        default => 'Continue Adventure',
+    };
+    $heroTopic = $hub['recommended'];
+    if ($activeMode === 'focus' && !empty($activeSession['focus_competency_key'])) {
+        foreach ($hub['skills'] as $skill) {
+            if ($skill['key'] === $activeSession['focus_competency_key']) {
+                $heroTopic = $skill;
+                break;
+            }
+        }
+    }
+@endphp
 <div class="max-w-7xl mx-auto">
     <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-7 border-b border-white/10 pb-5">
         <div>
@@ -38,7 +62,7 @@
                 <div>
                     <h3 class="font-orbitron font-bold uppercase text-yellow-400">Learning Hub update required</h3>
                     <p class="text-xs text-slate-400 mt-2">
-                        Install the September 1 autonomous Learning Hub database update before students begin practicing.
+                        Install the curriculum topic-focus database update before students begin practicing.
                     </p>
                 </div>
             </div>
@@ -77,25 +101,27 @@
             <div class="absolute -right-12 -top-12 w-52 h-52 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none"></div>
             <div class="relative z-10 max-w-2xl">
                 <div class="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-[9px] uppercase font-bold tracking-widest text-cyan-400 mb-5">
-                    <i class="fas fa-wand-magic-sparkles"></i> Recommended Next
+                    <i class="fas fa-wand-magic-sparkles"></i> {{ $activeMode === 'focus' ? 'Active Topic Focus' : 'Recommended Next' }}
                 </div>
-                <p class="text-xs text-slate-500 uppercase tracking-widest">{{ $hub['recommended']['world'] }}</p>
+                <p class="text-xs text-slate-500 uppercase tracking-widest">{{ $heroTopic['world'] }}</p>
                 <h3 class="font-orbitron text-2xl md:text-3xl font-black mt-2 text-white">
-                    {{ $hub['recommended']['title'] }}
+                    {{ $heroTopic['title'] }}
                 </h3>
                 <div class="flex flex-wrap items-center gap-3 mt-4 text-xs">
-                    <span class="px-3 py-1.5 rounded bg-white/5 text-slate-300">{{ $hub['recommended']['status'] }}</span>
-                    <span class="px-3 py-1.5 rounded bg-white/5 text-slate-300">Difficulty {{ $hub['recommended']['difficulty'] }}/5</span>
-                    <span class="px-3 py-1.5 rounded bg-white/5 text-slate-300">{{ $hub['recommended']['mastery'] }}% mastery</span>
+                    <span class="px-3 py-1.5 rounded bg-white/5 text-slate-300">{{ $heroTopic['status'] }}</span>
+                    <span class="px-3 py-1.5 rounded bg-white/5 text-slate-300">Difficulty {{ $heroTopic['difficulty'] }}/5</span>
+                    <span class="px-3 py-1.5 rounded bg-white/5 text-slate-300">{{ $heroTopic['mastery'] }}% mastery</span>
                 </div>
                 <p class="text-sm text-slate-400 mt-5 mb-7">
-                    Your next five-question mission is selected from your current level, unfinished skills, and scheduled reviews.
+                    {{ $activeMode === 'focus'
+                        ? 'Continue your saved topic. Every new problem stays within this curriculum topic while difficulty adapts.'
+                        : 'Your next five-question mission is selected from your current level, unfinished skills, and scheduled reviews.' }}
                 </p>
                 @if($hub['configured'])
-                    <a href="/student/learning-hub/practice?mode={{ $hub['active_session']['mode'] ?? 'adventure' }}"
+                    <a href="{{ $activePracticeUrl }}"
                        class="btn-rect-primary !w-auto inline-flex items-center justify-center px-8 py-4">
                         <i class="fas fa-play mr-2"></i>
-                        {{ $hub['active_session'] ? 'Continue Adventure' : 'Begin Adventure' }}
+                        {{ $activeSession ? $activeLabel : 'Begin Adventure' }}
                     </a>
                 @else
                     <button type="button" disabled class="btn-rect-primary !w-auto px-8 py-4 opacity-40 cursor-not-allowed">
@@ -159,33 +185,81 @@
         </div>
     </section>
 
-    <section>
-        <div class="mb-4">
-            <p class="text-[9px] uppercase tracking-[0.3em] font-bold text-slate-500">Grade {{ $hub['grade'] }} map</p>
-            <h3 class="font-orbitron font-bold uppercase text-lg mt-1">Skill Worlds</h3>
+    <section aria-labelledby="curriculum-map-title">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-5">
+            <div>
+                <p class="text-[9px] uppercase tracking-[0.3em] font-bold text-slate-500">Grade {{ $hub['grade'] }} curriculum map</p>
+                <h3 id="curriculum-map-title" class="font-orbitron font-bold uppercase text-lg mt-1">All Topics</h3>
+            </div>
+            <p class="text-xs text-slate-500 max-w-xl md:text-right">
+                Choose any topic to practise only that topic. Endless Adventure still moves through the complete Grade {{ $hub['grade'] }} curriculum automatically.
+            </p>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            @foreach($hub['skills'] as $skill)
-                <article class="portal-frame !p-5" style="border-color: {{ $skill['color'] }}55;">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="w-11 h-11 rounded-lg flex items-center justify-center" style="color: {{ $skill['color'] }}; background: {{ $skill['color'] }}18; border: 1px solid {{ $skill['color'] }}44;">
-                            <i class="fas {{ $skill['icon'] }}"></i>
+
+        <div class="space-y-7">
+            @foreach($hub['terms'] as $term)
+                @php
+                    $termMastered = count(array_filter($term['skills'], fn ($skill) => $skill['mastery'] >= 90));
+                @endphp
+                <section class="learning-term-section" aria-labelledby="term-{{ $loop->iteration }}-title">
+                    <div class="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-white/10">
+                        <div class="flex items-center gap-3">
+                            <span class="learning-term-number">{{ $loop->iteration }}</span>
+                            <div>
+                                <p class="text-[9px] uppercase tracking-widest text-slate-600">Curriculum sequence</p>
+                                <h4 id="term-{{ $loop->iteration }}-title" class="font-orbitron font-bold text-white">{{ $term['label'] }}</h4>
+                            </div>
                         </div>
-                        <span class="text-[9px] uppercase font-bold tracking-wider text-slate-500">Lv. {{ $skill['difficulty'] }}</span>
+                        <span class="text-[10px] font-mono text-slate-500">{{ $termMastered }}/{{ count($term['skills']) }} mastered</span>
                     </div>
-                    <p class="text-[9px] uppercase tracking-widest mt-5" style="color: {{ $skill['color'] }};">{{ $skill['world'] }}</p>
-                    <h4 class="font-bold text-white mt-1 min-h-12">{{ $skill['title'] }}</h4>
-                    <div class="flex justify-between text-[10px] mt-4 mb-2">
-                        <span class="text-slate-500">{{ $skill['status'] }}</span>
-                        <span class="font-mono text-white">{{ $skill['mastery'] }}%</span>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        @foreach($term['skills'] as $skill)
+                            @php
+                                $focusUrl = '/student/learning-hub/practice?'.http_build_query([
+                                    'mode' => 'focus',
+                                    'topic' => $skill['key'],
+                                ]);
+                                $isActiveFocus = $activeMode === 'focus'
+                                    && ($activeSession['focus_competency_key'] ?? null) === $skill['key'];
+                            @endphp
+                            <a href="{{ $hub['configured'] ? $focusUrl : '#' }}"
+                               class="portal-frame learning-topic-card !p-5 {{ !$hub['configured'] ? 'pointer-events-none opacity-50' : '' }}"
+                               style="--topic-color: {{ $skill['color'] }}; border-color: {{ $skill['color'] }}55;"
+                               aria-label="{{ $isActiveFocus ? 'Continue' : 'Practise' }} {{ $skill['title'] }} only">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style="color: {{ $skill['color'] }}; background: {{ $skill['color'] }}18; border: 1px solid {{ $skill['color'] }}44;">
+                                        <i class="fas {{ $skill['icon'] }}"></i>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-[9px] uppercase font-bold tracking-wider text-slate-500">Difficulty {{ $skill['difficulty'] }}</span>
+                                        @if($isActiveFocus)
+                                            <p class="text-[9px] uppercase font-bold tracking-wider text-green-400 mt-1">In progress</p>
+                                        @endif
+                                    </div>
+                                </div>
+                                <p class="text-[9px] uppercase tracking-widest mt-5" style="color: {{ $skill['color'] }};">{{ $skill['strand'] }}</p>
+                                <h5 class="font-bold text-white mt-1 text-lg leading-tight">{{ $skill['title'] }}</h5>
+                                <p class="text-xs text-slate-500 mt-3 leading-relaxed min-h-12">{{ $skill['summary'] }}</p>
+                                <div class="flex justify-between text-[10px] mt-5 mb-2">
+                                    <span class="text-slate-500">{{ $skill['status'] }}</span>
+                                    <span class="font-mono text-white">{{ $skill['mastery'] }}%</span>
+                                </div>
+                                <div class="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div class="h-full rounded-full" style="width: {{ $skill['mastery'] }}%; background: {{ $skill['color'] }};"></div>
+                                </div>
+                                <div class="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-white/5">
+                                    <span class="text-[9px] text-slate-600">
+                                        {{ $skill['attempts'] > 0 ? $skill['attempts'].' attempts · '.$skill['accuracy'].'% accuracy' : 'Not started' }}
+                                    </span>
+                                    <span class="text-[9px] uppercase font-bold tracking-wider" style="color: {{ $skill['color'] }};">
+                                        {{ $isActiveFocus ? 'Continue' : 'Focus' }} <i class="fas fa-arrow-right ml-1"></i>
+                                    </span>
+                                </div>
+                            </a>
+                        @endforeach
                     </div>
-                    <div class="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div class="h-full rounded-full" style="width: {{ $skill['mastery'] }}%; background: {{ $skill['color'] }};"></div>
-                    </div>
-                    <p class="text-[9px] text-slate-600 mt-3">
-                        {{ $skill['attempts'] > 0 ? $skill['attempts'].' attempts · '.$skill['accuracy'].'% accuracy' : 'Waiting for your first mission' }}
-                    </p>
-                </article>
+                </section>
             @endforeach
         </div>
     </section>

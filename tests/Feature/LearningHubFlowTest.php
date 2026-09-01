@@ -39,7 +39,8 @@ class LearningHubFlowTest extends TestCase
         $response->assertSee('MathVerse Adventure');
         $response->assertSee('Endless Adventure');
         $response->assertSee('Weak Skill Rescue');
-        $response->assertSee('Ratio Realm');
+        $response->assertSee('All Topics');
+        $response->assertSee('Ratios');
     }
 
     public function test_practice_page_receives_only_a_safe_public_question(): void
@@ -47,7 +48,7 @@ class LearningHubFlowTest extends TestCase
         $practice = $this->mock(AdaptivePracticeService::class);
         $practice->shouldReceive('startOrResume')
             ->once()
-            ->with($this->student, 'adventure')
+            ->with($this->student, 'adventure', null)
             ->andReturn($this->practiceState());
 
         $response = $this->withSession(['supabase_user' => $this->student])
@@ -58,6 +59,31 @@ class LearningHubFlowTest extends TestCase
         $response->assertSee('Endless Adventure');
         $response->assertDontSee('"correct_answer"', false);
         $response->assertDontSee('x = 5', false);
+    }
+
+    public function test_student_can_open_a_single_curriculum_topic_in_focus_mode(): void
+    {
+        $state = $this->practiceState();
+        $state['session']['mode'] = 'focus';
+        $state['session']['focus_competency_key'] = 'g6-ratios';
+        $state['question']['competency_key'] = 'g6-ratios';
+        $state['question']['competency_title'] = 'Ratios';
+        $state['question']['session']['mode'] = 'focus';
+        $state['mode_label'] = 'Topic Focus';
+
+        $practice = $this->mock(AdaptivePracticeService::class);
+        $practice->shouldReceive('startOrResume')
+            ->once()
+            ->with($this->student, 'focus', 'g6-ratios')
+            ->andReturn($state);
+
+        $response = $this->withSession(['supabase_user' => $this->student])
+            ->get('/student/learning-hub/practice?mode=focus&topic=g6-ratios');
+
+        $response->assertOk();
+        $response->assertSee('Topic Focus');
+        $response->assertSee('Focused on your chosen topic');
+        $response->assertSee('Ratios');
     }
 
     public function test_answer_endpoint_returns_adaptive_feedback(): void
@@ -92,10 +118,13 @@ class LearningHubFlowTest extends TestCase
     {
         $skill = [
             'key' => 'g6-ratios',
-            'title' => 'Ratio Realm',
-            'world' => 'Ratio Realm',
+            'title' => 'Ratios',
+            'world' => 'Number Nexus',
             'icon' => 'fa-code-compare',
-            'color' => '#a78bfa',
+            'color' => '#22d3ee',
+            'term' => 'First Term',
+            'strand' => 'Number and Algebra',
+            'summary' => 'Describe and apply ratios.',
             'mastery' => 35,
             'difficulty' => 2,
             'attempts' => 8,
@@ -108,6 +137,7 @@ class LearningHubFlowTest extends TestCase
             'configured' => true,
             'grade' => 6,
             'skills' => [$skill],
+            'terms' => [['label' => 'First Term', 'skills' => [$skill]]],
             'recommended' => $skill,
             'average_mastery' => 35,
             'mastered_count' => 0,

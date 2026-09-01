@@ -216,15 +216,51 @@ body.sidebar-open {
 /* --- AUTONOMOUS LEARNING HUB --- */
 .learning-hero-card,
 .learning-dashboard-card,
-.learning-mode-card {
+.learning-mode-card,
+.learning-topic-card {
     transition: transform 0.2s ease, border-color 0.2s ease, filter 0.2s ease;
 }
 
 .learning-dashboard-card:hover,
-.learning-mode-card:hover {
+.learning-mode-card:hover,
+.learning-topic-card:hover,
+.learning-topic-card:focus-visible {
     transform: translateY(-3px);
     border-color: rgba(34, 211, 238, 0.55);
     filter: brightness(1.08);
+}
+
+.learning-topic-card {
+    display: block;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.learning-topic-card:hover,
+.learning-topic-card:focus-visible {
+    border-color: var(--topic-color);
+    box-shadow: 0 0 34px color-mix(in srgb, var(--topic-color) 15%, transparent);
+}
+
+.learning-term-section {
+    scroll-margin-top: 6rem;
+}
+
+.learning-term-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: 0 0 2.25rem;
+    border: 1px solid rgba(34, 211, 238, 0.3);
+    border-radius: 0.55rem;
+    background: rgba(34, 211, 238, 0.08);
+    color: #22d3ee;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 900;
 }
 
 .practice-question-frame {

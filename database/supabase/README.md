@@ -172,7 +172,16 @@ correct answer or full solution to the browser before submission.
 
 Students can then open **Learning Hub** and use Endless Adventure, Daily Quest,
 or Weak Skill Rescue without a teacher assignment. Every answer is saved, and
-an unanswered problem survives a refresh. Use
+an unanswered problem survives a refresh.
+
+Next run `2026_09_01_curriculum_topic_focus.sql`. It adds focused-topic
+sessions for the complete Grade 1-6 three-term curriculum map. Students can
+click any displayed curriculum topic and receive only questions for that topic
+while retaining adaptive difficulty, mastery, hints, XP, and saved progress.
+Use its paired `_rollback.sql` file to remove focused sessions and restore the
+original three practice modes.
+
+Use
 `2026_09_01_autonomous_learning_hub_rollback.sql` to remove this practice data
 and its scoring functions. Existing profile XP, points, levels, and trophies
 are retained by the rollback.
