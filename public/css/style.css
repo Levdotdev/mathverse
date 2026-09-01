@@ -213,6 +213,130 @@ body.sidebar-open {
 .module-active { display: block; animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
+/* --- AUTONOMOUS LEARNING HUB --- */
+.learning-hero-card,
+.learning-dashboard-card,
+.learning-mode-card {
+    transition: transform 0.2s ease, border-color 0.2s ease, filter 0.2s ease;
+}
+
+.learning-dashboard-card:hover,
+.learning-mode-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(34, 211, 238, 0.55);
+    filter: brightness(1.08);
+}
+
+.practice-question-frame {
+    border-color: color-mix(in srgb, var(--practice-accent) 45%, transparent);
+}
+
+.practice-hud-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.6rem;
+    background: rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.practice-progress-segment {
+    height: 0.42rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.practice-progress-segment.complete {
+    background: rgba(34, 211, 238, 0.45);
+}
+
+.practice-progress-segment.current {
+    background: var(--practice-accent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--practice-accent) 60%, transparent);
+    transform: scaleY(1.35);
+}
+
+.practice-progress-segment.current.incorrect {
+    background: #f87171;
+    box-shadow: 0 0 14px rgba(248, 113, 113, 0.55);
+}
+
+.practice-progress-segment.current.correct {
+    background: #4ade80;
+    box-shadow: 0 0 14px rgba(74, 222, 128, 0.55);
+}
+
+.practice-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    min-height: 4.2rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.78);
+    color: white;
+    font-size: 1rem;
+    font-weight: 700;
+    text-align: left;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.practice-choice:hover,
+.practice-choice.selected {
+    border-color: var(--practice-accent);
+    background: color-mix(in srgb, var(--practice-accent) 12%, rgba(15, 23, 42, 0.88));
+    transform: translateY(-2px);
+}
+
+.practice-choice-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.45rem;
+    color: var(--practice-accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+}
+
+.practice-feedback-visible.correct {
+    border-color: rgba(74, 222, 128, 0.3);
+    background: rgba(34, 197, 94, 0.07);
+}
+
+.practice-feedback-visible.incorrect {
+    border-color: rgba(248, 113, 113, 0.3);
+    background: rgba(239, 68, 68, 0.07);
+}
+
+.practice-reward-particle {
+    position: fixed;
+    left: 50%;
+    top: 58%;
+    z-index: 500;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 2px;
+    pointer-events: none;
+    animation: practiceRewardBurst 850ms ease-out forwards;
+}
+
+@keyframes practiceRewardBurst {
+    from { opacity: 1; transform: translate(0, 0) rotate(0); }
+    to { opacity: 0; transform: translate(var(--reward-x), var(--reward-y)) rotate(260deg); }
+}
+
 /* Sidebar Nav Links */
 .nav-link {
     display: flex;

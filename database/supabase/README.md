@@ -160,6 +160,23 @@ installations to the five-minute quiz-start reminder window and removes earlier
 start reminders so eligible quizzes can be rearmed at the correct time. Alerts
 already delivered by the browser cannot be retracted.
 
+## Autonomous Learning Hub
+
+After all August 31 files, run
+`2026_09_01_autonomous_learning_hub.sql`. It creates the server-only Practice
+Arena session, mastery, and protected question-instance tables. It also installs
+transactional functions for staged hints and answer submission, adaptive
+difficulty, spaced review, combos, XP, levels, and trophies. The application
+generates reviewed Grade 1–6 problem variations on the server and never sends a
+correct answer or full solution to the browser before submission.
+
+Students can then open **Learning Hub** and use Endless Adventure, Daily Quest,
+or Weak Skill Rescue without a teacher assignment. Every answer is saved, and
+an unanswered problem survives a refresh. Use
+`2026_09_01_autonomous_learning_hub_rollback.sql` to remove this practice data
+and its scoring functions. Existing profile XP, points, levels, and trophies
+are retained by the rollback.
+
 ### Configure application email delivery
 
 Supabase Auth continues to send sign-up, recovery, change-email, password

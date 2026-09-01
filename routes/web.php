@@ -11,12 +11,14 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminQuizController;
 use App\Http\Controllers\AdminPushController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\LearningHubController;
 
 Route::pattern('id', '[0-9a-fA-F-]{36}');
 Route::pattern('classId', '[0-9a-fA-F-]{36}');
 Route::pattern('studentId', '[0-9a-fA-F-]{36}');
 Route::pattern('sessionId', '[0-9a-fA-F-]{36}');
 Route::pattern('reportId', '[0-9a-fA-F-]{36}');
+Route::pattern('questionId', '[0-9a-fA-F-]{36}');
 Route::pattern('version', '[1-9][0-9]*');
 
 // Auth routes
@@ -40,6 +42,14 @@ Route::middleware('auth.supabase')->group(function () {
 // Student routes
 Route::middleware('auth.supabase:student')->group(function () {
     Route::get('/student/dashboard', [StudentController::class, 'index']);
+    Route::get('/student/learning-hub', [LearningHubController::class, 'index']);
+    Route::get('/student/learning-hub/practice', [LearningHubController::class, 'practice']);
+    Route::post('/student/learning-hub/questions/next', [LearningHubController::class, 'nextQuestion'])
+        ->middleware('throttle:120,1');
+    Route::post('/student/learning-hub/questions/{questionId}/hint', [LearningHubController::class, 'revealHint'])
+        ->middleware('throttle:60,1');
+    Route::post('/student/learning-hub/questions/{questionId}/answer', [LearningHubController::class, 'submitAnswer'])
+        ->middleware('throttle:120,1');
     Route::post('/student/classes/join', [StudentClassController::class, 'join']);
     Route::get('/student/classes/{id}', [StudentClassController::class, 'show']);
     Route::get('/student/classes/{classId}/quizzes/{sessionId}/review', [StudentClassController::class, 'review']);

@@ -26,6 +26,20 @@
         </div>
     </div>
 
+    <a href="/student/learning-hub" class="portal-frame !p-6 mb-7 flex flex-col md:flex-row md:items-center justify-between gap-5 border-purple-500/40 learning-dashboard-card">
+        <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                <i class="fas fa-rocket text-2xl"></i>
+            </div>
+            <div>
+                <p class="text-[9px] uppercase font-bold tracking-[0.3em] text-purple-400">New Autonomous Practice</p>
+                <h3 class="font-orbitron font-bold text-lg mt-1">Continue Your MathVerse Adventure</h3>
+                <p class="text-xs text-slate-500 mt-1">Endless adaptive problems, automatic hints, mastery, XP, and daily quests.</p>
+            </div>
+        </div>
+        <span class="btn-rect-primary !w-auto px-6 py-3 text-center shrink-0">Enter Learning Hub <i class="fas fa-arrow-right ml-2"></i></span>
+    </a>
+
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div class="portal-frame !p-5 border-b-2 border-cyan-500">
             <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Grade {{ $gradeLevel }} Rank</p>
