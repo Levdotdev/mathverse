@@ -82,17 +82,17 @@ class PracticeProblemGeneratorTest extends TestCase
 
         for ($seed = 0; $seed < 25; $seed++) {
             $pictograph = $generator->generate(1, 'g1-pictographs', 5, $seed);
-            $this->assertStringContainsString('each ★ represents 1 learner.', $pictograph['prompt']);
+            $this->assertTrue(
+                str_contains($pictograph['prompt'], 'represents 1 learner')
+                || str_contains($pictograph['prompt'], '★ = 1')
+                || str_contains($pictograph['prompt'], 'counts as 1')
+            );
 
             $multiplication = $generator->generate(2, 'g2-equal-groups', 5, $seed);
-            $matched = preg_match(
-                '/There are (\d+) equal groups with (\d+) objects/',
-                $multiplication['prompt'],
-                $factors
-            );
-            $this->assertSame(1, $matched);
-            $this->assertContains((int) $factors[1], [2, 3, 4, 5, 10]);
-            $this->assertLessThanOrEqual(10, (int) $factors[2]);
+            preg_match_all('/\d+/', $multiplication['prompt'], $factors);
+            $this->assertGreaterThanOrEqual(2, count($factors[0]));
+            $this->assertContains((int) $factors[0][0], [2, 3, 4, 5, 10]);
+            $this->assertLessThanOrEqual(10, (int) $factors[0][1]);
 
             $largeOperation = $generator->generate(4, 'g4-multi-add', 5, $seed);
             $this->assertLessThanOrEqual(1000000, (int) $largeOperation['correct_answer']);
@@ -105,5 +105,64 @@ class PracticeProblemGeneratorTest extends TestCase
         $volume = $generator->generate(5, 'g5-volume', 3, 2026);
         $this->assertStringContainsString('unit cubes', $volume['prompt']);
         $this->assertStringNotContainsString('cubic centimeters', $volume['prompt']);
+    }
+
+    public function test_every_topic_produces_many_question_variations(): void
+    {
+        $generator = new PracticeProblemGenerator();
+
+        for ($grade = 1; $grade <= 6; $grade++) {
+            foreach ($generator->catalogForGrade($grade) as $competency) {
+                $prompts = [];
+                $presentationForms = [];
+                $coreForms = [];
+
+                for ($seed = 0; $seed < 40; $seed++) {
+                    $problem = $generator->generate($grade, $competency['key'], 3, $seed);
+                    $prompts[$problem['prompt']] = true;
+                    $presentationForms[$this->normalizedPromptForm($problem['prompt'])] = true;
+                    $coreForms[$this->normalizedPromptForm($this->corePrompt($problem['prompt']))] = true;
+
+                    if ($problem['answer_type'] === 'choice') {
+                        $this->assertSame(
+                            $problem['options'],
+                            array_values(array_unique($problem['options'])),
+                            "{$competency['key']} generated duplicate choices."
+                        );
+                        $this->assertContains($problem['correct_answer'], $problem['options']);
+                    }
+                }
+
+                $this->assertGreaterThanOrEqual(
+                    15,
+                    count($prompts),
+                    "{$competency['key']} repeats too few distinct questions."
+                );
+                $this->assertGreaterThanOrEqual(
+                    5,
+                    count($presentationForms),
+                    "{$competency['key']} repeats too few presentation styles."
+                );
+                $this->assertGreaterThanOrEqual(
+                    3,
+                    count($coreForms),
+                    "{$competency['key']} repeats too few underlying problem structures."
+                );
+            }
+        }
+    }
+
+    private function corePrompt(string $prompt): string
+    {
+        return preg_replace(
+            '/^(?:Find the missing value|Try this new example|Solve carefully, then verify your result|Challenge variation|Use the definition to decide|Compare every choice carefully|Choose the best mathematical answer|Concept challenge):\s*/u',
+            '',
+            trim($prompt)
+        ) ?? trim($prompt);
+    }
+
+    private function normalizedPromptForm(string $prompt): string
+    {
+        return preg_replace('/-?\d+(?:\.\d+)?(?:st|nd|rd|th)?/u', '{n}', $prompt) ?? $prompt;
     }
 }

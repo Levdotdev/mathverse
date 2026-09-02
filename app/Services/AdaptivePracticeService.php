@@ -277,16 +277,17 @@ class AdaptivePracticeService
             return $this->publicQuestion($openQuestion, $session, $grade);
         }
 
-        $lastQuestion = $this->supabase->adminSelect(
+        $recentQuestions = $this->supabase->adminSelect(
             'practice_questions',
-            'competency_key,sequence,is_correct',
+            'competency_key,sequence,is_correct,prompt',
             [
                 'session_id' => $sessionId,
                 'student_id' => $student['id'],
                 'order' => 'sequence.desc',
-                'limit' => 1,
+                'limit' => 8,
             ]
-        )[0] ?? null;
+        );
+        $lastQuestion = $recentQuestions[0] ?? null;
         $masteryRows = $this->supabase->adminSelect(
             'practice_mastery',
             'competency_key,mastery_score,difficulty,attempts,next_review_at',
@@ -315,8 +316,18 @@ class AdaptivePracticeService
         $masteryMap = array_column($masteryRows, null, 'competency_key');
         $difficulty = (int) ($masteryMap[$competency['key']]['difficulty'] ?? 1);
         $sequence = (int) ($session['questions_answered'] ?? 0) + 1;
-        $seed = (int) sprintf('%u', crc32("{$sessionId}:{$sequence}:{$competency['key']}"));
-        $problem = $this->generator->generate($grade, $competency['key'], $difficulty, $seed);
+        $recentForCompetency = array_slice(array_values(array_filter(
+            $recentQuestions,
+            fn (array $question): bool => ($question['competency_key'] ?? null) === $competency['key']
+        )), 0, 5);
+        $problem = $this->freshProblem(
+            $grade,
+            $competency['key'],
+            $difficulty,
+            $sessionId,
+            $sequence,
+            $recentForCompetency
+        );
 
         $created = $this->supabase->adminInsertResult('practice_questions', [
             'session_id' => $sessionId,
@@ -351,6 +362,98 @@ class AdaptivePracticeService
         }
 
         return $this->publicQuestion($question, $session, $grade);
+    }
+
+    private function freshProblem(
+        int $grade,
+        string $competencyKey,
+        int $difficulty,
+        string $sessionId,
+        int $sequence,
+        array $recentQuestions
+    ): array {
+        $candidate = [];
+
+        for ($retry = 0; $retry < 64; $retry++) {
+            $seed = (int) hexdec(substr(
+                hash('sha256', "{$sessionId}:{$sequence}:{$competencyKey}:{$retry}"),
+                0,
+                8
+            ));
+            $candidate = $this->generator->generate($grade, $competencyKey, $difficulty, $seed);
+
+            if ($this->isFreshProblem($candidate, $recentQuestions)) {
+                return $candidate;
+            }
+        }
+
+        // Extremely small concept pools can eventually exhaust the recent
+        // window. Always return a valid generated problem rather than block a
+        // learner's endless session.
+        return $candidate;
+    }
+
+    private function isFreshProblem(array $candidate, array $recentQuestions): bool
+    {
+        if ($recentQuestions === []) {
+            return true;
+        }
+
+        $candidatePrompt = (string) ($candidate['prompt'] ?? '');
+        $candidateCore = $this->corePrompt($candidatePrompt);
+        $candidateNumbers = $this->numberSignature($candidateCore);
+        $candidateCoreForm = $this->promptForm($candidateCore);
+
+        foreach ($recentQuestions as $index => $recent) {
+            $recentPrompt = (string) ($recent['prompt'] ?? '');
+            $recentCore = $this->corePrompt($recentPrompt);
+            $recentCoreForm = $this->promptForm($recentCore);
+
+            // Do not disguise an identical example with a different opener.
+            if ($candidateCore === $recentCore) {
+                return false;
+            }
+
+            // Do not immediately repeat the same sentence structure. This
+            // rotates equations, stories, models, and concept checks.
+            if ($index === 0 && $candidateCoreForm === $recentCoreForm) {
+                return false;
+            }
+
+            // When a problem structure returns later, make sure its generated
+            // values have changed. Different structures may legitimately use
+            // the same fixed concept number (such as a shape's four sides).
+            $recentNumbers = $this->numberSignature($recentCore);
+            if ($candidateNumbers !== []
+                && $candidateNumbers === $recentNumbers
+                && $candidateCoreForm === $recentCoreForm
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function corePrompt(string $prompt): string
+    {
+        return preg_replace(
+            '/^(?:Find the missing value|Try this new example|Solve carefully, then verify your result|Challenge variation|Use the definition to decide|Compare every choice carefully|Choose the best mathematical answer|Concept challenge):\s*/u',
+            '',
+            trim($prompt)
+        ) ?? trim($prompt);
+    }
+
+    private function promptForm(string $prompt): string
+    {
+        return preg_replace('/-?\d+(?:\.\d+)?(?:st|nd|rd|th)?/u', '{n}', $prompt) ?? $prompt;
+    }
+
+    private function numberSignature(string $prompt): array
+    {
+        preg_match_all('/-?\d+(?:\.\d+)?/u', $prompt, $matches);
+
+        return $matches[0] ?? [];
     }
 
     public function revealHint(array $student, string $questionId): array
