@@ -199,6 +199,7 @@ class SecuritySourceTest extends TestCase
         $provider = (string) file_get_contents($this->projectPath(
             'app/Providers/AppServiceProvider.php'
         ));
+        $appConfig = (string) file_get_contents($this->projectPath('config/app.php'));
 
         $this->assertStringContainsString("\$appScheme !== 'https'", $provider);
         $this->assertStringContainsString(
@@ -210,6 +211,10 @@ class SecuritySourceTest extends TestCase
         $this->assertStringContainsString("config('session.secure')", $provider);
         $this->assertStringContainsString("config('session.http_only')", $provider);
         $this->assertStringContainsString("URL::forceScheme('https')", $provider);
+        $this->assertStringContainsString(
+            "? 'https://mathmetaverse.space'",
+            $appConfig
+        );
     }
 
     public function test_sensitive_rate_limits_include_identity_and_network_budgets(): void

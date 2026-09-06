@@ -52,7 +52,12 @@ return [
     |
     */
 
-    'url' => env('APP_URL', 'http://localhost'),
+    'url' => env(
+        'APP_URL',
+        env('APP_ENV', 'production') === 'production'
+            ? 'https://mathmetaverse.space'
+            : 'http://localhost'
+    ),
 
     'trusted_hosts' => array_values(array_filter(array_map(
         'trim',
