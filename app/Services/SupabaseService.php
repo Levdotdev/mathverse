@@ -37,8 +37,6 @@ class SupabaseService
         $this->url        = rtrim((string) config('services.supabase.url'), '/');
         $this->anonKey    = (string) config('services.supabase.anon_key');
         $this->serviceKey = (string) config('services.supabase.service_key');
-
-        $this->assertProductionConfiguration();
     }
 
     // ── Auth ──────────────────────────────────────────────
@@ -770,6 +768,11 @@ class SupabaseService
 
     private function request(): PendingRequest
     {
+        // Keep invalid production credentials fail-closed for every outbound
+        // request without making public pages unavailable during container
+        // startup or a deployment environment refresh.
+        $this->assertProductionConfiguration();
+
         return Http::connectTimeout((int) config('services.supabase.connect_timeout', 5))
             ->timeout((int) config('services.supabase.request_timeout', 15))
             ->acceptJson();

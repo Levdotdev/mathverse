@@ -16,10 +16,12 @@ class SupabaseMutationScopeTest extends TestCase
         config()->set('services.supabase.anon_key', str_repeat('a', 32));
         config()->set('services.supabase.service_key', str_repeat('b', 32));
 
+        $service = new SupabaseService();
+
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('valid HTTPS project URL');
 
-        new SupabaseService();
+        $service->signIn('student@example.com', 'ExamplePassword1!');
     }
 
     public function test_service_role_delete_refuses_an_empty_filter(): void
