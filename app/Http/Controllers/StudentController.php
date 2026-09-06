@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Services\SupabaseService;
+use App\Support\ClassCustomization;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class StudentController extends Controller
 {
@@ -185,8 +187,10 @@ class StudentController extends Controller
         );
         $customizationMap = array_column($customizationRows, null, 'class_id');
         foreach ($classes as &$class) {
-            $class['customization'] = $customizationMap[$class['id']]
-                ?? ['theme_color' => '#22c55e', 'icon' => 'chalkboard', 'banner_pattern' => 'grid'];
+            $class['customization'] = ClassCustomization::normalize(
+                $customizationMap[$class['id']] ?? [],
+                '#22c55e'
+            );
         }
         unset($class);
 
@@ -297,21 +301,21 @@ class StudentController extends Controller
         if ($format === 'csv') {
             return response()->streamDownload(function () use ($summary, $rows) {
                 $out = fopen('php://output', 'w');
-                fputcsv($out, ['MathVerse Personal Progress Report']);
-                fputcsv($out, ['Student', $summary['student']]);
-                fputcsv($out, ['Grade', $summary['grade']]);
-                fputcsv($out, ['Ended Assignments', $summary['ended']]);
-                fputcsv($out, ['Completed Attempts', $summary['attempts']]);
-                fputcsv($out, ['Passed', $summary['passed']]);
-                fputcsv($out, ['Failed', $summary['failed']]);
-                fputcsv($out, ['Missed', $summary['missed']]);
-                fputcsv($out, ['Excused', $summary['excused']]);
-                fputcsv($out, ['Average Attempt Accuracy', $summary['average'] === null ? '—' : $summary['average'] . '%']);
-                fputcsv($out, ['Best Accuracy', $summary['best'] === null ? '—' : $summary['best'] . '%']);
-                fputcsv($out, []);
-                fputcsv($out, ['Quiz', 'Class', 'Room Code', 'Score', 'Accuracy', 'Status', 'Date Taken']);
+                $this->writeCsvRow($out, ['MathVerse Personal Progress Report']);
+                $this->writeCsvRow($out, ['Student', $summary['student']]);
+                $this->writeCsvRow($out, ['Grade', $summary['grade']]);
+                $this->writeCsvRow($out, ['Ended Assignments', $summary['ended']]);
+                $this->writeCsvRow($out, ['Completed Attempts', $summary['attempts']]);
+                $this->writeCsvRow($out, ['Passed', $summary['passed']]);
+                $this->writeCsvRow($out, ['Failed', $summary['failed']]);
+                $this->writeCsvRow($out, ['Missed', $summary['missed']]);
+                $this->writeCsvRow($out, ['Excused', $summary['excused']]);
+                $this->writeCsvRow($out, ['Average Attempt Accuracy', $summary['average'] === null ? '—' : $summary['average'] . '%']);
+                $this->writeCsvRow($out, ['Best Accuracy', $summary['best'] === null ? '—' : $summary['best'] . '%']);
+                $this->writeCsvRow($out, []);
+                $this->writeCsvRow($out, ['Quiz', 'Class', 'Room Code', 'Score', 'Accuracy', 'Status', 'Date Taken']);
                 foreach ($rows as $row) {
-                    fputcsv($out, [
+                    $this->writeCsvRow($out, [
                         $row['topic'],
                         $row['class_name'],
                         $row['room_code'],
@@ -333,8 +337,8 @@ class StudentController extends Controller
 
     public function updateProfile(Request $request)
     {
-        if ($avatarSizeError = $this->rejectOversizedAvatar($request, '/student/dashboard?section=profile')) {
-            return $avatarSizeError;
+        if ($avatarError = $this->rejectInvalidAvatar($request, '/student/dashboard?section=profile')) {
+            return $avatarError;
         }
 
         $validated = $request->validate([
@@ -346,32 +350,41 @@ class StudentController extends Controller
         ]);
 
         $user = session('supabase_user');
-        $token = session('supabase_token');
         $userId = $user['id'];
         $newGrade = (int) $validated['grade_level'];
 
-        if ($newGrade !== (int) ($user['grade_level'] ?? 0)) {
-            $memberships = $this->supabase->adminSelect('class_members', 'class_id', ['student_id' => $userId]);
-            foreach ($memberships as $membership) {
-                $class = $this->supabase->adminSelect(
-                    'classes', 'class_name,grade_level,archived_at', ['id' => $membership['class_id']]
-                )[0] ?? null;
-                if ($class && empty($class['archived_at']) && (int) $class['grade_level'] !== $newGrade) {
-                    return redirect('/student/dashboard?section=profile')->with(
-                        'error',
-                        "Ask your teacher to remove or archive {$class['class_name']} before changing to Grade {$newGrade}."
-                    );
+        try {
+            if ($newGrade !== (int) ($user['grade_level'] ?? 0)) {
+                $memberships = $this->supabase->adminSelect('class_members', 'class_id', ['student_id' => $userId]);
+                foreach ($memberships as $membership) {
+                    $class = $this->supabase->adminSelect(
+                        'classes', 'class_name,grade_level,archived_at', ['id' => $membership['class_id']]
+                    )[0] ?? null;
+                    if ($class && empty($class['archived_at']) && (int) $class['grade_level'] !== $newGrade) {
+                        return redirect('/student/dashboard?section=profile')->with(
+                            'error',
+                            "Ask your teacher to remove or archive {$class['class_name']} before changing to Grade {$newGrade}."
+                        );
+                    }
                 }
             }
-        }
 
-        $profileUpdated = $this->supabase->update('profiles', [
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'grade_level' => $newGrade,
-            'leaderboard_alias' => trim((string) ($validated['leaderboard_alias'] ?? '')) ?: null,
-            'show_on_leaderboard' => $request->boolean('show_on_leaderboard'),
-        ], ['id' => $userId], $token);
+            $profileUpdated = $this->supabase->updateProfile($userId, [
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'grade_level' => $newGrade,
+                'leaderboard_alias' => trim((string) ($validated['leaderboard_alias'] ?? '')) ?: null,
+                'show_on_leaderboard' => $request->boolean('show_on_leaderboard'),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('A student profile could not be updated.', [
+                'user_id' => $userId,
+                'exception' => $exception::class,
+            ]);
+
+            return redirect('/student/dashboard?section=profile')
+                ->with('error', 'The profile service is temporarily unavailable. Please try again.');
+        }
 
         if (!isset($profileUpdated[0]['id'])) {
             return redirect('/student/dashboard?section=profile')
@@ -380,10 +393,22 @@ class StudentController extends Controller
 
         $avatarUrl = null;
         if ($request->hasFile('avatar')) {
-            $this->supabase->deleteAvatarByUrl($user['avatar_url'] ?? null);
-            $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
-            if ($avatarUrl) {
-                $this->supabase->updateProfile($userId, ['avatar_url' => $avatarUrl]);
+            $avatarResult = $this->replaceProfileAvatar(
+                $this->supabase,
+                $userId,
+                $request->file('avatar'),
+                $user['avatar_url'] ?? null
+            );
+            $avatarUrl = $avatarResult['url'];
+
+            if ($avatarResult['error'] === 'upload') {
+                return redirect('/student/dashboard?section=profile')
+                    ->with('error', 'Your profile details were saved, but the new avatar could not be uploaded.');
+            }
+
+            if ($avatarResult['error'] === 'attach') {
+                return redirect('/student/dashboard?section=profile')
+                    ->with('error', 'Your profile details were saved, but the new avatar could not be attached.');
             }
         }
 

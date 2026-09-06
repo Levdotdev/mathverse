@@ -73,7 +73,10 @@ body.sidebar-open {
 .digital-rain {
     position: fixed;
     inset: 0;
-    background: url('https://www.transparenttextures.com/patterns/stardust.png');
+    background-image:
+        radial-gradient(circle at 18% 22%, rgba(103, 232, 249, 0.7) 0 1px, transparent 1.5px),
+        radial-gradient(circle at 74% 68%, rgba(168, 85, 247, 0.55) 0 1px, transparent 1.5px);
+    background-size: 47px 53px, 61px 67px;
     opacity: 0.15;
     z-index: -4;
     animation: drift 60s linear infinite;

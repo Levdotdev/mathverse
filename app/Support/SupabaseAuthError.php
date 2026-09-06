@@ -42,4 +42,41 @@ final class SupabaseAuthError
 
         return 'We could not sign you in right now. Please check your details and try again.';
     }
+
+    public static function registrationMessage(array $response): string
+    {
+        $details = self::details($response);
+
+        if (str_contains($details, 'user_already_exists')
+            || str_contains($details, 'already registered')
+            || str_contains($details, 'already exists')) {
+            return 'An account already exists with that email address.';
+        }
+
+        if (str_contains($details, 'weak_password') || str_contains($details, 'password')) {
+            return 'Use at least 8 characters with uppercase, lowercase, a number, and a symbol.';
+        }
+
+        if (str_contains($details, 'rate limit') || str_contains($details, 'too many')) {
+            return 'Too many registration attempts. Please wait before trying again.';
+        }
+
+        return 'MathVerse could not create the account. Please try again.';
+    }
+
+    private static function details(array $response): string
+    {
+        return mb_strtolower(implode(' ', array_filter([
+            $response['code'] ?? null,
+            $response['error'] ?? null,
+            $response['error_code'] ?? null,
+            $response['error_description'] ?? null,
+            $response['msg'] ?? null,
+            $response['message'] ?? null,
+            $response['data']['code'] ?? null,
+            $response['data']['error'] ?? null,
+            $response['data']['msg'] ?? null,
+            $response['data']['message'] ?? null,
+        ], fn ($value): bool => is_scalar($value) && trim((string) $value) !== '')));
+    }
 }

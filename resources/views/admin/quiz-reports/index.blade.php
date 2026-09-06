@@ -100,7 +100,7 @@
                             <i class="fas fa-edit mr-2"></i> {{ ($report['quiz_creator_id_display'] ?? null) === ($user['id'] ?? null) ? 'Edit My Quiz' : 'Edit Quiz' }}
                         </a>
                         <button type="button"
-                                onclick='openReportDeleteModal(@json($report["quiz_id"]), @json($report["quiz_topic_display"]), @json($report["id"]))'
+                                data-action="openReportDeleteModal" data-action-args="{{ json_encode([$report['quiz_id'], $report['quiz_topic_display'], $report['id']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                 class="btn-rect-secondary !py-2 !px-3 text-red-400 !border-red-500/30">
                             <i class="fas fa-trash-alt mr-2"></i> Delete Quiz
                         </button>
@@ -146,7 +146,7 @@
             <input type="hidden" id="report-delete-report-id" name="report_id">
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz and Continue</button>
         </form>
-        <button type="button" onclick="closeModal('reportDeleteQuizModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["reportDeleteQuizModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -155,13 +155,13 @@
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
         <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
-        <button type="button" onclick="closeModal('logoutModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
 function openReportDeleteModal(quizId, topic, reportId) {
     document.getElementById('reportDeleteQuizForm').action = `/admin/quizzes/${quizId}`;
     document.getElementById('report-delete-topic').textContent = `“${topic}” will be removed from the shared library.`;

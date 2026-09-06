@@ -88,7 +88,7 @@
                        class="btn-rect-secondary !py-3 !w-full block text-center">
                         <i class="fas fa-history mr-2"></i> Version History
                     </a>
-                    <button type="button" onclick="openModal('reportDeleteQuizModal')"
+                    <button type="button" data-action="openModal" data-action-args='["reportDeleteQuizModal"]'
                             class="btn-rect-secondary !py-3 !w-full text-red-400 !border-red-500/30">
                         <i class="fas fa-trash-alt mr-2"></i> Delete Quiz
                     </button>
@@ -106,11 +106,11 @@
                 <h2 class="text-[10px] text-red-300 uppercase font-black tracking-widest mb-2">Resolve Report</h2>
                 <p class="text-xs text-slate-500 mb-4">After either action, MathVerse opens the next active report automatically.</p>
                 <div class="space-y-3">
-                    <button type="button" onclick="openModal('markReportReviewedModal')"
+                    <button type="button" data-action="openModal" data-action-args='["markReportReviewedModal"]'
                             class="btn-rect-primary !bg-green-600 !text-white !py-3">
                         <i class="fas fa-check-circle mr-2"></i> Mark Reviewed
                     </button>
-                    <button type="button" onclick="openModal('dismissReportModal')"
+                    <button type="button" data-action="openModal" data-action-args='["dismissReportModal"]'
                             class="btn-rect-secondary !py-3 text-slate-300">
                         <i class="fas fa-ban mr-2"></i> Dismiss Report
                     </button>
@@ -133,7 +133,7 @@
                 <input type="hidden" name="status" value="reviewed">
                 <button class="btn-rect-primary !bg-green-600 !text-white">Mark Reviewed and Continue</button>
             </form>
-            <button type="button" onclick="closeModal('markReportReviewedModal')" class="modal-cancel mt-3">Cancel</button>
+            <button type="button" data-action="closeModal" data-action-args='["markReportReviewedModal"]' class="modal-cancel mt-3">Cancel</button>
         </div>
     </div>
 
@@ -147,7 +147,7 @@
                 <input type="hidden" name="status" value="dismissed">
                 <button class="btn-rect-primary !bg-slate-600 !text-white">Dismiss and Continue</button>
             </form>
-            <button type="button" onclick="closeModal('dismissReportModal')" class="modal-cancel mt-3">Cancel</button>
+            <button type="button" data-action="closeModal" data-action-args='["dismissReportModal"]' class="modal-cancel mt-3">Cancel</button>
         </div>
     </div>
 @endif
@@ -166,7 +166,7 @@
                 <input type="hidden" name="report_id" value="{{ $report['id'] }}">
                 <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz and Continue</button>
             </form>
-            <button type="button" onclick="closeModal('reportDeleteQuizModal')" class="modal-cancel mt-3">Cancel</button>
+            <button type="button" data-action="closeModal" data-action-args='["reportDeleteQuizModal"]' class="modal-cancel mt-3">Cancel</button>
         </div>
     </div>
 @endif
@@ -176,7 +176,7 @@
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
         <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
-        <button type="button" onclick="closeModal('logoutModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endsection

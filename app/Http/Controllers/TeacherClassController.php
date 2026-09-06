@@ -3,18 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Services\SupabaseService;
+use App\Support\ClassCustomization;
 use Illuminate\Http\Request;
 
 class TeacherClassController extends Controller
 {
-    private const THEME_COLORS = [
-        '#f59e0b', '#06b6d4', '#8b5cf6', '#22c55e', '#ec4899', '#3b82f6',
-    ];
-
-    private const ICONS = ['chalkboard', 'calculator', 'rocket', 'atom', 'shapes', 'gamepad'];
-
-    private const PATTERNS = ['grid', 'stars', 'circuit', 'waves', 'plain'];
-
     public function __construct(private SupabaseService $supabase) {}
 
     public function store(Request $request)
@@ -127,9 +120,9 @@ class TeacherClassController extends Controller
             'user' => $user,
             'class' => $class,
             'customization' => $customization,
-            'themeColors' => self::THEME_COLORS,
-            'icons' => self::ICONS,
-            'patterns' => self::PATTERNS,
+            'themeColors' => ClassCustomization::COLORS,
+            'icons' => ClassCustomization::ICONS,
+            'patterns' => ClassCustomization::PATTERNS,
         ]);
     }
 
@@ -138,9 +131,9 @@ class TeacherClassController extends Controller
         $validated = $request->validate([
             'class_name' => 'required|string|max:100',
             'grade_level' => 'required|integer|between:1,6',
-            'theme_color' => 'required|in:' . implode(',', self::THEME_COLORS),
-            'icon' => 'required|in:' . implode(',', self::ICONS),
-            'banner_pattern' => 'required|in:' . implode(',', self::PATTERNS),
+            'theme_color' => 'required|in:' . implode(',', ClassCustomization::COLORS),
+            'icon' => 'required|in:' . implode(',', ClassCustomization::ICONS),
+            'banner_pattern' => 'required|in:' . implode(',', ClassCustomization::PATTERNS),
         ]);
 
         $user = session('supabase_user');
@@ -181,7 +174,10 @@ class TeacherClassController extends Controller
         $updated = $this->supabase->update('classes', [
             'class_name' => trim($validated['class_name']),
             'grade_level' => $newGrade,
-        ], ['id' => $id], $token);
+        ], [
+            'id' => $id,
+            'teacher_id' => $user['id'],
+        ], $token);
 
         if (!isset($updated[0]['id'])) {
             return redirect("/teacher/classes/{$id}/settings")
@@ -229,7 +225,10 @@ class TeacherClassController extends Controller
         }
 
         $joinCode = $this->generateJoinCode();
-        $updated = $this->supabase->update('classes', ['join_code' => $joinCode], ['id' => $id], $token);
+        $updated = $this->supabase->update('classes', ['join_code' => $joinCode], [
+            'id' => $id,
+            'teacher_id' => $user['id'],
+        ], $token);
 
         if (!isset($updated[0]['id'])) {
             return redirect("/teacher/classes/{$id}/settings")
@@ -255,7 +254,7 @@ class TeacherClassController extends Controller
         $updated = $this->supabase->update(
             'classes',
             ['archived_at' => now()->toIso8601String()],
-            ['id' => $id],
+            ['id' => $id, 'teacher_id' => $user['id']],
             session('supabase_token')
         );
         if (!isset($updated[0]['id'])) {
@@ -263,7 +262,10 @@ class TeacherClassController extends Controller
                 ->with('error', 'The class could not be archived. Run the latest database update first.');
         }
 
-        $openSessions = $this->supabase->adminSelect('quiz_sessions', 'id,status', ['class_id' => $id]);
+        $openSessions = $this->supabase->adminSelect('quiz_sessions', 'id,status', [
+            'class_id' => $id,
+            'teacher_id' => $user['id'],
+        ]);
         foreach ($openSessions as $session) {
             if (in_array($session['status'] ?? 'waiting', ['waiting', 'active'], true)) {
                 $this->supabase->adminUpdate('quiz_sessions', [
@@ -271,7 +273,12 @@ class TeacherClassController extends Controller
                     'is_active' => false,
                     'retake_mode' => false,
                     'ended_at' => now()->toIso8601String(),
-                ], ['id' => $session['id']]);
+                ], [
+                    'id' => $session['id'],
+                    'class_id' => $id,
+                    'teacher_id' => $user['id'],
+                    'status' => $session['status'] ?? 'waiting',
+                ]);
             }
         }
 
@@ -308,7 +315,7 @@ class TeacherClassController extends Controller
         $updated = $this->supabase->update(
             'classes',
             ['archived_at' => null],
-            ['id' => $id],
+            ['id' => $id, 'teacher_id' => $user['id']],
             session('supabase_token')
         );
 
@@ -326,26 +333,30 @@ class TeacherClassController extends Controller
     public function destroy(string $id)
     {
         $user = session('supabase_user');
-        if (!$this->ownedClass($id, $user['id'])) {
+        $class = $this->ownedClass($id, $user['id']);
+        if (!$class) {
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
         }
 
-        $sessions = $this->supabase->adminSelect('quiz_sessions', 'id', ['class_id' => $id]);
-        foreach ($sessions as $session) {
-            $sessionId = $session['id'];
-            $this->supabase->delete('quiz_participants', ['session_id' => $sessionId]);
-            $this->supabase->delete('quiz_results', ['session_id' => $sessionId]);
-            $this->supabase->delete('questions', ['session_id' => $sessionId]);
-            $this->supabase->delete('quiz_sessions', ['id' => $sessionId]);
+        $deleted = $this->supabase->adminRpcResult('delete_teacher_class', [
+            'p_teacher_id' => $user['id'],
+            'p_class_id' => $id,
+        ]);
+        $deletedId = $deleted['data'][0]['deleted_class_id'] ?? null;
+        if ($deleted['error'] !== null || $deletedId !== $id) {
+            $error = strtolower((string) ($deleted['error'] ?? ''));
+            $message = str_contains($error, 'delete_teacher_class')
+                || str_contains($error, 'schema cache')
+                    ? 'Class deletion is unavailable. Run the latest database update, then try again.'
+                    : 'The class could not be deleted. No changes were saved.';
+
+            return redirect("/teacher/classes/{$id}/settings")
+                ->with('error', $message);
         }
 
-        $this->supabase->adminUpdate('profiles', ['class_id' => null], ['class_id' => $id]);
-        $this->supabase->delete('class_members', ['class_id' => $id]);
-        $this->supabase->delete('class_customizations', ['class_id' => $id]);
-        if (!$this->supabase->delete('classes', ['id' => $id])) {
-            return redirect("/teacher/classes/{$id}/settings")
-                ->with('error', 'The class could not be fully deleted. No success was reported.');
-        }
+        $this->supabase->audit($user, 'class.deleted', 'class', $id, [
+            'class_name' => $class['class_name'] ?? null,
+        ]);
 
         return redirect('/teacher/dashboard?section=classes')->with('success', 'Class deleted.');
     }
@@ -560,11 +571,12 @@ class TeacherClassController extends Controller
         if ($deleted['error'] !== null || !$result) {
             $reason = trim((string) ($deleted['error'] ?? 'The database returned no deletion result.'));
             if (str_contains(strtolower($reason), 'delete_open_quiz_assignment')) {
-                $reason = 'Run the 2026_08_30_repeated_shared_class_uses_and_assignment_delete.sql database update, then try again.';
+                return redirect("/teacher/classes/{$classId}")
+                    ->with('error', 'The assignment deletion update is not installed. Run the latest database update, then try again.');
             }
 
             return redirect("/teacher/classes/{$classId}")
-                ->with('error', "The assignment could not be deleted. {$reason}");
+                ->with('error', 'The assignment could not be deleted. Please try again.');
         }
 
         $wasShared = filter_var(
@@ -588,11 +600,12 @@ class TeacherClassController extends Controller
 
     public function start(string $classId, string $sessionId)
     {
+        $teacher = session('supabase_user');
         $session = $this->ownedSession($classId, $sessionId);
         if (!$session) {
             return response()->json(['message' => 'Quiz session not found.'], 404);
         }
-        $class = $this->ownedClass($classId, session('supabase_user')['id']);
+        $class = $this->ownedClass($classId, $teacher['id']);
         if (!empty($class['archived_at'])) {
             return response()->json(['message' => 'Archived classes cannot start quizzes.'], 422);
         }
@@ -608,13 +621,18 @@ class TeacherClassController extends Controller
             'is_active' => true,
             'available_at' => now()->toIso8601String(),
             'started_at' => now()->toIso8601String(),
-        ], ['id' => $sessionId], session('supabase_token'));
+        ], [
+            'id' => $sessionId,
+            'class_id' => $classId,
+            'teacher_id' => $teacher['id'],
+            'status' => 'waiting',
+        ], session('supabase_token'));
 
         if (!isset($updated[0]['id'])) {
             return response()->json(['message' => 'The quiz could not be started.'], 500);
         }
 
-        $this->supabase->audit(session('supabase_user'), 'quiz.started', 'quiz_session', $sessionId, [
+        $this->supabase->audit($teacher, 'quiz.started', 'quiz_session', $sessionId, [
             'class_id' => $classId,
             'topic' => $session['topic'] ?? null,
             'started_early' => !empty($session['available_at'])
@@ -626,6 +644,7 @@ class TeacherClassController extends Controller
 
     public function end(string $classId, string $sessionId)
     {
+        $teacher = session('supabase_user');
         $session = $this->ownedSession($classId, $sessionId);
         if (!$session || !in_array($session['status'] ?? 'waiting', ['waiting', 'active'], true)) {
             return response()->json(['message' => 'This quiz has already ended.'], 422);
@@ -636,13 +655,18 @@ class TeacherClassController extends Controller
             'is_active' => false,
             'ended_at' => now()->toIso8601String(),
             'retake_mode' => false,
-        ], ['id' => $sessionId], session('supabase_token'));
+        ], [
+            'id' => $sessionId,
+            'class_id' => $classId,
+            'teacher_id' => $teacher['id'],
+            'status' => $session['status'],
+        ], session('supabase_token'));
 
         if (!isset($updated[0]['id'])) {
             return response()->json(['message' => 'The quiz could not be ended.'], 500);
         }
 
-        $this->supabase->audit(session('supabase_user'), 'quiz.ended', 'quiz_session', $sessionId, [
+        $this->supabase->audit($teacher, 'quiz.ended', 'quiz_session', $sessionId, [
             'class_id' => $classId,
             'topic' => $session['topic'] ?? null,
         ]);
@@ -749,15 +773,13 @@ class TeacherClassController extends Controller
 
     private function customization(string $classId): array
     {
-        return $this->supabase->adminSelect(
+        $customization = $this->supabase->adminSelect(
             'class_customizations',
             '*',
             ['class_id' => $classId]
-        )[0] ?? [
-            'theme_color' => '#f59e0b',
-            'icon' => 'chalkboard',
-            'banner_pattern' => 'grid',
-        ];
+        )[0] ?? [];
+
+        return ClassCustomization::normalize($customization);
     }
 
     private function sessionAnalytics(array $sessionIds): array
@@ -916,7 +938,12 @@ class TeacherClassController extends Controller
                 'status' => 'active',
                 'is_active' => true,
                 'started_at' => $session['available_at'] ?? now()->toIso8601String(),
-            ], ['id' => $session['id'], 'teacher_id' => $teacher['id'], 'status' => 'waiting']);
+            ], [
+                'id' => $session['id'],
+                'class_id' => $classId,
+                'teacher_id' => $teacher['id'],
+                'status' => 'waiting',
+            ]);
             if (isset($updated[0]['id'])) {
                 $this->supabase->audit($teacher, 'quiz.auto_started', 'quiz_session', $session['id'], [
                     'class_id' => $classId,
@@ -941,7 +968,12 @@ class TeacherClassController extends Controller
                 'is_active' => false,
                 'retake_mode' => false,
                 'ended_at' => $session['due_at'] ?? now()->toIso8601String(),
-            ], ['id' => $session['id'], 'teacher_id' => $teacher['id'], 'status' => $session['status']]);
+            ], [
+                'id' => $session['id'],
+                'class_id' => $classId,
+                'teacher_id' => $teacher['id'],
+                'status' => $session['status'],
+            ]);
             if (isset($updated[0]['id'])) {
                 $this->supabase->audit($teacher, 'quiz.auto_ended', 'quiz_session', $session['id'], [
                     'class_id' => $classId,

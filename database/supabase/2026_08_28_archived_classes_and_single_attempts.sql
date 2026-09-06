@@ -13,6 +13,9 @@ create index if not exists classes_teacher_archive_idx
 -- archive is only needed if this migration is later rolled back.
 create table if not exists public.rollback_duplicate_quiz_results_20260828
     (like public.quiz_results including all);
+alter table public.rollback_duplicate_quiz_results_20260828 enable row level security;
+revoke all privileges on table public.rollback_duplicate_quiz_results_20260828
+from public, anon, authenticated, service_role;
 
 with ranked_results as (
     select id,

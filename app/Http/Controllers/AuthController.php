@@ -6,8 +6,8 @@ use Illuminate\Http\Request;
 use App\Services\AdminPushService;
 use App\Services\SupabaseService;
 use App\Support\SupabaseAuthError;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -19,6 +19,20 @@ class AuthController extends Controller
 
     public function showLogin(Request $request)
     {
+        $sessionUser = $request->session()->get('supabase_user');
+        $sessionRole = is_array($sessionUser)
+            && in_array($sessionUser['role'] ?? null, ['student', 'teacher', 'admin'], true)
+                ? $sessionUser['role']
+                : null;
+        if ($sessionUser !== null && $sessionRole === null) {
+            $request->session()->forget([
+                'supabase_token',
+                'supabase_user',
+                'supabase_authenticated_at',
+            ]);
+            $request->session()->regenerate();
+        }
+
         $authAction = (string) $request->query('auth_action', '');
 
         if ($authAction === 'signup') {
@@ -30,10 +44,10 @@ class AuthController extends Controller
             );
         }
 
-        // If already logged in, redirect to correct dashboard
-        if ($user = session('supabase_user')) {
-            return $this->redirectByRole($user['role']);
+        if ($sessionRole !== null) {
+            return $this->redirectByRole($sessionRole);
         }
+
         return view('auth.login');
     }
 
@@ -53,13 +67,38 @@ class AuthController extends Controller
             );
         }
 
-        if (isset($result['error']) || !isset($result['access_token'])) {
+        $accessToken = $this->validatedBearerToken($result['access_token'] ?? null);
+        if (isset($result['error']) || $accessToken === null) {
             return back()->withInput($request->only('email'))
                 ->with('error', SupabaseAuthError::loginMessage($result));
         }
 
+        $userId = $result['user']['id'] ?? null;
+        if (!is_string($userId) || !Str::isUuid($userId)) {
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'Your credentials were accepted, but MathVerse could not verify your account. Please try again.'
+            );
+        }
+
         // Fetch profile to get role
-        $profiles = $this->supabase->select('profiles', '*', ['id' => $result['user']['id']], $result['access_token']);
+        try {
+            $profiles = $this->supabase->adminSelect(
+                'profiles',
+                'id,role,first_name,last_name,email,avatar_url,grade_level,suspended_at,leaderboard_alias,show_on_leaderboard,auth_sessions_invalid_before',
+                ['id' => $userId]
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Profile lookup after sign-in failed.', [
+                'user_id' => $userId,
+                'exception' => $exception::class,
+            ]);
+
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'Your credentials were accepted, but MathVerse could not load your profile. Please try again.'
+            );
+        }
         $profile  = $profiles[0] ?? null;
 
         if (!$profile) {
@@ -67,29 +106,57 @@ class AuthController extends Controller
                 ->with('error', 'Your sign-in succeeded, but your MathVerse profile is unavailable. Contact an administrator.');
         }
 
+        if (!empty($profile['suspended_at'])) {
+            return back()->withInput($request->only('email'))
+                ->with('error', 'Your account is suspended. Contact an administrator.');
+        }
+
         if ($profile['role'] === 'pending_teacher') {
             return back()->withInput($request->only('email'))
                 ->with('error', 'Your teacher application is still waiting for administrator approval.');
         }
 
-        // Store user info and token in session
-        session([
-            'supabase_token' => $result['access_token'],
-            'supabase_user'  => array_merge($profile, ['email' => $result['user']['email']]),
+        if (!in_array($profile['role'] ?? null, ['student', 'teacher', 'admin'], true)) {
+            return back()->withInput($request->only('email'))->with(
+                'error',
+                'Your account is not authorized to use a dashboard. Contact an administrator.'
+            );
+        }
+
+        // Rotate the session identifier before attaching authenticated data.
+        $request->session()->regenerate();
+        $authEmail = $result['user']['email'] ?? null;
+        if (!is_string($authEmail) || filter_var($authEmail, FILTER_VALIDATE_EMAIL) === false) {
+            $authEmail = $validated['email'];
+        }
+        $request->session()->put([
+            'supabase_token' => $accessToken,
+            'supabase_user'  => array_merge($profile, [
+                'email' => mb_strtolower($authEmail),
+            ]),
+            'supabase_authenticated_at' => $profile['auth_sessions_invalid_before']
+                ?? now()->utc()->toIso8601String(),
         ]);
 
-        $this->supabase->audit($profile, 'user.logged_in', 'profile', $profile['id'], [
-            'ip' => $request->ip(),
-            'user_agent' => mb_substr((string) $request->userAgent(), 0, 250),
-        ]);
+        try {
+            $this->supabase->audit($profile, 'user.logged_in', 'profile', $profile['id'], [
+                'ip' => $request->ip(),
+                'user_agent' => mb_substr((string) $request->userAgent(), 0, 250),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Sign-in audit could not be recorded.', [
+                'user_id' => $profile['id'] ?? null,
+                'exception' => $exception::class,
+            ]);
+        }
 
         return $this->redirectByRole($profile['role']);
     }
 
     public function register(Request $request)
     {
-        if ($avatarSizeError = $this->rejectOversizedAvatar($request)) {
-            return $avatarSizeError;
+        if ($avatarError = $this->rejectInvalidAvatar($request)) {
+            return $avatarError;
         }
 
         $validated = $request->validate([
@@ -111,42 +178,88 @@ class AuthController extends Controller
             ? (int) $validated['grade_level']
             : null;
 
-        $auth = $this->supabase->signUp(
-            $validated['email'],
-            $validated['password'],
-            $validated['role'],
-            $validated['first_name'],
-            $validated['last_name'],
-            $gradeLevel,
-            url('/?auth_action=signup')
-        );
+        $email = mb_strtolower(trim($validated['email']));
 
-        if (!$auth['successful']) {
+        try {
+            $auth = $this->supabase->signUp(
+                $email,
+                $validated['password'],
+                $validated['role'],
+                trim($validated['first_name']),
+                trim($validated['last_name']),
+                $gradeLevel,
+                url('/?auth_action=signup')
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Registration request failed.', [
+                'exception' => $exception::class,
+            ]);
+
             return back()->withInput($request->except(['password', 'password_confirmation']))
-                ->with('error', $auth['error'] ?? 'Signup failed.');
+                ->with('error', 'MathVerse could not create the account. Please try again.');
         }
 
-        // Supabase returns the new user even when email confirmation means no
-        // session is issued yet. Keep the admin lookup only as a compatibility
-        // fallback for older Auth responses.
-        $userId = $auth['data']['user']['id'] ?? null;
-        if (!$userId) {
-            $userData = $this->supabase->getUserByEmail($validated['email']);
-            $userId = $userData['users'][0]['id'] ?? null;
+        if (!($auth['successful'] ?? false)) {
+            return back()->withInput($request->except(['password', 'password_confirmation']))
+                ->with('error', SupabaseAuthError::registrationMessage($auth));
         }
 
+        // Auth returns the created user even when email confirmation means no
+        // session is issued yet. Never guess an account by listing users: if
+        // the exact identifier is absent, defer avatar setup until sign-in.
+        $createdUserId = $auth['data']['user']['id'] ?? null;
+        $userId = is_string($createdUserId) && Str::isUuid($createdUserId)
+            ? $createdUserId
+            : null;
+
         if (!$userId) {
-            return back()->with('error', 'User created but ID not found.');
+            Log::warning('Registration succeeded without a usable user identifier.');
+
+            return redirect('/')->with(
+                'success',
+                'Registered successfully. Check your email to confirm your account. You can add your avatar after signing in.'
+            );
         }
 
         // ── STEP 3: UPLOAD AVATAR
-        $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
+        $avatarRequested = $request->hasFile('avatar');
+        $avatarUrl = null;
+        if ($avatarRequested) {
+            try {
+                $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
+            } catch (\Throwable $exception) {
+                Log::warning('Avatar upload failed after registration.', [
+                    'user_id' => $userId,
+                    'exception' => $exception::class,
+                ]);
+            }
+        }
 
         // ── STEP 4: UPDATE PROFILE
         if ($avatarUrl) {
-            $this->supabase->updateProfile($userId, [
-                'avatar_url' => $avatarUrl
-            ]);
+            try {
+                $avatarUpdated = $this->supabase->updateProfile($userId, [
+                    'avatar_url' => $avatarUrl,
+                ]);
+                if (!isset($avatarUpdated[0]['id'])) {
+                    throw new \RuntimeException('Profile did not accept the uploaded avatar.');
+                }
+            } catch (\Throwable $exception) {
+                Log::warning('Avatar could not be attached to the new profile.', [
+                    'user_id' => $userId,
+                    'exception' => $exception::class,
+                ]);
+
+                try {
+                    $this->supabase->deleteAvatarByUrl($avatarUrl, $userId);
+                } catch (\Throwable $cleanupException) {
+                    Log::warning('Unused registration avatar could not be removed.', [
+                        'user_id' => $userId,
+                        'exception' => $cleanupException::class,
+                    ]);
+                }
+                $avatarUrl = null;
+            }
         }
 
         if ($validated['role'] === 'pending_teacher') {
@@ -160,8 +273,11 @@ class AuthController extends Controller
             );
         }
 
-        return redirect('/')
-            ->with('success', 'Registered successfully! Please verify your email.');
+        $message = $avatarRequested && $avatarUrl === null
+            ? 'Registered successfully. Please verify your email. Your avatar can be added after signing in.'
+            : 'Registered successfully! Please verify your email.';
+
+        return redirect('/')->with('success', $message);
     }
 
     public function forgotPassword(Request $request)
@@ -203,7 +319,7 @@ class AuthController extends Controller
             );
         } catch (\Throwable $exception) {
             Log::warning('Password recovery request failed.', [
-                'message' => $exception->getMessage(),
+                'exception' => $exception::class,
             ]);
 
             return back()->withInput($request->only('email'))->with(
@@ -224,7 +340,24 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        session()->forget(['supabase_token', 'supabase_user']);
+        $accessToken = $request->session()->get('supabase_token');
+        if (is_string($accessToken) && $accessToken !== '') {
+            try {
+                if (!$this->supabase->signOut($accessToken)) {
+                    Log::warning('Remote sign-out was not accepted.');
+                }
+            } catch (\Throwable $exception) {
+                // Local logout must still complete when the Auth service is
+                // temporarily unavailable.
+                Log::warning('Remote sign-out failed.', [
+                    'exception' => $exception::class,
+                ]);
+            }
+        }
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
         return redirect('/');
     }
 
@@ -246,26 +379,70 @@ class AuthController extends Controller
                 'string',
                 'max:128',
                 'confirmed',
+                'different:current_password',
                 Password::min(8)->mixedCase()->numbers()->symbols(),
             ],
         ]);
         $user = session('supabase_user');
         $redirect = $this->securityRedirect($user['role'] ?? 'student');
-        $check = $this->supabase->signIn($user['email'], $validated['current_password']);
+        try {
+            $check = $this->supabase->signIn($user['email'], $validated['current_password']);
+        } catch (\Throwable $exception) {
+            Log::warning('Password-change verification failed.', [
+                'user_id' => $user['id'] ?? null,
+                'exception' => $exception::class,
+            ]);
 
-        if (!isset($check['access_token'])) {
+            return redirect($redirect)->with('error', 'MathVerse could not verify your password. Please try again.');
+        }
+
+        $accessToken = $this->validatedBearerToken($check['access_token'] ?? null);
+        if ($accessToken === null) {
             return redirect($redirect)->with('error', 'Current password is incorrect.');
         }
 
-        $result = $this->supabase->updateAuthUser($check['access_token'], [
-            'password' => $validated['new_password'],
-        ]);
+        try {
+            $result = $this->supabase->updateAuthUser($accessToken, [
+                'password' => $validated['new_password'],
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Password change failed.', [
+                'user_id' => $user['id'] ?? null,
+                'exception' => $exception::class,
+            ]);
+
+            return redirect($redirect)->with('error', 'The password could not be changed. Please try again.');
+        }
         if (!$result['successful']) {
-            return redirect($redirect)->with('error', $result['error'] ?? 'The password could not be changed.');
+            return redirect($redirect)->with('error', 'The password could not be changed. Please try again.');
         }
 
-        session(['supabase_token' => $check['access_token']]);
-        $this->supabase->audit($user, 'account.password_changed', 'profile', $user['id']);
+        $request->session()->regenerate();
+        $invalidBefore = null;
+        try {
+            $invalidBefore = $this->supabase->adminSelect(
+                'profiles',
+                'auth_sessions_invalid_before',
+                ['id' => $user['id'], 'limit' => 1]
+            )[0]['auth_sessions_invalid_before'] ?? null;
+        } catch (\Throwable $exception) {
+            Log::warning('The password-change session marker could not be loaded.', [
+                'user_id' => $user['id'] ?? null,
+                'exception' => $exception::class,
+            ]);
+        }
+        $request->session()->put([
+            'supabase_token' => $accessToken,
+            'supabase_authenticated_at' => $invalidBefore ?: now()->utc()->toIso8601String(),
+        ]);
+        try {
+            $this->supabase->audit($user, 'account.password_changed', 'profile', $user['id']);
+        } catch (\Throwable $exception) {
+            Log::warning('Password change audit could not be recorded.', [
+                'user_id' => $user['id'] ?? null,
+                'exception' => $exception::class,
+            ]);
+        }
 
         return redirect($redirect)->with('success', 'Password changed successfully.');
     }
@@ -289,7 +466,7 @@ class AuthController extends Controller
         } catch (\Throwable $exception) {
             Log::warning('Email change password verification failed.', [
                 'user_id' => $user['id'] ?? null,
-                'message' => $exception->getMessage(),
+                'exception' => $exception::class,
             ]);
 
             return redirect($redirect)->with(
@@ -298,20 +475,21 @@ class AuthController extends Controller
             );
         }
 
-        if (!isset($check['access_token'])) {
+        $accessToken = $this->validatedBearerToken($check['access_token'] ?? null);
+        if ($accessToken === null) {
             return redirect($redirect)->with('error', 'Current password is incorrect.');
         }
 
         try {
             $result = $this->supabase->updateAuthUser(
-                $check['access_token'],
+                $accessToken,
                 ['email' => $newEmail],
                 url('/?auth_action=email_change')
             );
         } catch (\Throwable $exception) {
             Log::warning('Email change request failed.', [
                 'user_id' => $user['id'] ?? null,
-                'message' => $exception->getMessage(),
+                'exception' => $exception::class,
             ]);
 
             return redirect($redirect)->with(
@@ -321,10 +499,11 @@ class AuthController extends Controller
         }
 
         if (!($result['successful'] ?? false)) {
-            return redirect($redirect)->with('error', $result['error'] ?? 'The email change could not be started.');
+            return redirect($redirect)->with('error', 'The email change could not be started. Please verify the address and try again.');
         }
 
-        session(['supabase_token' => $check['access_token']]);
+        $request->session()->regenerate();
+        $request->session()->put('supabase_token', $accessToken);
         try {
             $this->supabase->audit($user, 'account.email_change_requested', 'profile', $user['id'], [
                 'new_email' => $newEmail,
@@ -332,7 +511,7 @@ class AuthController extends Controller
         } catch (\Throwable $exception) {
             Log::warning('Email change audit could not be recorded.', [
                 'user_id' => $user['id'] ?? null,
-                'message' => $exception->getMessage(),
+                'exception' => $exception::class,
             ]);
         }
 
@@ -344,6 +523,16 @@ class AuthController extends Controller
 
     public function updatePassword(Request $request)
     {
+        $submittedToken = $request->input('token');
+        if (is_string($submittedToken)
+            && $submittedToken !== ''
+            && strlen($submittedToken) <= 2048
+        ) {
+            // Preserve retries in the encrypted server session instead of
+            // flashing a recovery credential back into rendered HTML.
+            $request->session()->put('password_recovery_token', $submittedToken);
+        }
+
         $validated = $request->validate([
             'password' => [
                 'required',
@@ -352,37 +541,52 @@ class AuthController extends Controller
                 'confirmed',
                 Password::min(8)->mixedCase()->numbers()->symbols(),
             ],
-            'token' => 'required|string|max:2048',
+            'token' => 'nullable|string|max:2048',
         ]);
 
-        $token_hash = $validated['token'];
-        $type       = 'recovery'; // always recovery for password reset
+        $recoveryToken = $request->session()->get('password_recovery_token');
+        if (!is_string($recoveryToken) || $recoveryToken === '') {
+            return back()->with('error', 'The reset link is incomplete. Please request a new one.');
+        }
 
-        // Step 1 — Verify the token_hash to get a session
-        $session = Http::withHeaders([
-            'apikey'       => config('services.supabase.anon_key'),
-            'Content-Type' => 'application/json',
-        ])->post(config('services.supabase.url') . '/auth/v1/verify', [
-            'token_hash' => $token_hash,
-            'type'       => $type,
-        ]);
+        try {
+            $verification = $this->supabase->verifyRecoveryToken($recoveryToken);
+        } catch (\Throwable $exception) {
+            Log::warning('Password recovery token verification failed.', [
+                'exception' => $exception::class,
+            ]);
 
-        $sessionData = $session->json();
+            return back()->with('error', 'MathVerse could not verify the reset link. Please try again.');
+        }
 
-        if ($session->failed() || !isset($sessionData['access_token'])) {
+        $accessToken = $this->validatedBearerToken($verification['data']['access_token'] ?? null);
+        if (!($verification['successful'] ?? false) || $accessToken === null) {
+            $request->session()->forget('password_recovery_token');
             return back()->with('error', 'Invalid or expired reset link. Please request a new one.');
         }
 
-        $access_token = $sessionData['access_token'];
+        // Verification consumes the one-time link. Never retain it after this
+        // point, even if the password update itself later fails.
+        $request->session()->forget('password_recovery_token');
 
-        // Step 2 — Update password
-        $result = $this->supabase->updateAuthUser($access_token, [
-            'password' => $validated['password'],
-        ]);
+        try {
+            $result = $this->supabase->updateAuthUser($accessToken, [
+                'password' => $validated['password'],
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Recovered password update failed.', [
+                'exception' => $exception::class,
+            ]);
+
+            return back()->with('error', 'The password could not be updated. Please request a new reset link.');
+        }
 
         if (!$result['successful']) {
-            return back()->with('error', $result['error'] ?? 'The password could not be updated.');
+            return back()->with('error', 'The password could not be updated. Please request a new reset link.');
         }
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return redirect('/')->with('success', 'Password updated! Please log in.');
     }
@@ -394,5 +598,18 @@ class AuthController extends Controller
             'teacher' => '/teacher/dashboard?section=security',
             default => '/student/dashboard?section=security',
         };
+    }
+
+    private function validatedBearerToken(mixed $token): ?string
+    {
+        if (!is_string($token)
+            || $token === ''
+            || strlen($token) > 8192
+            || preg_match('/[\x00-\x20\x7F]/', $token) === 1
+        ) {
+            return null;
+        }
+
+        return $token;
     }
 }

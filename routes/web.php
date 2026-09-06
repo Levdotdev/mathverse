@@ -13,34 +13,35 @@ use App\Http\Controllers\AdminPushController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\LearningHubController;
 
-Route::pattern('id', '[0-9a-fA-F-]{36}');
-Route::pattern('classId', '[0-9a-fA-F-]{36}');
-Route::pattern('studentId', '[0-9a-fA-F-]{36}');
-Route::pattern('sessionId', '[0-9a-fA-F-]{36}');
-Route::pattern('reportId', '[0-9a-fA-F-]{36}');
-Route::pattern('questionId', '[0-9a-fA-F-]{36}');
-Route::pattern('version', '[1-9][0-9]*');
+$uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
+Route::pattern('id', $uuidPattern);
+Route::pattern('classId', $uuidPattern);
+Route::pattern('studentId', $uuidPattern);
+Route::pattern('sessionId', $uuidPattern);
+Route::pattern('reportId', $uuidPattern);
+Route::pattern('questionId', $uuidPattern);
+Route::pattern('version', '[1-9][0-9]{0,8}');
 
 // Auth routes
 Route::get('/',       [AuthController::class, 'showLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:registration');
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-recovery');
 Route::get('/reset-password', function () { return view('auth.reset'); });
-Route::post('/update-password', [AuthController::class, 'updatePassword']);
+Route::post('/update-password', [AuthController::class, 'updatePassword'])->middleware('throttle:password-reset');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-Route::middleware('auth.supabase')->group(function () {
-    Route::post('/change-password', [AuthController::class, 'changePassword']);
-    Route::post('/change-email', [AuthController::class, 'changeEmail']);
+Route::middleware(['throttle:authenticated', 'auth.supabase'])->group(function () {
+    Route::post('/change-password', [AuthController::class, 'changePassword'])->middleware('throttle:account-security');
+    Route::post('/change-email', [AuthController::class, 'changeEmail'])->middleware('throttle:account-security');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'read']);
-    Route::post('/push-subscription', [AdminPushController::class, 'store']);
-    Route::delete('/push-subscription', [AdminPushController::class, 'destroy']);
+    Route::post('/push-subscription', [AdminPushController::class, 'store'])->middleware('throttle:30,1');
+    Route::delete('/push-subscription', [AdminPushController::class, 'destroy'])->middleware('throttle:30,1');
 });
 
 // Student routes
-Route::middleware('auth.supabase:student')->group(function () {
+Route::middleware(['throttle:authenticated', 'auth.supabase:student'])->group(function () {
     Route::get('/student/dashboard', [StudentController::class, 'index']);
     Route::get('/student/learning-hub', [LearningHubController::class, 'index']);
     Route::get('/student/learning-hub/practice', [LearningHubController::class, 'practice']);
@@ -50,15 +51,15 @@ Route::middleware('auth.supabase:student')->group(function () {
         ->middleware('throttle:60,1');
     Route::post('/student/learning-hub/questions/{questionId}/answer', [LearningHubController::class, 'submitAnswer'])
         ->middleware('throttle:120,1');
-    Route::post('/student/classes/join', [StudentClassController::class, 'join']);
+    Route::post('/student/classes/join', [StudentClassController::class, 'join'])->middleware('throttle:class-join');
     Route::get('/student/classes/{id}', [StudentClassController::class, 'show']);
     Route::get('/student/classes/{classId}/quizzes/{sessionId}/review', [StudentClassController::class, 'review']);
-    Route::get('/student/report/progress', [StudentController::class, 'reportProgress']);
+    Route::get('/student/report/progress', [StudentController::class, 'reportProgress'])->middleware('throttle:reports');
     Route::post('/student/profile', [StudentController::class, 'updateProfile']);
 });
 
 // Teacher routes
-Route::middleware('auth.supabase:teacher')->group(function () {
+Route::middleware(['throttle:authenticated', 'auth.supabase:teacher'])->group(function () {
     Route::get('/teacher/dashboard', [TeacherController::class, 'index']);
 
     Route::get('/teacher/quizzes', [TeacherQuizController::class, 'index']);
@@ -95,11 +96,11 @@ Route::middleware('auth.supabase:teacher')->group(function () {
     Route::post('/teacher/classes/{classId}/quizzes/{sessionId}/students/{studentId}/excuse', [TeacherClassController::class, 'excuseStudent']);
 
     Route::post('/teacher/profile', [TeacherController::class, 'updateProfile']);
-    Route::get('/teacher/stats', [TeacherController::class, 'stats']);
+    Route::get('/teacher/stats', [TeacherController::class, 'stats'])->middleware('throttle:reports');
 });
 
 // Admin routes
-Route::middleware('auth.supabase:admin')->group(function () {
+Route::middleware(['throttle:authenticated', 'auth.supabase:admin'])->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'index']);
     Route::delete('/admin/user/{id}', [AdminController::class, 'deleteUser']);
     Route::post('/admin/user/{id}/suspend', [AdminController::class, 'suspendUser']);
@@ -121,13 +122,11 @@ Route::middleware('auth.supabase:admin')->group(function () {
     Route::post('/admin/approve-teacher/{id}', [AdminController::class, 'approveTeacher']);
     Route::delete('/admin/deny-teacher/{id}', [AdminController::class, 'denyTeacher']);
     Route::post('/admin/profile', [AdminController::class, 'updateProfile']);
-    Route::get('/admin/stats', [AdminController::class, 'stats']);
-    Route::post('/admin/push-subscription', [AdminPushController::class, 'store']);
-    Route::delete('/admin/push-subscription', [AdminPushController::class, 'destroy']);
+    Route::get('/admin/stats', [AdminController::class, 'stats'])->middleware('throttle:reports');
 });
 
 // Teacher reports
-Route::middleware('auth.supabase:teacher')->group(function () {
+Route::middleware(['throttle:authenticated', 'auth.supabase:teacher', 'throttle:reports'])->group(function () {
     Route::get('/teacher/report/quiz-performance', [TeacherController::class, 'reportQuizPerformance']);
     Route::get('/teacher/report/student-progress', [TeacherController::class, 'reportStudentProgress']);
     Route::get('/teacher/report/classes',          [TeacherController::class, 'reportClasses']);
@@ -136,7 +135,7 @@ Route::middleware('auth.supabase:teacher')->group(function () {
 });
 
 // Admin reports
-Route::middleware('auth.supabase:admin')->group(function () {
+Route::middleware(['throttle:authenticated', 'auth.supabase:admin', 'throttle:reports'])->group(function () {
     Route::get('/admin/report/students', [AdminController::class, 'reportStudents']);
     Route::get('/admin/report/teachers', [AdminController::class, 'reportTeachers']);
     Route::get('/admin/report/quizzes', [AdminController::class, 'reportQuizzes']);

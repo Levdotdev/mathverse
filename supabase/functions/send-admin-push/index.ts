@@ -9,6 +9,8 @@ type PushPayload = {
   user_ids?: string[];
 };
 
+const MAX_REQUEST_BYTES = 32 * 1024;
+
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") {
     return json({ message: "Method not allowed." }, 405);
@@ -20,6 +22,11 @@ Deno.serve(async (request: Request) => {
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
   const vapidSubject = Deno.env.get("VAPID_SUBJECT") ?? "";
   const adminPushSecret = Deno.env.get("ADMIN_PUSH_SECRET") ?? "";
+  const allowedPushHosts = (Deno.env.get("WEB_PUSH_ALLOWED_HOSTS") ??
+    "fcm.googleapis.com,updates.push.services.mozilla.com,push.services.mozilla.com,web.push.apple.com,*.notify.windows.com")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
 
   if (
     !supabaseUrl ||
@@ -27,7 +34,7 @@ Deno.serve(async (request: Request) => {
     !vapidPublicKey ||
     !vapidPrivateKey ||
     !vapidSubject ||
-    !adminPushSecret
+    adminPushSecret.length < 32
   ) {
     return json({ message: "Web Push secrets are incomplete." }, 503);
   }
@@ -42,7 +49,17 @@ Deno.serve(async (request: Request) => {
 
   let payload: PushPayload;
   try {
-    const decoded = await request.json();
+    const declaredLength = Number(request.headers.get("content-length") ?? 0);
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+      return json({ message: "Request payload is too large." }, 413);
+    }
+
+    const body = await readLimitedText(request.body, MAX_REQUEST_BYTES);
+    if (body === null) {
+      return json({ message: "Request payload is too large." }, 413);
+    }
+
+    const decoded = JSON.parse(body);
     if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
       return json({ message: "The JSON payload must be an object." }, 422);
     }
@@ -81,7 +98,12 @@ Deno.serve(async (request: Request) => {
 
   const { data: subscriptions, error } = await subscriptionQuery;
 
-  if (error) return json({ message: error.message }, 500);
+  if (error) {
+    console.error("MathVerse push subscription lookup failed", {
+      code: error.code,
+    });
+    return json({ message: "Push subscriptions could not be loaded." }, 500);
+  }
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
@@ -89,6 +111,15 @@ Deno.serve(async (request: Request) => {
   let failed = 0;
   let expired = 0;
   for (const subscription of subscriptions ?? []) {
+    if (!isAllowedPushEndpoint(subscription.endpoint, allowedPushHosts)) {
+      await supabase
+        .from("push_subscriptions")
+        .delete()
+        .eq("id", subscription.id);
+      expired++;
+      continue;
+    }
+
     try {
       await webpush.sendNotification(
         {
@@ -117,8 +148,9 @@ Deno.serve(async (request: Request) => {
         console.error("MathVerse browser push rejected", {
           subscriptionId: subscription.id,
           statusCode,
-          message:
-            pushError instanceof Error ? pushError.message : String(pushError),
+          errorType: pushError instanceof Error
+            ? pushError.constructor.name
+            : "UnknownPushError",
         });
       }
     }
@@ -126,6 +158,46 @@ Deno.serve(async (request: Request) => {
 
   return json({ sent, failed, expired, total: subscriptions?.length ?? 0 });
 });
+
+async function readLimitedText(
+  stream: ReadableStream<Uint8Array> | null,
+  maximumBytes: number,
+): Promise<string | null> {
+  if (stream === null) {
+    return "";
+  }
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maximumBytes) {
+        await reader.cancel("Request payload is too large.");
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
 
 function safeEqual(left: string, right: string): boolean {
   const leftBytes = new TextEncoder().encode(left);
@@ -151,14 +223,69 @@ function normalizeUserIds(value: unknown): string[] | null {
   return ids.every((item) => uuid.test(item)) ? ids : null;
 }
 
+function isAllowedPushEndpoint(value: unknown, allowedHosts: string[]): boolean {
+  try {
+    const endpoint = new URL(String(value ?? ""));
+    if (
+      endpoint.protocol !== "https:" ||
+      endpoint.username !== "" ||
+      endpoint.password !== "" ||
+      (endpoint.port !== "" && endpoint.port !== "443") ||
+      endpoint.pathname === "/" ||
+      endpoint.hash !== ""
+    ) {
+      return false;
+    }
+
+    const host = endpoint.hostname.toLowerCase().replace(/\.$/, "");
+    return allowedHosts.some((allowed) =>
+      host === allowed ||
+      (allowed.startsWith("*.") &&
+        host !== allowed.slice(2) &&
+        host.endsWith(allowed.slice(1)))
+    );
+  } catch (_error) {
+    return false;
+  }
+}
+
 function safeAppPath(value: unknown): string {
-  const path = String(value ?? "/");
-  return path.startsWith("/") && !path.startsWith("//") ? path : "/";
+  const path = String(value ?? "/").trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.length > 2048) {
+    return "/";
+  }
+
+  let decoded = path;
+  try {
+    for (let pass = 0; pass < 3; pass++) {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    }
+  } catch (_error) {
+    return "/";
+  }
+
+  if (decoded.startsWith("//") || decoded.includes("\\") || /[\u0000-\u001f\u007f]/.test(decoded)) {
+    return "/";
+  }
+
+  try {
+    const base = new URL("https://mathverse.invalid/");
+    const candidate = new URL(path, base);
+    return candidate.origin === base.origin ? path : "/";
+  } catch (_error) {
+    return "/";
+  }
 }
 
 function json(payload: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8" },
+    headers: {
+      "cache-control": "no-store",
+      "content-type": "application/json; charset=utf-8",
+      "x-content-type-options": "nosniff",
+    },
   });
 }

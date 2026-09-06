@@ -105,7 +105,7 @@
                                class="btn-rect-secondary !py-2 !px-4 !w-auto text-center !border-blue-500/30 hover:!text-blue-400">
                                 <i class="fas fa-eye mr-2"></i> Review
                             </a>
-                            <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
+                            <button type="button" data-action="openDeleteQuizModal" data-action-args="{{ json_encode([$quiz['id'], $quiz['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                     class="btn-rect-secondary !py-2 !px-4 !w-auto !border-red-500/30 text-red-400">
                                 <i class="fas fa-trash-alt mr-2"></i> Delete
                             </button>
@@ -164,7 +164,7 @@
             <input type="hidden" name="verified" value="{{ $verifiedOnly ? 1 : '' }}">
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz</button>
         </form>
-        <button onclick="closeModal('deleteQuizModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["deleteQuizModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -173,12 +173,12 @@
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
         <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
-        <button onclick="closeModal('logoutModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endsection
 
 @push('scripts')
-<script>window.quizRoutesBasePath = '/admin/quizzes';</script>
-<script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">window.quizRoutesBasePath = '/admin/quizzes';</script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
 @endpush

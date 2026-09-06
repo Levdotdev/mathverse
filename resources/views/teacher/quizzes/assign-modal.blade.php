@@ -49,6 +49,6 @@
                 Assign to Class
             </button>
         </form>
-        <button onclick="closeModal('assignQuizModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["assignQuizModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>

@@ -130,7 +130,7 @@
             <h2 class="text-xl font-orbitron font-bold uppercase">My <span class="text-yellow-400">Classrooms</span></h2>
             <p class="text-xs text-slate-500 mt-2">Open a class for quizzes, students, analytics, and reports.</p>
         </div>
-        <button onclick="openModal('createClassModal')"
+        <button type="button" data-action="openModal" data-action-args='["createClassModal"]'
                 class="btn-rect-primary sm:!w-auto px-6 !bg-yellow-500 !text-black">
             <i class="fas fa-plus mr-2"></i> Create Class
         </button>
@@ -226,7 +226,7 @@
                         <label for="avatar-input" class="cursor-pointer block w-full text-center border border-white/10 bg-white/5 hover:bg-white/10 rounded px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white">
                             <i class="fas fa-upload mr-2"></i> Choose Photo
                         </label>
-                        <input type="file" id="avatar-input" name="avatar" accept="image/*" class="hidden">
+                        <input type="file" id="avatar-input" name="avatar" accept="image/jpeg,image/png,image/webp" class="hidden">
                         <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG · 2 MB or less</p>
                     </div>
                 </div>
@@ -278,7 +278,7 @@
             <p class="text-[10px] text-yellow-400/80">Only students with the same profile grade can join.</p>
             <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black uppercase text-xs">Create & Generate Code</button>
         </form>
-        <button onclick="closeModal('createClassModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["createClassModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -286,7 +286,7 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="{{ asset('js/teacher.js') }}"></script>
-<script src="{{ asset('js/charts.js') }}"></script>
+@vite('resources/js/chart.js')
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher.js') }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/charts.js') }}"></script>
 @endpush

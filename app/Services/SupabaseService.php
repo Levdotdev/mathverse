@@ -2,11 +2,31 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class SupabaseService
 {
     private const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
+    private const MAX_AVATAR_DIMENSION = 4096;
+
+    /** @var list<string> */
+    private const PROFILE_FORM_COLUMNS = [
+        'avatar_url',
+        'first_name',
+        'grade_level',
+        'last_name',
+        'leaderboard_alias',
+        'show_on_leaderboard',
+    ];
+
+    private const AVATAR_TYPES = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
 
     private string $url;
     private string $anonKey;
@@ -14,16 +34,18 @@ class SupabaseService
 
     public function __construct()
     {
-        $this->url        = config('services.supabase.url');
-        $this->anonKey    = config('services.supabase.anon_key');
-        $this->serviceKey = config('services.supabase.service_key');
+        $this->url        = rtrim((string) config('services.supabase.url'), '/');
+        $this->anonKey    = (string) config('services.supabase.anon_key');
+        $this->serviceKey = (string) config('services.supabase.service_key');
+
+        $this->assertProductionConfiguration();
     }
 
     // ── Auth ──────────────────────────────────────────────
 
     public function signIn(string $email, string $password): array
     {
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'       => $this->anonKey,
             'Content-Type' => 'application/json',
         ])->post("{$this->url}/auth/v1/token?grant_type=password", [
@@ -32,6 +54,20 @@ class SupabaseService
         ]);
 
         return $response->json() ?? [];
+    }
+
+    public function signOut(string $accessToken): bool
+    {
+        if (!$this->isValidBearerToken($accessToken)) {
+            return false;
+        }
+
+        return $this->request()->withHeaders([
+            'apikey' => $this->anonKey,
+            'Authorization' => "Bearer {$accessToken}",
+        ])->withQueryParameters(['scope' => 'global'])
+          ->post("{$this->url}/auth/v1/logout")
+          ->successful();
     }
 
     public function signUp(
@@ -43,7 +79,11 @@ class SupabaseService
         ?int $grade_level = null,
         ?string $redirectTo = null
     ): array {
-        $request = Http::withHeaders([
+        if (!in_array($role, ['student', 'pending_teacher'], true)) {
+            throw new \InvalidArgumentException('Invalid public registration role.');
+        }
+
+        $request = $this->request()->withHeaders([
             'apikey'       => $this->anonKey,
             'Content-Type' => 'application/json',
         ]);
@@ -65,37 +105,70 @@ class SupabaseService
         return $this->authResponse($response);
     }
 
-    public function getUserByEmail(string $email): array
+    public function deleteAuthUser(string $userId): bool
     {
-        $response = Http::withHeaders([
-            'apikey'        => $this->serviceKey,
-            'Authorization' => "Bearer {$this->serviceKey}",
-        ])->get("{$this->url}/auth/v1/admin/users", [
-            'email' => $email
-        ]);
+        $this->assertUuid($userId);
 
-        return $response->json() ?? [];
+        return $this->request()->withHeaders([
+            'apikey' => $this->serviceKey,
+            'Authorization' => "Bearer {$this->serviceKey}",
+            'Content-Type' => 'application/json',
+        ])->delete("{$this->url}/auth/v1/admin/users/{$userId}")
+          ->successful();
     }
 
-    public function uploadAvatar(string $userId, $file): ?string
+    public function uploadAvatar(string $userId, ?UploadedFile $file): ?string
     {
-        if (!$file || !$file->isValid()) return null;
+        if (!$file
+            || !$file->isValid()
+            || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $userId) !== 1
+        ) {
+            return null;
+        }
 
         $size = $file->getSize();
-        if (!is_int($size) || $size > self::MAX_AVATAR_SIZE_BYTES) return null;
+        if (!is_int($size) || $size < 1 || $size > self::MAX_AVATAR_SIZE_BYTES) {
+            return null;
+        }
 
-        $ext      = $file->getClientOriginalExtension();
-        $mime     = $file->getMimeType();
-        $content  = file_get_contents($file->getRealPath());
+        $realPath = $file->getRealPath();
+        $image = is_string($realPath) ? @getimagesize($realPath) : false;
+        $detectedMime = strtolower((string) ($image['mime'] ?? ''));
+        $fileMime = strtolower((string) $file->getMimeType());
+        $extension = self::AVATAR_TYPES[$detectedMime] ?? null;
+        $width = (int) ($image[0] ?? 0);
+        $height = (int) ($image[1] ?? 0);
 
-        $path = "avatars/{$userId}_" . time() . ".{$ext}";
+        if ($image === false
+            || $extension === null
+            || $fileMime !== $detectedMime
+            || $width < 1
+            || $height < 1
+            || $width > self::MAX_AVATAR_DIMENSION
+            || $height > self::MAX_AVATAR_DIMENSION
+        ) {
+            return null;
+        }
 
-        $upload = Http::withHeaders([
-            'apikey'        => $this->anonKey,
+        $content = file_get_contents($realPath);
+        if (!is_string($content) || strlen($content) !== $size) {
+            return null;
+        }
+
+        try {
+            $randomName = bin2hex(random_bytes(16));
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $path = 'avatars/' . strtolower($userId) . "_{$randomName}.{$extension}";
+
+        $upload = $this->request()->withHeaders([
+            'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
-            'Content-Type'  => $mime,
-            'x-upsert'      => 'true',
-        ])->withBody($content, $mime)
+            'Content-Type'  => $detectedMime,
+            'Cache-Control' => 'public, max-age=31536000, immutable',
+        ])->withBody($content, $detectedMime)
           ->post("{$this->url}/storage/v1/object/{$path}");
 
         if ($upload->successful()) {
@@ -105,17 +178,29 @@ class SupabaseService
         return null;
     }
 
-    public function deleteAvatarByUrl(?string $avatarUrl): bool
+    public function deleteAvatarByUrl(?string $avatarUrl, string $expectedUserId): bool
     {
-        if (!$avatarUrl) return false;
+        if (!$avatarUrl
+            || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $expectedUserId) !== 1
+        ) {
+            return false;
+        }
 
-        $parts = explode('/object/public/', $avatarUrl);
+        $publicPrefix = "{$this->url}/storage/v1/object/public/";
+        if (!str_starts_with($avatarUrl, $publicPrefix)) {
+            return false;
+        }
 
-        if (count($parts) < 2) return false;
+        $path = substr($avatarUrl, strlen($publicPrefix));
+        if (preg_match(
+            '#^avatars/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})_[A-Za-z0-9_-]{1,64}\.(?:jpe?g|png|webp)$#i',
+            $path,
+            $matches
+        ) !== 1 || !hash_equals(strtolower($expectedUserId), strtolower($matches[1]))) {
+            return false;
+        }
 
-        $path = $parts[1];
-
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
         ])->delete("{$this->url}/storage/v1/object/{$path}");
@@ -125,19 +210,32 @@ class SupabaseService
 
     public function updateProfile(string $userId, array $data): array
     {
-        $response = Http::withHeaders([
+        $this->assertUuid($userId);
+
+        if ($data === []) {
+            throw new \InvalidArgumentException('A profile update requires at least one field.');
+        }
+
+        foreach (array_keys($data) as $column) {
+            if (!is_string($column) || !in_array($column, self::PROFILE_FORM_COLUMNS, true)) {
+                throw new \InvalidArgumentException('The profile update contains a server-controlled field.');
+            }
+        }
+
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type'  => 'application/json',
             'Prefer'        => 'return=representation',
-        ])->patch("{$this->url}/rest/v1/profiles?id=eq.{$userId}", $data);
+        ])->withQueryParameters(['id' => "eq.{$userId}"])
+          ->patch("{$this->url}/rest/v1/profiles", $data);
 
         return $this->responseRows($response);
     }
 
     public function resetPassword(string $email, ?string $redirectTo = null): array
     {
-        $request = Http::connectTimeout(5)->timeout(15)->withHeaders([
+        $request = $this->request()->withHeaders([
             'apikey'       => $this->anonKey,
             'Content-Type' => 'application/json',
         ]);
@@ -152,12 +250,41 @@ class SupabaseService
         return $this->authResponse($response);
     }
 
+    public function verifyRecoveryToken(string $tokenHash): array
+    {
+        if ($tokenHash === ''
+            || strlen($tokenHash) > 2048
+            || preg_match('/[\x00-\x1F\x7F]/', $tokenHash) === 1
+        ) {
+            throw new \InvalidArgumentException('Invalid password recovery token.');
+        }
+
+        $response = $this->request()->withHeaders([
+            'apikey' => $this->anonKey,
+            'Content-Type' => 'application/json',
+        ])->post("{$this->url}/auth/v1/verify", [
+            'token_hash' => $tokenHash,
+            'type' => 'recovery',
+        ]);
+
+        return $this->authResponse($response);
+    }
+
     public function updateAuthUser(
         string $token,
         array $attributes,
         ?string $redirectTo = null
     ): array {
-        $request = Http::withHeaders([
+        if (!$this->isValidBearerToken($token)) {
+            throw new \InvalidArgumentException('Invalid authentication token.');
+        }
+        if ($attributes === []
+            || array_diff(array_keys($attributes), ['email', 'password']) !== []
+        ) {
+            throw new \InvalidArgumentException('Unsupported authentication account update.');
+        }
+
+        $request = $this->request()->withHeaders([
             'apikey' => $this->anonKey,
             'Authorization' => "Bearer {$token}",
             'Content-Type' => 'application/json',
@@ -175,15 +302,20 @@ class SupabaseService
 
     public function select(string $table, string $query = '*', array $filters = [], ?string $token = null): array
     {
-        $key = $token ?? $this->anonKey;
+        $this->assertResourceIdentifier($table, 'table');
+        $this->assertSelectExpression($query);
+        $key = $this->dataApiBearerKey($token);
 
-        $request = Http::withHeaders([
+        $request = $this->request()->withHeaders([
             'apikey'        => $this->anonKey,
             'Authorization' => "Bearer {$key}",
         ])->withQueryParameters(['select' => $query]);
 
         foreach ($filters as $column => $value) {
-            $request = $request->withQueryParameters([$column => "eq.{$value}"]);
+            $this->assertFilterColumn((string) $column);
+            $request = $request->withQueryParameters([
+                $column => 'eq.' . $this->validatedOperatorValue('eq', $value),
+            ]);
         }
 
         $response = $request->get("{$this->url}/rest/v1/{$table}");
@@ -192,9 +324,10 @@ class SupabaseService
 
     public function insert(string $table, array $data, ?string $token = null): array
     {
-        $key = $token ?? $this->anonKey;
+        $this->assertResourceIdentifier($table, 'table');
+        $key = $this->dataApiBearerKey($token);
 
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->anonKey,
             'Authorization' => "Bearer {$key}",
             'Content-Type'  => 'application/json',
@@ -206,9 +339,11 @@ class SupabaseService
 
     public function update(string $table, array $data, array $filters, ?string $token = null): array
     {
-        $key = $token ?? $this->anonKey;
+        $this->assertResourceIdentifier($table, 'table');
+        $this->assertMutationFilters($filters);
+        $key = $this->dataApiBearerKey($token);
 
-        $request = Http::withHeaders([
+        $request = $this->request()->withHeaders([
             'apikey'        => $this->anonKey,
             'Authorization' => "Bearer {$key}",
             'Content-Type'  => 'application/json',
@@ -216,23 +351,30 @@ class SupabaseService
         ]);
 
         foreach ($filters as $column => $value) {
-            $request = $request->withQueryParameters([$column => "eq.{$value}"]);
+            $this->assertFilterColumn((string) $column);
+            $request = $request->withQueryParameters([
+                $column => 'eq.' . $this->validatedOperatorValue('eq', $value),
+            ]);
         }
 
         $response = $request->patch("{$this->url}/rest/v1/{$table}", $data);
         return $this->responseRows($response);
     }
 
-    public function delete(string $table, array $filters): bool
+    public function delete(string $table, array $filters, ?string $token = null): bool
     {
-        $request = Http::withHeaders([
-            'apikey'        => $this->serviceKey,
-            'Authorization' => "Bearer {$this->serviceKey}",
+        $this->assertResourceIdentifier($table, 'table');
+        $this->assertMutationFilters($filters);
+        $key = $this->dataApiBearerKey($token);
+        $request = $this->request()->withHeaders([
+            'apikey'        => $this->anonKey,
+            'Authorization' => "Bearer {$key}",
         ]);
 
         foreach ($filters as $column => $value) {
+            $this->assertFilterColumn((string) $column);
             $request = $request->withQueryParameters([
-                $column => "eq.{$value}"
+                $column => 'eq.' . $this->validatedOperatorValue('eq', $value),
             ]);
         }
 
@@ -250,9 +392,11 @@ class SupabaseService
 
     public function adminSelectResult(string $table, string $query = '*', array $filters = []): array
     {
+        $this->assertResourceIdentifier($table, 'table');
+        $this->assertSelectExpression($query);
         $params = $this->buildAdminSelectParams($query, $filters);
 
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
         ])->get("{$this->url}/rest/v1/{$table}", $params);
@@ -285,11 +429,13 @@ class SupabaseService
         int $limit = 24,
         int $offset = 0
     ): array {
+        $this->assertResourceIdentifier($table, 'table');
+        $this->assertSelectExpression($query);
         $params = $this->buildAdminSelectParams($query, $filters);
         $params['limit'] = max(1, min($limit, 100));
         $params['offset'] = max(0, $offset);
 
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Prefer'        => 'count=exact',
@@ -375,10 +521,11 @@ class SupabaseService
 
     public function adminCount(string $table, array $filters = []): int
     {
+        $this->assertResourceIdentifier($table, 'table');
         $params = $this->buildAdminSelectParams('id', $filters);
         $params['limit'] = 1;
 
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Prefer'        => 'count=exact',
@@ -401,9 +548,11 @@ class SupabaseService
 
         foreach ($filters as $column => $value) {
             if (in_array($column, ['order', 'limit', 'offset', 'or', 'and'], true)) {
-                $params[$column] = $value;
+                $params[$column] = $this->validatedControlParameter($column, $value);
                 continue;
             }
+
+            $this->assertFilterColumn((string) $column);
 
             if (is_array($value) && isset($value['operator'], $value['value'])) {
                 $operator = (string) $value['operator'];
@@ -411,11 +560,12 @@ class SupabaseService
                     throw new \InvalidArgumentException("Unsupported Supabase filter operator: {$operator}");
                 }
 
-                $params[$column] = $operator . '.' . $value['value'];
+                $params[$column] = $operator . '.'
+                    . $this->validatedOperatorValue($operator, $value['value']);
                 continue;
             }
 
-            $params[$column] = "eq.{$value}";
+            $params[$column] = 'eq.' . $this->validatedOperatorValue('eq', $value);
         }
 
         return $params;
@@ -423,10 +573,12 @@ class SupabaseService
 
     public function adminUpdate(string $table, array $data, array $filters): array
     {
+        $this->assertResourceIdentifier($table, 'table');
+        $this->assertMutationFilters($filters);
         $query = $this->buildAdminSelectParams('*', $filters);
         unset($query['select'], $query['order'], $query['limit'], $query['offset']);
 
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type'  => 'application/json',
@@ -444,7 +596,8 @@ class SupabaseService
 
     public function adminInsertResult(string $table, array $data): array
     {
-        $response = Http::withHeaders([
+        $this->assertResourceIdentifier($table, 'table');
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type'  => 'application/json',
@@ -470,15 +623,20 @@ class SupabaseService
 
     public function adminDeleteResult(string $table, array $filters): array
     {
-        $query = http_build_query(
-            array_map(fn($v) => "eq.$v", $filters)
-        );
+        $this->assertResourceIdentifier($table, 'table');
+        $this->assertMutationFilters($filters);
+        $query = [];
+        foreach ($filters as $column => $value) {
+            $this->assertFilterColumn((string) $column);
+            $query[$column] = 'eq.' . $this->validatedOperatorValue('eq', $value);
+        }
 
-        $response = Http::withHeaders([
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Prefer'        => 'return=representation',
-        ])->delete("{$this->url}/rest/v1/{$table}?{$query}");
+        ])->withQueryParameters($query)
+          ->delete("{$this->url}/rest/v1/{$table}");
 
         if (!$response->successful()) {
             return [
@@ -498,12 +656,18 @@ class SupabaseService
 
     public function adminUpsert(string $table, array $data, string $onConflict): array
     {
-        $response = Http::withHeaders([
+        $this->assertResourceIdentifier($table, 'table');
+        foreach (explode(',', $onConflict) as $column) {
+            $this->assertFilterColumn(trim($column));
+        }
+
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type'  => 'application/json',
             'Prefer'        => 'resolution=merge-duplicates,return=representation',
-        ])->post("{$this->url}/rest/v1/{$table}?on_conflict=" . urlencode($onConflict), $data);
+        ])->withQueryParameters(['on_conflict' => $onConflict])
+          ->post("{$this->url}/rest/v1/{$table}", $data);
 
         return $this->responseRows($response);
     }
@@ -515,7 +679,8 @@ class SupabaseService
 
     public function adminRpcResult(string $function, array $arguments = []): array
     {
-        $response = Http::withHeaders([
+        $this->assertResourceIdentifier($function, 'function');
+        $response = $this->request()->withHeaders([
             'apikey'        => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type'  => 'application/json',
@@ -549,7 +714,8 @@ class SupabaseService
 
     public function setAuthUserSuspended(string $userId, bool $suspended): bool
     {
-        $response = Http::withHeaders([
+        $this->assertUuid($userId);
+        $response = $this->request()->withHeaders([
             'apikey' => $this->serviceKey,
             'Authorization' => "Bearer {$this->serviceKey}",
             'Content-Type' => 'application/json',
@@ -567,16 +733,29 @@ class SupabaseService
         string|int|null $targetId = null,
         array $metadata = []
     ): bool {
-        $created = $this->adminInsert('audit_logs', [
-            'actor_id' => $actor['id'] ?? null,
-            'actor_role' => $actor['role'] ?? null,
-            'action' => $action,
-            'target_type' => $targetType,
-            'target_id' => $targetId === null ? null : (string) $targetId,
-            'metadata' => $metadata,
-        ]);
+        try {
+            $created = $this->adminInsert('audit_logs', [
+                'actor_id' => $actor['id'] ?? null,
+                'actor_role' => $actor['role'] ?? null,
+                'action' => $action,
+                'target_type' => $targetType,
+                'target_id' => $targetId === null ? null : (string) $targetId,
+                'metadata' => $metadata,
+            ]);
 
-        return isset($created[0]['id']);
+            return isset($created[0]['id']);
+        } catch (\Throwable $exception) {
+            // Audit logging is important, but it must never turn an otherwise
+            // successful user action into a 500 response.
+            Log::warning('An audit event could not be stored.', [
+                'action' => $action,
+                'target_type' => $targetType,
+                'target_id' => $targetId === null ? null : (string) $targetId,
+                'exception' => $exception::class,
+            ]);
+
+            return false;
+        }
     }
 
     public function adminDelete(string $table, array $filters): bool
@@ -587,6 +766,188 @@ class SupabaseService
     public function updatePassword(string $token, string $password): array
     {
         return $this->updateAuthUser($token, ['password' => $password]);
+    }
+
+    private function request(): PendingRequest
+    {
+        return Http::connectTimeout((int) config('services.supabase.connect_timeout', 5))
+            ->timeout((int) config('services.supabase.request_timeout', 15))
+            ->acceptJson();
+    }
+
+    private function assertProductionConfiguration(): void
+    {
+        if (!app()->isProduction()) {
+            return;
+        }
+
+        $parts = parse_url($this->url);
+        if (!is_array($parts)
+            || strtolower((string) ($parts['scheme'] ?? '')) !== 'https'
+            || empty($parts['host'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment'])
+            || !in_array((string) ($parts['path'] ?? ''), ['', '/'], true)
+        ) {
+            throw new \RuntimeException('Production Supabase configuration requires a valid HTTPS project URL.');
+        }
+
+        if (strlen($this->anonKey) < 20
+            || strlen($this->serviceKey) < 20
+            || hash_equals($this->anonKey, $this->serviceKey)
+        ) {
+            throw new \RuntimeException('Production Supabase credentials are missing or invalid.');
+        }
+    }
+
+    private function assertResourceIdentifier(string $identifier, string $kind): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_]*$/i', $identifier) !== 1) {
+            throw new \InvalidArgumentException("Invalid Supabase {$kind} identifier.");
+        }
+    }
+
+    private function assertFilterColumn(string $column): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_.]*$/i', $column) !== 1) {
+            throw new \InvalidArgumentException('Invalid Supabase filter column.');
+        }
+    }
+
+    private function assertMutationFilters(array $filters): void
+    {
+        if ($filters === []) {
+            throw new \InvalidArgumentException('Refusing an unscoped Supabase mutation.');
+        }
+
+        foreach (array_keys($filters) as $column) {
+            if (in_array((string) $column, ['order', 'limit', 'offset', 'or', 'and'], true)) {
+                throw new \InvalidArgumentException('Supabase mutations require explicit column filters.');
+            }
+        }
+    }
+
+    private function assertSelectExpression(string $query): void
+    {
+        if ($query === ''
+            || strlen($query) > 2000
+            || preg_match('/^[a-z0-9_*,().:!]+$/i', $query) !== 1
+        ) {
+            throw new \InvalidArgumentException('Invalid Supabase select expression.');
+        }
+    }
+
+    private function assertUuid(string $value): void
+    {
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value) !== 1) {
+            throw new \InvalidArgumentException('Invalid user identifier.');
+        }
+    }
+
+    private function isValidBearerToken(mixed $token): bool
+    {
+        return is_string($token)
+            && $token !== ''
+            && strlen($token) <= 8192
+            && preg_match('/[\x00-\x20\x7F]/', $token) !== 1;
+    }
+
+    private function dataApiBearerKey(?string $token): string
+    {
+        $key = $token ?? $this->anonKey;
+        if (!$this->isValidBearerToken($key)) {
+            throw new \InvalidArgumentException('Invalid Data API authentication token.');
+        }
+
+        return $key;
+    }
+
+    private function validatedControlParameter(string $name, mixed $value): int|string
+    {
+        if ($name === 'limit') {
+            $limit = filter_var($value, FILTER_VALIDATE_INT);
+            if ($limit === false || $limit < 1 || $limit > 1000) {
+                throw new \InvalidArgumentException('Invalid Supabase query limit.');
+            }
+
+            return $limit;
+        }
+
+        if ($name === 'offset') {
+            $offset = filter_var($value, FILTER_VALIDATE_INT);
+            if ($offset === false || $offset < 0 || $offset > 1000000) {
+                throw new \InvalidArgumentException('Invalid Supabase query offset.');
+            }
+
+            return $offset;
+        }
+
+        if (!is_scalar($value) && $value !== null) {
+            throw new \InvalidArgumentException('Invalid Supabase query control value.');
+        }
+
+        $expression = (string) $value;
+        if ($name === 'order') {
+            if (preg_match(
+                '/^[a-z_][a-z0-9_]*(?:\.(?:asc|desc))?(?:\.(?:nullsfirst|nullslast))?(?:,[a-z_][a-z0-9_]*(?:\.(?:asc|desc))?(?:\.(?:nullsfirst|nullslast))?)*$/i',
+                $expression
+            ) !== 1) {
+                throw new \InvalidArgumentException('Invalid Supabase ordering expression.');
+            }
+
+            return $expression;
+        }
+
+        $logicalClause = '[a-z_][a-z0-9_.]*\.(?:eq|neq|gt|gte|lt|lte|like|ilike|is|not\.is)\.[^,()\\\\\x00-\x1F\x7F]+';
+        if (strlen($expression) > 2000
+            || preg_match('/^\((?:' . $logicalClause . ')(?:,' . $logicalClause . ')*\)$/iuD', $expression) !== 1
+        ) {
+            throw new \InvalidArgumentException('Invalid Supabase logical filter expression.');
+        }
+
+        return $expression;
+    }
+
+    private function validatedOperatorValue(string $operator, mixed $value): string
+    {
+        if (!is_scalar($value) && $value !== null) {
+            throw new \InvalidArgumentException('Invalid Supabase filter value.');
+        }
+
+        $expression = match (true) {
+            is_bool($value) => $value ? 'true' : 'false',
+            $value === null => 'null',
+            default => (string) $value,
+        };
+
+        if ($expression === ''
+            || strlen($expression) > 2000
+            || preg_match('/[\x00-\x1F\x7F\\\\]/', $expression) === 1
+        ) {
+            throw new \InvalidArgumentException('Invalid Supabase filter value.');
+        }
+
+        if ($operator === 'in'
+            && preg_match('/^\([a-z0-9_-]+(?:,[a-z0-9_-]+)*\)$/iD', $expression) !== 1
+        ) {
+            throw new \InvalidArgumentException('Invalid Supabase in-filter value.');
+        }
+
+        if (in_array($operator, ['is', 'not.is'], true)
+            && !in_array(strtolower($expression), ['null', 'true', 'false', 'unknown'], true)
+        ) {
+            throw new \InvalidArgumentException('Invalid Supabase null/boolean filter value.');
+        }
+
+        if (in_array($operator, ['like', 'ilike'], true)
+            && preg_match('/[(),]/u', $expression) === 1
+        ) {
+            throw new \InvalidArgumentException('Invalid Supabase pattern filter value.');
+        }
+
+        return $expression;
     }
 
     private function authResponse($response): array

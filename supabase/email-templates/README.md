@@ -22,16 +22,16 @@ The Laravel recovery request passes the complete `/reset-password` URL as
 `redirect_to`. For that reason, the reset template deliberately uses:
 
 ```html
-{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=recovery
+{{ .RedirectTo }}#token_hash={{ .TokenHash }}&amp;type=recovery
 ```
 
 Do not append `/reset-password` again in the Supabase template.
 
-To use email changes and both security messages:
+To use email changes and security messages:
 
 1. Enable email changes and email confirmations in Supabase Auth.
-2. Enable secure/double email-change confirmation if both the old and new
-   addresses should approve a change.
+2. Keep secure/double email-change confirmation disabled so confirmation is
+   required only from the new address, matching the MathVerse interface.
 3. Enable the **Password changed** and **Email address changed** security
    notifications. Editing their HTML alone does not enable delivery.
 

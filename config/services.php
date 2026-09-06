@@ -39,11 +39,20 @@ return [
         'url'         => env('SUPABASE_URL'),
         'anon_key'    => env('SUPABASE_ANON_KEY'),
         'service_key' => env('SUPABASE_SERVICE_KEY'),
+        'connect_timeout' => (int) env('SUPABASE_CONNECT_TIMEOUT', 5),
+        'request_timeout' => (int) env('SUPABASE_REQUEST_TIMEOUT', 15),
     ],
 
     'web_push' => [
         'public_key' => env('WEB_PUSH_PUBLIC_KEY'),
         'function_url' => env('WEB_PUSH_FUNCTION_URL'),
         'auth_secret' => env('ADMIN_PUSH_SECRET'),
+        'allowed_hosts' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env(
+                'WEB_PUSH_ALLOWED_HOSTS',
+                'fcm.googleapis.com,updates.push.services.mozilla.com,push.services.mozilla.com,web.push.apple.com,*.notify.windows.com'
+            ))
+        ))),
     ],
 ];

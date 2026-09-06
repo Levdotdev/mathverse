@@ -91,7 +91,7 @@ function addQuestionBlock(text, options, correctIndex) {
     const block = document.createElement('div');
     block.className = 'p-6 bg-black/40 border border-white/5 rounded relative question-block';
     block.innerHTML = `
-        <button type="button" onclick="removeQuestion(this)"
+        <button type="button" data-action="removeQuestion" data-action-self
                 class="absolute top-4 right-4 text-slate-600 hover:text-red-500 transition-all"
                 aria-label="Remove question">
             <i class="fas fa-trash"></i>

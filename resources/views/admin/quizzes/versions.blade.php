@@ -77,7 +77,7 @@
                 @endforeach
                 @unless($isCurrent)
                     <div class="flex justify-end pt-2">
-                        <button type="button" onclick='openRestoreQuizVersion(@json((int) $version["version"]), @json($version["topic"]))'
+                        <button type="button" data-action="openRestoreQuizVersion" data-action-args="{{ json_encode([(int) $version['version'], $version['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                 class="btn-rect-secondary !py-2 !px-4 !w-auto text-yellow-400 !border-yellow-500/30">
                             <i class="fas fa-undo-alt mr-2"></i>Restore Version {{ $version['version'] }}
                         </button>
@@ -102,7 +102,7 @@
             @csrf
             <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black">Restore Version</button>
         </form>
-        <button type="button" onclick="closeModal('restoreQuizVersionModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["restoreQuizVersionModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -111,13 +111,13 @@
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
         <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
-        <button onclick="closeModal('logoutModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
 function openRestoreQuizVersion(version, topic) {
     document.getElementById('restoreQuizVersionForm').action = `/admin/quizzes/{{ $quiz['id'] }}/versions/${version}/restore`;
     document.getElementById('restore-version-summary').textContent = `Restore version ${version} of “${topic}”?`;

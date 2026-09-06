@@ -10,6 +10,9 @@ set local search_path = public, extensions;
 -- model. The currently counted attempt is retained when one exists.
 create table if not exists public.rollback_retake_quiz_results_20260829
     (like public.quiz_results including all);
+alter table public.rollback_retake_quiz_results_20260829 enable row level security;
+revoke all privileges on table public.rollback_retake_quiz_results_20260829
+from public, anon, authenticated, service_role;
 
 with ranked as (
     select id,
@@ -43,26 +46,41 @@ where qr.id = ranked.id and ranked.keep_number > 1;
 -- Archive metadata that otherwise has no representation in the older schema.
 create table if not exists public.rollback_quiz_versions_20260829
     (like public.quiz_versions including all);
+alter table public.rollback_quiz_versions_20260829 enable row level security;
+revoke all privileges on table public.rollback_quiz_versions_20260829
+from public, anon, authenticated, service_role;
 insert into public.rollback_quiz_versions_20260829
 select * from public.quiz_versions on conflict (id) do nothing;
 
 create table if not exists public.rollback_quiz_bookmarks_20260829
     (like public.quiz_bookmarks including all);
+alter table public.rollback_quiz_bookmarks_20260829 enable row level security;
+revoke all privileges on table public.rollback_quiz_bookmarks_20260829
+from public, anon, authenticated, service_role;
 insert into public.rollback_quiz_bookmarks_20260829
 select * from public.quiz_bookmarks on conflict (quiz_id, user_id) do nothing;
 
 create table if not exists public.rollback_quiz_ratings_20260829
     (like public.quiz_ratings including all);
+alter table public.rollback_quiz_ratings_20260829 enable row level security;
+revoke all privileges on table public.rollback_quiz_ratings_20260829
+from public, anon, authenticated, service_role;
 insert into public.rollback_quiz_ratings_20260829
 select * from public.quiz_ratings on conflict (quiz_id, user_id) do nothing;
 
 create table if not exists public.rollback_quiz_reports_20260829
     (like public.quiz_reports including all);
+alter table public.rollback_quiz_reports_20260829 enable row level security;
+revoke all privileges on table public.rollback_quiz_reports_20260829
+from public, anon, authenticated, service_role;
 insert into public.rollback_quiz_reports_20260829
 select * from public.quiz_reports on conflict (id) do nothing;
 
 create table if not exists public.rollback_quiz_session_students_20260829
     (like public.quiz_session_students including all);
+alter table public.rollback_quiz_session_students_20260829 enable row level security;
+revoke all privileges on table public.rollback_quiz_session_students_20260829
+from public, anon, authenticated, service_role;
 insert into public.rollback_quiz_session_students_20260829
 select * from public.quiz_session_students
 on conflict (session_id, student_id) do nothing;
@@ -71,6 +89,8 @@ do $$
 begin
     if to_regclass('public.class_member_accommodations') is not null then
         execute 'create table if not exists public.rollback_class_member_accommodations_20260829 (like public.class_member_accommodations including all)';
+        execute 'alter table public.rollback_class_member_accommodations_20260829 enable row level security';
+        execute 'revoke all privileges on table public.rollback_class_member_accommodations_20260829 from public, anon, authenticated, service_role';
         execute 'insert into public.rollback_class_member_accommodations_20260829 select * from public.class_member_accommodations on conflict (class_id, student_id) do nothing';
     end if;
 end
@@ -78,6 +98,9 @@ $$;
 
 create table if not exists public.rollback_audit_logs_20260829
     (like public.audit_logs including all);
+alter table public.rollback_audit_logs_20260829 enable row level security;
+revoke all privileges on table public.rollback_audit_logs_20260829
+from public, anon, authenticated, service_role;
 insert into public.rollback_audit_logs_20260829 overriding system value
 select * from public.audit_logs on conflict (id) do nothing;
 

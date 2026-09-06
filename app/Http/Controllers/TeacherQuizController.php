@@ -560,7 +560,10 @@ class TeacherQuizController extends Controller
             (int) $validated['grade_level'],
             $token
         )) {
-            $this->supabase->delete('quizzes', ['id' => $quizId]);
+            $this->supabase->delete('quizzes', [
+                'id' => $quizId,
+                'teacher_id' => $user['id'],
+            ], $token);
 
             return redirect('/teacher/quizzes')
                 ->with('error', 'The questions could not be saved. Please try again.');
@@ -611,16 +614,23 @@ class TeacherQuizController extends Controller
             'verified_at' => null,
             'verified_by' => null,
             'updated_at' => now()->toIso8601String(),
-        ], ['id' => $id], $token);
+        ], [
+            'id' => $id,
+            'teacher_id' => $user['id'],
+        ], $token);
 
         if (!isset($updated[0]['id'])) {
             if ($snapshot['created']) {
-                $this->supabase->delete('quiz_versions', ['id' => $snapshot['row']['id']]);
+                $this->supabase->adminDelete('quiz_versions', [
+                    'id' => $snapshot['row']['id'],
+                    'quiz_id' => $id,
+                    'created_by' => $user['id'],
+                ]);
             }
             return redirect('/teacher/quizzes')->with('error', 'The quiz could not be updated.');
         }
 
-        $this->supabase->delete('quiz_questions', ['quiz_id' => $id]);
+        $this->supabase->delete('quiz_questions', ['quiz_id' => $id], $token);
         $saved = $this->saveTemplateQuestions(
             $id,
             $validated['questions'],
@@ -637,11 +647,18 @@ class TeacherQuizController extends Controller
                 'verified_at' => $quiz['verified_at'] ?? null,
                 'verified_by' => $quiz['verified_by'] ?? null,
                 'updated_at' => $quiz['updated_at'] ?? $quiz['created_at'],
-            ], ['id' => $id], $token);
-            $this->supabase->delete('quiz_questions', ['quiz_id' => $id]);
+            ], [
+                'id' => $id,
+                'teacher_id' => $user['id'],
+            ], $token);
+            $this->supabase->delete('quiz_questions', ['quiz_id' => $id], $token);
             $this->restoreTemplateQuestions($oldQuestions, $token);
             if ($snapshot['created']) {
-                $this->supabase->delete('quiz_versions', ['id' => $snapshot['row']['id']]);
+                $this->supabase->adminDelete('quiz_versions', [
+                    'id' => $snapshot['row']['id'],
+                    'quiz_id' => $id,
+                    'created_by' => $user['id'],
+                ]);
             }
 
             return redirect('/teacher/quizzes')
@@ -656,7 +673,7 @@ class TeacherQuizController extends Controller
         ]);
 
         return redirect("/teacher/quizzes/{$id}/versions")
-            ->with('success', 'Quiz updated. Its previous version is available below; existing class assignments were not changed.');
+            ->with('success', 'Quiz updated successfully.');
     }
 
     public function restoreVersion(string $id, int $version)
@@ -691,12 +708,16 @@ class TeacherQuizController extends Controller
     public function destroy(string $id)
     {
         $user = session('supabase_user');
+        $token = session('supabase_token');
         $quiz = $this->ownedQuiz($id, $user['id']);
         if (!$quiz) {
             return redirect('/teacher/quizzes')->with('error', 'You can only delete quizzes you created.');
         }
 
-        if (!$this->supabase->delete('quizzes', ['id' => $id])) {
+        if (!$this->supabase->delete('quizzes', [
+            'id' => $id,
+            'teacher_id' => $user['id'],
+        ], $token)) {
             return redirect('/teacher/quizzes')->with('error', 'The quiz could not be deleted.');
         }
 
@@ -849,7 +870,7 @@ class TeacherQuizController extends Controller
         $search = trim(mb_substr((string) $request->query('search', ''), 0, 80));
         $grade = (int) $request->query('grade', 0);
         $grade = ($grade >= 1 && $grade <= 6) ? $grade : null;
-        $safeSearch = trim(str_replace(['*', '%'], '', $search));
+        $safeSearch = $this->safeSearchTerm($search);
 
         return [$search, $grade, $safeSearch];
     }
@@ -1240,11 +1261,10 @@ class TeacherQuizController extends Controller
         }
         if (str_contains($lower, 'schema cache')
             || (str_contains($lower, 'column') && str_contains($lower, 'does not exist'))) {
-            return $prefix . 'The assignment database schema is incomplete: '
-                . \Illuminate\Support\Str::limit($message, 180);
+            return $prefix . 'The assignment database update is incomplete. Run the latest database update, then try again.';
         }
 
-        return $prefix . \Illuminate\Support\Str::limit($message, 220);
+        return $prefix . 'Please try again. If the problem continues, contact an administrator.';
     }
 
     private function restoreFailureMessage(?string $error): string
@@ -1259,6 +1279,6 @@ class TeacherQuizController extends Controller
             return 'Version restoration is unavailable. Run the standalone quiz database update, then try again.';
         }
 
-        return 'Version restore failed: ' . \Illuminate\Support\Str::limit($message, 220);
+        return 'The selected version could not be restored. Please try again.';
     }
 }

@@ -56,7 +56,7 @@
                             <i class="fas fa-lock input-icon"></i>
                             <input type="password" id="lPass" name="password" required
                                    class="input-mobile-ultra pr-12" placeholder="Enter password">
-                            <button type="button" onclick="tglPass('lPass','lIcon')"
+                            <button type="button" data-action="tglPass" data-action-args='["lPass","lIcon"]'
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="lIcon" class="fas fa-eye-slash"></i>
                             </button>
@@ -64,7 +64,7 @@
                     </div>
 
                     <div class="flex justify-end">
-                        <button type="button" onclick="openForgotModal()"
+                        <button type="button" data-action="openForgotModal"
                                 class="text-cyan-500 text-[10px] font-bold uppercase tracking-wider hover:text-white transition-all">
                             Forgot Password?
                         </button>
@@ -74,7 +74,7 @@
                 </form>
 
                 <div class="mt-8 text-center border-t border-white/5 pt-6">
-                    <button onclick="swMod('reg')"
+                    <button type="button" data-action="swMod" data-action-args='["reg"]'
                             class="text-slate-300 text-[10px] font-black uppercase tracking-[0.2em] border border-white/20 px-6 py-2 hover:bg-white/5 transition-all">
                         Create New Account
                     </button>
@@ -94,14 +94,14 @@
                     @csrf
                     <div class="grid grid-cols-2 gap-2 mb-2">
                         <label class="cursor-pointer">
-                            <input type="radio" name="role" value="student" class="hidden peer" checked onchange="toggleGradeLevel(this.value)">
+                            <input type="radio" name="role" value="student" class="hidden peer" checked data-change-action="toggleGradeLevel">
                             <div class="role-card peer-checked:border-cyan-500 peer-checked:bg-cyan-500/10">
                                 <i class="fas fa-user-graduate mb-1 text-sm block"></i>
                                 <span class="text-[9px] font-bold uppercase">Student</span>
                             </div>
                         </label>
                         <label class="cursor-pointer">
-                            <input type="radio" name="role" value="pending_teacher" class="hidden peer" onchange="toggleGradeLevel(this.value)">
+                            <input type="radio" name="role" value="pending_teacher" class="hidden peer" data-change-action="toggleGradeLevel">
                             <div class="role-card peer-checked:border-purple-500 peer-checked:bg-purple-500/10">
                                 <i class="fas fa-chalkboard-teacher mb-1 text-sm block"></i>
                                 <span class="text-[9px] font-bold uppercase">Teacher</span>
@@ -123,7 +123,7 @@
                                     <i class="fas fa-upload mr-2"></i> Choose Photo
                                 </label>
                                 <input type="file" id="avatar-input" name="avatar"
-                                    accept="image/*" class="hidden">
+                                    accept="image/jpeg,image/png,image/webp" class="hidden">
                                 <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • 2 MB or less</p>
                             </div>
                         </div>
@@ -178,7 +178,7 @@
                                    title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol."
                                    autocomplete="new-password" placeholder="Create password" required
                                    class="input-mobile-ultra pr-12">
-                            <button type="button" onclick="tglPass('rPass','rIco')"
+                            <button type="button" data-action="tglPass" data-action-args='["rPass","rIco"]'
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="rIco" class="fas fa-eye-slash"></i>
                             </button>
@@ -194,7 +194,7 @@
                                    pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
                                    title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol."
                                    autocomplete="new-password" placeholder="Re-type password" required class="input-mobile-ultra pr-12">
-                            <button type="button" onclick="tglPass('rcPass','rcIco')"
+                            <button type="button" data-action="tglPass" data-action-args='["rcPass","rcIco"]'
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="rcIco" class="fas fa-eye-slash"></i>
                             </button>
@@ -204,7 +204,7 @@
                     <button type="submit" class="btn-mobile-ultra mt-2">Register</button>
                 </form>
 
-                <button onclick="swMod('login')"
+                <button type="button" data-action="swMod" data-action-args='["login"]'
                         class="mt-6 w-full text-slate-500 text-[9px] font-bold uppercase tracking-widest">
                     <i class="fas fa-arrow-left mr-1"></i> Return to Login
                 </button>
@@ -233,7 +233,7 @@
             </div>
             <button type="submit" class="btn-mobile-ultra !py-4 mb-4">Send Reset Link</button>
         </form>
-        <button onclick="closeForgotModal()" class="modal-cancel">
+        <button type="button" data-action="closeForgotModal" class="modal-cancel">
             Cancel
         </button>
     </div>
@@ -241,5 +241,5 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/auth.js') }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/auth.js') }}"></script>
 @endpush

@@ -119,7 +119,7 @@
         </div>
         <div id="questions-builder" class="space-y-6"></div>
         <div class="mt-6 flex justify-end">
-            <button type="button" onclick="addNewQuestion()" class="btn-rect-secondary !py-2 !px-4 sm:!w-auto">
+            <button type="button" data-action="addNewQuestion" class="btn-rect-secondary !py-2 !px-4 sm:!w-auto">
                 <i class="fas fa-plus mr-2"></i>Add Question
             </button>
         </div>
@@ -127,7 +127,7 @@
 
     <div class="flex flex-col sm:flex-row justify-end gap-3">
         <a href="{{ $backUrl }}" class="btn-rect-secondary !py-3 !px-6 sm:!w-auto text-center">Cancel</a>
-        <button type="button" onclick="openModal('confirmAdminReviewEditModal')" class="btn-rect-primary !bg-red-600 !text-white !py-3 !px-6 sm:!w-auto">
+        <button type="button" data-action="openModal" data-action-args='["confirmAdminReviewEditModal"]' class="btn-rect-primary !bg-red-600 !text-white !py-3 !px-6 sm:!w-auto">
             <i class="fas fa-save mr-2"></i>Save Quiz Changes
         </button>
     </div>
@@ -140,8 +140,8 @@
         <i class="fas fa-edit text-4xl text-red-400 mb-4"></i>
         <h3 id="confirm-admin-edit-title" class="font-orbitron font-bold uppercase">Update Reported Quiz?</h3>
         <p class="text-xs text-slate-400 my-5">This updates {{ $isOwnQuiz ? 'your admin quiz' : 'the teacher quiz' }} and creates a restorable version. Existing classroom assignments are unchanged.</p>
-        <button type="button" onclick="closeModal('confirmAdminReviewEditModal'); document.getElementById('admin-review-quiz-form').requestSubmit()" class="btn-rect-primary !bg-red-600 !text-white">Save Changes</button>
-        <button type="button" onclick="closeModal('confirmAdminReviewEditModal')" class="text-[10px] font-bold mt-4 uppercase text-slate-500">Review Again</button>
+        <button type="button" data-action="closeModalAndSubmit" data-action-args='["confirmAdminReviewEditModal","admin-review-quiz-form"]' class="btn-rect-primary !bg-red-600 !text-white">Save Changes</button>
+        <button type="button" data-action="closeModal" data-action-args='["confirmAdminReviewEditModal"]' class="text-[10px] font-bold mt-4 uppercase text-slate-500">Review Again</button>
     </div>
 </div>
 
@@ -150,17 +150,17 @@
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
         <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
-        <button onclick="closeModal('logoutModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
 window.adminReviewQuestions = @json($initialQuestions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 </script>
-<script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
 document.addEventListener('DOMContentLoaded', () => {
     (window.adminReviewQuestions || []).forEach((question) => {
         addQuestionBlock(question.question || '', question.options || ['', '', '', ''], Number.parseInt(question.correct, 10) || 0);

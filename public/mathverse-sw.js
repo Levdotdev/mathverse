@@ -21,7 +21,7 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
     event.notification.close();
-    const destination = new URL(event.notification.data?.url || '/', self.location.origin).href;
+    const destination = safeDestination(event.notification.data?.url);
 
     event.waitUntil((async () => {
         const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -34,3 +34,14 @@ self.addEventListener('notificationclick', event => {
         return clients.openWindow(destination);
     })());
 });
+
+function safeDestination(value) {
+    try {
+        const candidate = new URL(String(value || '/'), self.location.origin);
+        return candidate.origin === self.location.origin
+            ? candidate.href
+            : `${self.location.origin}/`;
+    } catch (error) {
+        return `${self.location.origin}/`;
+    }
+}

@@ -95,7 +95,7 @@
                         <p class="text-[9px] text-slate-500 uppercase tracking-widest">VR Quiz Code</p>
                         <code class="text-3xl text-cyan-400 font-black tracking-[0.22em]">{{ $session['room_code'] }}</code>
                     </div>
-                    <button onclick="copyToClipboard('{{ $session['room_code'] }}')"
+                    <button type="button" data-action="copyToClipboard" data-action-args="{{ json_encode([$session['room_code']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                             class="w-11 h-11 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-black transition-all"
                             title="Copy VR code"><i class="fas fa-copy"></i></button>
                 </div>

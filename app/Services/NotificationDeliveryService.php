@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\MathVerseEventMail;
+use App\Support\SafePath;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -75,11 +76,15 @@ class NotificationDeliveryService
         ]);
 
         if ($claimed['error'] !== null) {
+            Log::warning('MathVerse notification delivery claim failed.', [
+                'status' => $claimed['status'] ?? null,
+            ]);
+
             return [
                 'claimed' => 0,
                 'sent' => 0,
                 'failed' => 0,
-                'error' => $claimed['error'],
+                'error' => 'Notification deliveries could not be claimed. Check the server log and database migration status.',
             ];
         }
 
@@ -91,13 +96,13 @@ class NotificationDeliveryService
                 $this->markSent($delivery, $workerId);
                 $sent++;
             } catch (\Throwable $exception) {
-                $this->markFailed($delivery, $workerId, $exception->getMessage());
+                $this->markFailed($delivery, $workerId, $exception::class);
                 Log::warning('MathVerse notification delivery failed.', [
                     'delivery_id' => $delivery['id'] ?? null,
                     'event_type' => $delivery['event_type'] ?? null,
                     'channel' => $delivery['channel'] ?? null,
                     'attempts' => $delivery['attempts'] ?? null,
-                    'message' => $exception->getMessage(),
+                    'exception' => $exception::class,
                 ]);
                 $failed++;
             }
@@ -155,7 +160,18 @@ class NotificationDeliveryService
         $presentation = $this->emailPresentation((string) ($delivery['event_type'] ?? ''));
         $actionPath = $this->safeActionPath($delivery['action_url'] ?? null);
         $baseUrl = rtrim((string) config('app.url'), '/');
-        if ($actionPath !== null && filter_var($baseUrl, FILTER_VALIDATE_URL) === false) {
+        $baseParts = parse_url($baseUrl);
+        $baseIsValid = is_array($baseParts)
+            && in_array(strtolower((string) ($baseParts['scheme'] ?? '')), ['http', 'https'], true)
+            && !empty($baseParts['host'])
+            && !isset($baseParts['user'])
+            && !isset($baseParts['pass'])
+            && !isset($baseParts['query'])
+            && !isset($baseParts['fragment']);
+        if ($actionPath !== null && (
+            !$baseIsValid
+            || (app()->isProduction() && strtolower((string) ($baseParts['scheme'] ?? '')) !== 'https')
+        )) {
             throw new \RuntimeException('APP_URL must be the deployed MathVerse root URL before email delivery.');
         }
         $actionUrl = $actionPath === null ? null : $baseUrl . $actionPath;
@@ -344,8 +360,6 @@ class NotificationDeliveryService
 
     private function safeActionPath(mixed $value): ?string
     {
-        $path = trim((string) ($value ?? ''));
-
-        return preg_match('#^/(?!/)#', $path) === 1 ? $path : null;
+        return SafePath::normalize($value);
     }
 }

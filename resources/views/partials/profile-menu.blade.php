@@ -36,7 +36,7 @@
            class="block w-full text-left px-4 py-3 text-xs hover:bg-white/5">
             <i class="fas fa-shield-halved mr-2 text-cyan-400"></i> Account Security
         </a>
-        <button type="button" role="menuitem" onclick="openModal('logoutModal')"
+        <button type="button" role="menuitem" data-action="openModal" data-action-args='["logoutModal"]'
                 class="w-full text-left px-4 py-3 text-xs text-red-400 hover:bg-red-500/10 border-t border-white/5">
             <i class="fas fa-power-off mr-2"></i> Logout
         </button>

@@ -208,9 +208,9 @@
                                 @if(!empty($p['suspended_at']))
                                     <form method="POST" action="/admin/user/{{ $p['id'] }}/restore" class="inline">@csrf<input type="hidden" name="return_section" value="students"><button class="text-green-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-undo mr-1"></i> Restore</button></form>
                                 @else
-                                    <button onclick='confirmSuspend(@json($p["id"]), @json($studentName), "students")' class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
+                                    <button type="button" data-action="confirmSuspend" data-action-args="{{ json_encode([$p['id'], $studentName, 'students'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
                                 @endif
-                                <button onclick='confirmDelete(@json($p["id"]), @json($studentName))' class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+                                <button type="button" data-action="confirmDelete" data-action-args="{{ json_encode([$p['id'], $studentName], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
                             </td>
                         </tr>
                     @empty
@@ -265,9 +265,9 @@
                                 @if(!empty($p['suspended_at']))
                                     <form method="POST" action="/admin/user/{{ $p['id'] }}/restore" class="inline">@csrf<input type="hidden" name="return_section" value="teachers"><button class="text-green-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-undo mr-1"></i> Restore</button></form>
                                 @else
-                                    <button onclick='confirmSuspend(@json($p["id"]), @json($teacherName), "teachers")' class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
+                                    <button type="button" data-action="confirmSuspend" data-action-args="{{ json_encode([$p['id'], $teacherName, 'teachers'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
                                 @endif
-                                <button onclick='confirmDelete(@json($p["id"]), @json($teacherName))' class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+                                <button type="button" data-action="confirmDelete" data-action-args="{{ json_encode([$p['id'], $teacherName], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
                             </td>
                         </tr>
                     @empty
@@ -396,7 +396,7 @@
                                 <i class="fas fa-upload mr-2"></i> Choose Photo
                             </label>
                             <input type="file" id="avatar-input" name="avatar"
-                                accept="image/*" class="hidden">
+                                accept="image/jpeg,image/png,image/webp" class="hidden">
                             <p class="text-[9px] text-slate-600 mt-1 text-center">JPG, PNG • 2 MB or less</p>
                         </div>
                     </div>
@@ -516,7 +516,7 @@
                 <h3 id="suspend-user-title" class="font-orbitron font-bold uppercase">Suspend Account?</h3>
                 <p id="suspend-user-name" class="text-xs text-slate-400 mt-2"></p>
             </div>
-            <button type="button" onclick="closeModal('suspendUserModal')" aria-label="Close" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+            <button type="button" data-action="closeModal" data-action-args='["suspendUserModal"]' aria-label="Close" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
         </div>
         <p class="text-[10px] text-slate-500 mb-5">The user will be signed out and blocked from returning. Their classes, quizzes, and results are preserved.</p>
         <form id="suspendUserForm" method="POST" class="space-y-5">
@@ -528,7 +528,7 @@
             </div>
             <div class="modal-action-stack">
                 <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black">Suspend Account</button>
-                <button type="button" onclick="closeModal('suspendUserModal')" class="modal-cancel">Cancel</button>
+                <button type="button" data-action="closeModal" data-action-args='["suspendUserModal"]' class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -544,7 +544,7 @@
             <form id="deleteUserForm" method="POST">@csrf @method('DELETE')
                 <button class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Purge User Data</button>
             </form>
-            <button onclick="closeModal('deleteUserModal')" class="modal-cancel mt-3">Cancel</button>
+            <button type="button" data-action="closeModal" data-action-args='["deleteUserModal"]' class="modal-cancel mt-3">Cancel</button>
         </div>
     </div>
 </div>
@@ -557,9 +557,9 @@
         <div class="space-y-3">
             <form id="logoutForm" method="POST" action="/logout" class="mt-10">
                 @csrf
-                <button onclick="handleLogout()" class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button>
+                <button type="button" data-action="handleLogout" class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button>
             </form>
-            <button onclick="closeModal('logoutModal')" class="modal-cancel">Cancel</button>
+            <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel">Cancel</button>
         </div>
     </div>
 </div>
@@ -567,10 +567,10 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="{{ asset('js/admin.js') }}?v={{ filemtime(public_path('js/admin.js')) }}"></script>
-<script src="{{ asset('js/charts.js') }}"></script>
-<script>
+@vite('resources/js/chart.js')
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/admin.js') }}?v={{ filemtime(public_path('js/admin.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/charts.js') }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
     document.addEventListener('DOMContentLoaded', () => {
         applyChartDefaults();
         document.getElementById('btn-stats')?.addEventListener('click', () => {

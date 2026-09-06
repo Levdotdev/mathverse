@@ -115,7 +115,7 @@
             <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Class Join Code</p>
             <div class="flex items-center justify-between gap-3 mt-3">
                 <code class="text-2xl text-cyan-400 font-black tracking-[0.2em]">{{ $class['join_code'] }}</code>
-                <button onclick="copyToClipboard('{{ $class['join_code'] }}')" class="text-slate-400 hover:text-white"><i class="fas fa-copy"></i></button>
+                <button type="button" data-action="copyToClipboard" data-action-args="{{ json_encode([$class['join_code']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-slate-400 hover:text-white"><i class="fas fa-copy"></i></button>
             </div>
             <p class="text-xs text-slate-500 mt-4">Regenerating invalidates the previous code immediately.</p>
             @if(empty($class['archived_at']))
@@ -130,7 +130,7 @@
             <h2 class="font-orbitron font-bold text-slate-300 uppercase">Class Archive</h2>
             @if(empty($class['archived_at']))
                 <p class="text-xs text-slate-500 mt-3 mb-5">Archive the class without deleting students, assignments, or results.</p>
-                <button onclick="openModal('archiveClassModal')" class="btn-rect-secondary !py-3"><i class="fas fa-archive mr-2"></i> Archive Class</button>
+                <button type="button" data-action="openModal" data-action-args='["archiveClassModal"]' class="btn-rect-secondary !py-3"><i class="fas fa-archive mr-2"></i> Archive Class</button>
             @else
                 <p class="text-xs text-slate-500 mt-3 mb-5">Restore only when all retained members match Grade {{ $class['grade_level'] }}.</p>
                 <form method="POST" action="/teacher/classes/{{ $class['id'] }}/restore">@csrf
@@ -142,7 +142,7 @@
         <div class="portal-frame !p-6 border-l-4 border-red-500">
             <h2 class="font-orbitron font-bold text-red-400 uppercase">Danger Zone</h2>
             <p class="text-xs text-slate-500 mt-3 mb-5">Deleting this class removes its members, assignments, and class results.</p>
-            <button onclick="openModal('deleteClassModal')" class="btn-rect-secondary !py-3 !border-red-500/40 text-red-400">
+            <button type="button" data-action="openModal" data-action-args='["deleteClassModal"]' class="btn-rect-secondary !py-3 !border-red-500/40 text-red-400">
                 <i class="fas fa-trash-alt mr-2"></i> Delete Class
             </button>
         </div>
@@ -160,7 +160,7 @@
         <form method="POST" action="/teacher/classes/{{ $class['id'] }}/archive">@csrf
             <button class="btn-rect-primary !bg-slate-600 !text-white">Archive Class</button>
         </form>
-        <button onclick="closeModal('archiveClassModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["archiveClassModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endif
@@ -175,7 +175,7 @@
             @method('DELETE')
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Class</button>
         </form>
-        <button onclick="closeModal('deleteClassModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["deleteClassModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use App\Services\SupabaseService;
 use App\Services\NotificationDeliveryService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -121,16 +121,20 @@ class AdminController extends Controller
         }
         $section = $profile['role'] === 'student' ? 'students' : 'teachers';
 
-        // Delete from auth.users — this cascades to profiles automatically
-        $response = Http::withHeaders([
-            'apikey'        => config('services.supabase.anon_key'),
-            'Authorization' => 'Bearer ' . config('services.supabase.service_key'),
-            'Content-Type'  => 'application/json',
-        ])->delete(config('services.supabase.url') . "/auth/v1/admin/users/{$id}");
+        // Delete from auth.users — this cascades to profiles automatically.
+        try {
+            $deleted = $this->supabase->deleteAuthUser($id);
+        } catch (\Throwable $exception) {
+            Log::warning('Administrator user deletion failed.', [
+                'target_user_id' => $id,
+                'exception' => $exception::class,
+            ]);
+            $deleted = false;
+        }
 
-        if ($response->failed()) {
+        if (!$deleted) {
             return redirect("/admin/dashboard?section={$section}")
-                ->with('error', $response->json()['msg'] ?? 'Failed to delete user.');
+                ->with('error', 'The user could not be deleted. Please try again.');
         }
 
         $this->supabase->audit(session('supabase_user'), 'user.deleted', 'profile', $id, [
@@ -183,13 +187,17 @@ class AdminController extends Controller
                 ->with('error', 'The application was not rejected because the decision-email outbox is not installed. Run the latest delivery database update first.');
         }
 
-        $response = Http::withHeaders([
-            'apikey'        => config('services.supabase.anon_key'),
-            'Authorization' => 'Bearer ' . config('services.supabase.service_key'),
-            'Content-Type'  => 'application/json',
-        ])->delete(config('services.supabase.url') . "/auth/v1/admin/users/{$id}");
+        try {
+            $deleted = $this->supabase->deleteAuthUser($id);
+        } catch (\Throwable $exception) {
+            Log::warning('Pending teacher deletion failed.', [
+                'target_user_id' => $id,
+                'exception' => $exception::class,
+            ]);
+            $deleted = false;
+        }
 
-        if ($response->failed()) {
+        if (!$deleted) {
             return redirect('/admin/dashboard?section=role-verify')
                 ->with('error', 'Failed to reject application.');
         }
@@ -299,8 +307,8 @@ class AdminController extends Controller
 
     public function updateProfile(Request $request)
     {
-        if ($avatarSizeError = $this->rejectOversizedAvatar($request, '/admin/dashboard?section=profile')) {
-            return $avatarSizeError;
+        if ($avatarError = $this->rejectInvalidAvatar($request, '/admin/dashboard?section=profile')) {
+            return $avatarError;
         }
 
         $validated = $request->validate([
@@ -309,15 +317,24 @@ class AdminController extends Controller
         ]);
 
         $user  = session('supabase_user');
-        $token = session('supabase_token');
         $userId = $user['id'];
 
         // ── UPDATE BASIC INFO
-        $profileUpdated = $this->supabase->update('profiles', [
-            'first_name'  => $validated['first_name'],
-            'last_name'   => $validated['last_name'],
-            'grade_level' => 0,
-        ], ['id' => $userId], $token);
+        try {
+            $profileUpdated = $this->supabase->updateProfile($userId, [
+                'first_name'  => $validated['first_name'],
+                'last_name'   => $validated['last_name'],
+                'grade_level' => 0,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('An administrator profile could not be updated.', [
+                'user_id' => $userId,
+                'exception' => $exception::class,
+            ]);
+
+            return redirect('/admin/dashboard?section=profile')
+                ->with('error', 'The profile service is temporarily unavailable. Please try again.');
+        }
         if (!isset($profileUpdated[0]['id'])) {
             return redirect('/admin/dashboard?section=profile')
                 ->with('error', 'The profile could not be updated.');
@@ -327,13 +344,22 @@ class AdminController extends Controller
         $avatarUrl = null;
 
         if ($request->hasFile('avatar')) {
-            $this->supabase->deleteAvatarByUrl($user['avatar_url'] ?? null);
-            $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
+            $avatarResult = $this->replaceProfileAvatar(
+                $this->supabase,
+                $userId,
+                $request->file('avatar'),
+                $user['avatar_url'] ?? null
+            );
+            $avatarUrl = $avatarResult['url'];
 
-            if ($avatarUrl) {
-                $this->supabase->updateProfile($userId, [
-                    'avatar_url' => $avatarUrl
-                ]);
+            if ($avatarResult['error'] === 'upload') {
+                return redirect('/admin/dashboard?section=profile')
+                    ->with('error', 'Your profile details were saved, but the new avatar could not be uploaded.');
+            }
+
+            if ($avatarResult['error'] === 'attach') {
+                return redirect('/admin/dashboard?section=profile')
+                    ->with('error', 'Your profile details were saved, but the new avatar could not be attached.');
             }
         }
 
@@ -552,11 +578,15 @@ class AdminController extends Controller
             ];
             return response()->streamDownload(function () use ($summaryRows, $top10) {
                 $out = fopen('php://output', 'w');
-                foreach ($summaryRows as $row) fputcsv($out, $row);
-                fputcsv($out, []);
-                fputcsv($out, ['Top 10 Students by Trophies']);
-                fputcsv($out, ['Name', 'Grade', 'Trophies']);
-                foreach ($top10 as $s) fputcsv($out, [$s['name'], $s['grade'], $s['trophies']]);
+                foreach ($summaryRows as $row) {
+                    $this->writeCsvRow($out, $row);
+                }
+                $this->writeCsvRow($out, []);
+                $this->writeCsvRow($out, ['Top 10 Students by Trophies']);
+                $this->writeCsvRow($out, ['Name', 'Grade', 'Trophies']);
+                foreach ($top10 as $student) {
+                    $this->writeCsvRow($out, [$student['name'], $student['grade'], $student['trophies']]);
+                }
                 fclose($out);
             }, 'platform-summary.csv', ['Content-Type' => 'text/csv']);
         }
@@ -751,8 +781,7 @@ class AdminController extends Controller
 
     private function registrySearch(mixed $value): string
     {
-        $search = trim(mb_substr((string) $value, 0, 80));
-        return trim(str_replace(['*', '%', ',', '(', ')'], '', $search));
+        return $this->safeSearchTerm($value);
     }
 
     private function registryOrFilter(string $search): string
@@ -783,9 +812,9 @@ class AdminController extends Controller
     {
         return response()->streamDownload(function () use ($rows, $headers, $keys) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, $headers);
+            $this->writeCsvRow($out, $headers);
             foreach ($rows as $row) {
-                fputcsv($out, array_map(fn($k) => $row[$k] ?? '', $keys));
+                $this->writeCsvRow($out, array_map(fn($k) => $row[$k] ?? '', $keys));
             }
             fclose($out);
         }, "{$filename}.csv", ['Content-Type' => 'text/csv']);

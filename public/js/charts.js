@@ -177,10 +177,14 @@ function destroyCharts(ids) {
 
 function showStatsError(message) {
     const el = document.getElementById('stats-loading');
-    if (el) el.innerHTML = `
-        <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-4 block"></i>
-        <p class="text-red-500 text-xs uppercase tracking-widest font-orbitron">${message}</p>
-    `;
+    if (!el) return;
+
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-exclamation-triangle text-3xl text-red-500 mb-4 block';
+    const text = document.createElement('p');
+    text.className = 'text-red-500 text-xs uppercase tracking-widest font-orbitron';
+    text.textContent = String(message ?? 'Analytics could not be loaded.');
+    el.replaceChildren(icon, text);
 }
 
 // ── Cache ─────────────────────────────────────────────────

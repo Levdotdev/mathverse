@@ -736,7 +736,7 @@ class AdminQuizController extends Controller
         $search = trim(mb_substr((string) $request->query('search', ''), 0, 80));
         $grade = (int) $request->query('grade', 0);
         $grade = ($grade >= 1 && $grade <= 6) ? $grade : null;
-        $safeSearch = trim(str_replace(['*', '%'], '', $search));
+        $safeSearch = $this->safeSearchTerm($search);
 
         return [$search, $grade, $safeSearch];
     }
@@ -951,7 +951,7 @@ class AdminQuizController extends Controller
             return 'Version restoration is unavailable. Run the standalone quiz database update, then try again.';
         }
 
-        return 'Version restore failed: ' . \Illuminate\Support\Str::limit($message, 220);
+        return 'The selected version could not be restored. Please try again.';
     }
 
     private function questionCounts(array $ids): array

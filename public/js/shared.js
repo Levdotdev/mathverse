@@ -70,6 +70,88 @@ function hideToast() {
     toast.classList.add('opacity-0', 'pointer-events-none');
 }
 
+const mathVerseDelegatedActions = new Set([
+    'addNewQuestion',
+    'chooseAnotherAvatar',
+    'closeForgotModal',
+    'closeLobby',
+    'closeModal',
+    'confirmDelete',
+    'confirmSuspend',
+    'copyToClipboard',
+    'handleLogout',
+    'hideToast',
+    'loadQuizBuilder',
+    'openAssignmentSettings',
+    'openDeleteAssignment',
+    'openDeleteQuizModal',
+    'openForgotModal',
+    'openLobby',
+    'openModal',
+    'openQuizAction',
+    'openRemoveStudent',
+    'openReportDeleteModal',
+    'openRestoreQuizVersion',
+    'openResults',
+    'openSessionReport',
+    'openAssignQuiz',
+    'removeQuestion',
+    'swMod',
+    'tglPass',
+    'toggleGradeLevel',
+    'toggleQuizView',
+    'toggleSidebar',
+]);
+
+function delegatedActionArguments(control) {
+    if (!control.dataset.actionArgs) return [];
+
+    try {
+        const parsed = JSON.parse(control.dataset.actionArgs);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.error('Invalid MathVerse action arguments.', error);
+        return [];
+    }
+}
+
+document.addEventListener('click', event => {
+    const control = event.target.closest('[data-action]');
+    if (!control || control.disabled) return;
+
+    event.preventDefault();
+    const action = control.dataset.action;
+    if (action === 'navigate') {
+        const destination = new URL(control.dataset.destination || '/', window.location.origin);
+        if (destination.origin === window.location.origin) window.location.assign(destination.href);
+        return;
+    }
+    if (action === 'closeModalAndSubmit') {
+        const [modalId, formId] = delegatedActionArguments(control);
+        closeModal(modalId);
+        document.getElementById(formId)?.requestSubmit();
+        return;
+    }
+    if (!mathVerseDelegatedActions.has(action)) return;
+
+    const handler = window[action];
+    if (typeof handler === 'function') {
+        const args = delegatedActionArguments(control);
+        handler(...(control.hasAttribute('data-action-self') ? [control, ...args] : args));
+    }
+});
+
+document.addEventListener('change', event => {
+    const control = event.target.closest('[data-change-action]');
+    if (!control) return;
+
+    const action = control.dataset.changeAction;
+    if (!mathVerseDelegatedActions.has(action)) return;
+
+    const handler = window[action];
+    if (typeof handler === 'function') handler(control.value);
+});
+
 function handleAuthConfirmationReturn() {
     const url = new URL(window.location.href);
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
@@ -310,22 +392,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 const AVATAR_SIZE_ERROR = 'The selected image must be 2 MB or less.';
-let oversizedAvatarInput = null;
+const AVATAR_TYPE_ERROR = 'Choose a JPEG, PNG, or WebP image.';
+const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+let invalidAvatarInput = null;
 
-function avatarExceedsSizeLimit(file) {
-    return file && file.size > MAX_AVATAR_SIZE_BYTES;
+function avatarValidationError(file) {
+    if (!file) return '';
+    if (file.size < 1 || file.size > MAX_AVATAR_SIZE_BYTES) return AVATAR_SIZE_ERROR;
+    if (!ALLOWED_AVATAR_TYPES.has(file.type.toLowerCase())) return AVATAR_TYPE_ERROR;
+    return '';
 }
 
-function showAvatarSizeModal(input) {
+function showAvatarValidationModal(input, error) {
     const file = input.files?.[0];
     if (!file) return;
 
-    oversizedAvatarInput = input;
+    invalidAvatarInput = input;
+    const message = document.getElementById('image-size-message');
     const fileDetails = document.getElementById('image-size-file');
 
+    if (message) message.textContent = error;
     if (fileDetails) {
         const sizeInMb = (file.size / (1024 * 1024)).toFixed(2);
-        fileDetails.innerText = `${file.name} (${sizeInMb} MB)`;
+        fileDetails.textContent = `${file.name} (${sizeInMb} MB)`;
     }
 
     openModal('imageSizeModal');
@@ -333,27 +422,29 @@ function showAvatarSizeModal(input) {
 
 function validateAvatarSize(input) {
     const file = input.files?.[0];
+    const error = avatarValidationError(file);
 
-    if (!file || !avatarExceedsSizeLimit(file)) {
+    if (!error) {
         input.removeAttribute('aria-invalid');
         input.setCustomValidity('');
-        if (oversizedAvatarInput === input) {
-            oversizedAvatarInput = null;
+        if (invalidAvatarInput === input) {
+            invalidAvatarInput = null;
         }
         return true;
     }
 
     input.setAttribute('aria-invalid', 'true');
-    input.setCustomValidity(AVATAR_SIZE_ERROR);
-    showAvatarSizeModal(input);
+    input.setCustomValidity(error);
+    showAvatarValidationModal(input, error);
     return false;
 }
 
 function chooseAnotherAvatar() {
-    const input = oversizedAvatarInput
+    const input = invalidAvatarInput
         ?? document.querySelector('input[type="file"][name="avatar"]');
 
     closeModal('imageSizeModal');
+    if (input) input.value = '';
     setTimeout(() => input?.click(), 100);
 }
 

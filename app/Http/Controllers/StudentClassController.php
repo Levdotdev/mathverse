@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\SupabaseService;
+use App\Support\ClassCustomization;
 use Illuminate\Http\Request;
 
 class StudentClassController extends Controller
@@ -112,9 +113,9 @@ class StudentClassController extends Controller
 
         $this->advanceScheduledSessions($id);
 
-        $customization = $this->supabase->adminSelect(
+        $customization = ClassCustomization::normalize($this->supabase->adminSelect(
             'class_customizations', '*', ['class_id' => $id]
-        )[0] ?? ['theme_color' => '#22c55e', 'icon' => 'chalkboard', 'banner_pattern' => 'grid'];
+        )[0] ?? [], '#22c55e');
 
         $sessions = $this->supabase->adminSelect('quiz_sessions', '*', ['class_id' => $id, 'order' => 'created_at.desc']);
         $sessionIds = array_column($sessions, 'id');
@@ -242,20 +243,9 @@ class StudentClassController extends Controller
             return redirect('/student/dashboard?section=stats')->with('error', 'You were not eligible for that quiz assignment.');
         }
 
-        $attemptsUsed = $this->supabase->adminCount('quiz_results', [
-            'session_id' => $sessionId, 'student_id' => $user['id'],
-        ]);
-        $isEnded = ($session['status'] ?? '') === 'completed';
-        $retakeExpired = !empty($eligibility['retake_due_at'])
-            && now()->gte(\Carbon\Carbon::parse($eligibility['retake_due_at']));
-        $isFinishedRetakeViewer = (bool) ($session['retake_mode'] ?? false)
-            && (
-                $attemptsUsed >= (int) ($eligibility['allowed_attempts'] ?? 0)
-                || $retakeExpired
-            );
-        if (!$isEnded && !$isFinishedRetakeViewer) {
+        if (($session['status'] ?? '') !== 'completed') {
             return redirect("/student/classes/{$classId}")
-                ->with('error', 'Finish your available attempt before reviewing the answer key.');
+                ->with('error', 'Answer keys are available only after the quiz has ended.');
         }
 
         $result = $this->supabase->adminSelect(
@@ -316,8 +306,7 @@ class StudentClassController extends Controller
             return 'You already belong to this class.';
         }
 
-        return 'The class could not be joined: '
-            . \Illuminate\Support\Str::limit($message, 220);
+        return 'The class could not be joined. Please try again or ask your teacher to verify the class code.';
     }
 
     private function classLeaderboard(string $classId, array $sessionIds): array
@@ -425,7 +414,11 @@ class StudentClassController extends Controller
                 'status' => 'active',
                 'is_active' => true,
                 'started_at' => $session['available_at'] ?? now()->toIso8601String(),
-            ], ['id' => $session['id'], 'status' => 'waiting']);
+            ], [
+                'id' => $session['id'],
+                'class_id' => $classId,
+                'status' => 'waiting',
+            ]);
             if (isset($updated[0]['id'])) {
                 $this->supabase->audit(['role' => 'system'], 'quiz.auto_started', 'quiz_session', $session['id'], [
                     'class_id' => $classId,
@@ -448,7 +441,11 @@ class StudentClassController extends Controller
                 'is_active' => false,
                 'retake_mode' => false,
                 'ended_at' => $session['due_at'] ?? now()->toIso8601String(),
-            ], ['id' => $session['id'], 'status' => $session['status']]);
+            ], [
+                'id' => $session['id'],
+                'class_id' => $classId,
+                'status' => $session['status'],
+            ]);
             if (isset($updated[0]['id'])) {
                 $this->supabase->audit(['role' => 'system'], 'quiz.auto_ended', 'quiz_session', $session['id'], [
                     'class_id' => $classId,

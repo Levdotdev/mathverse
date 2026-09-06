@@ -53,7 +53,7 @@
                 <code class="text-lg font-bold tracking-[0.2em] px-3 py-1 rounded bg-black/40" style="color: {{ $themeColor }};">
                     {{ $class['join_code'] }}
                 </code>
-                <button onclick="copyToClipboard('{{ $class['join_code'] }}')" class="text-slate-400 hover:text-white" title="Copy join code">
+                <button type="button" data-action="copyToClipboard" data-action-args="{{ json_encode([$class['join_code']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-slate-400 hover:text-white" title="Copy join code">
                     <i class="fas fa-copy"></i>
                 </button>
             </div>
@@ -132,40 +132,40 @@
                         <div class="flex items-center gap-2 mt-3">
                             <span class="text-[9px] text-slate-500 uppercase tracking-widest">VR Code</span>
                             <code class="text-lg text-cyan-400 font-black tracking-[0.2em]">{{ $session['room_code'] }}</code>
-                            <button onclick="copyToClipboard('{{ $session['room_code'] }}')" class="text-slate-500 hover:text-white"><i class="fas fa-copy"></i></button>
+                            <button type="button" data-action="copyToClipboard" data-action-args="{{ json_encode([$session['room_code']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-slate-500 hover:text-white"><i class="fas fa-copy"></i></button>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-2 w-full xl:w-auto">
-                        <button onclick='openLobby(@json($class["id"]), @json($session["id"]), @json($session["topic"]), @json($session["room_code"]))'
+                        <button type="button" data-action="openLobby" data-action-args="{{ json_encode([$class['id'], $session['id'], $session['topic'], $session['room_code']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px]">
                             <i class="fas fa-users mr-1"></i> Lobby
                         </button>
                         @if(!$isActive)
-                            <button onclick='openQuizAction(@json($class["id"]), @json($session["id"]), "start", @json($session["topic"]))'
+                            <button type="button" data-action="openQuizAction" data-action-args="{{ json_encode([$class['id'], $session['id'], 'start', $session['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                     title="{{ $isScheduled ? 'Start this scheduled quiz early' : 'Start this quiz' }}"
                                     class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-green-500/30 text-green-400">
                                 <i class="fas fa-play mr-1"></i> Start Quiz
                             </button>
                         @endif
                         @if(!$isRetake)
-                            <button onclick='openAssignmentSettings(@json($class["id"]), @json($session["id"]), @json($session["topic"]), @json((int) $session["time_limit"]), @json(!empty($session["available_at"]) ? \Carbon\Carbon::parse($session["available_at"])->timezone(config("app.timezone"))->format("Y-m-d\\TH:i") : ""), @json(!empty($session["due_at"]) ? \Carbon\Carbon::parse($session["due_at"])->timezone(config("app.timezone"))->format("Y-m-d\\TH:i") : ""), @json($isActive))'
+                            <button type="button" data-action="openAssignmentSettings" data-action-args="{{ json_encode([$class['id'], $session['id'], $session['topic'], (int) $session['time_limit'], !empty($session['available_at']) ? \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('Y-m-d\\TH:i') : '', !empty($session['due_at']) ? \Carbon\Carbon::parse($session['due_at'])->timezone(config('app.timezone'))->format('Y-m-d\\TH:i') : '', $isActive], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                     class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-purple-500/30 text-purple-400">
                                 <i class="fas fa-sliders-h mr-1"></i> Edit
                             </button>
                         @endif
-                        <button onclick='openQuizAction(@json($class["id"]), @json($session["id"]), "end", @json($session["topic"]))'
+                        <button type="button" data-action="openQuizAction" data-action-args="{{ json_encode([$class['id'], $session['id'], 'end', $session['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-red-500/30 text-red-400">
                             <i class="fas fa-stop mr-1"></i> End Quiz
                         </button>
-                        <button onclick='openDeleteAssignment(@json($class["id"]), @json($session["id"]), @json($session["topic"]))'
+                        <button type="button" data-action="openDeleteAssignment" data-action-args="{{ json_encode([$class['id'], $session['id'], $session['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-red-500/30 text-red-400">
                             <i class="fas fa-trash-alt mr-1"></i> Delete
                         </button>
-                        <button onclick='openResults(@json($class["id"]), @json($session["id"]), @json($session["topic"]))'
+                        <button type="button" data-action="openResults" data-action-args="{{ json_encode([$class['id'], $session['id'], $session['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-cyan-500/30 text-cyan-400">
                             <i class="fas fa-chart-bar mr-1"></i> Analytics
                         </button>
-                        <button onclick='openSessionReport(@json($session["id"]), @json($session["topic"]))'
+                        <button type="button" data-action="openSessionReport" data-action-args="{{ json_encode([$session['id'], $session['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                 class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-blue-500/30 text-blue-400">
                             <i class="fas fa-file-download mr-1"></i> Report
                         </button>
@@ -199,11 +199,11 @@
                     @endif
                 </div>
                 <div class="grid grid-cols-2 gap-2 w-full lg:w-auto">
-                    <button onclick='openResults(@json($class["id"]), @json($session["id"]), @json($session["topic"]))'
+                    <button type="button" data-action="openResults" data-action-args="{{ json_encode([$class['id'], $session['id'], $session['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                             class="btn-rect-secondary !py-2 !px-4 !text-[9px] text-cyan-400">
                         <i class="fas fa-chart-bar mr-1"></i> Analytics
                     </button>
-                    <button onclick='openSessionReport(@json($session["id"]), @json($session["topic"]))'
+                    <button type="button" data-action="openSessionReport" data-action-args="{{ json_encode([$session['id'], $session['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                             class="btn-rect-secondary !py-2 !px-4 !text-[9px] text-blue-400">
                         <i class="fas fa-file-download mr-1"></i> Report
                     </button>
@@ -271,7 +271,7 @@
                             @if($member['grade_mismatch']) <span class="text-[9px] uppercase ml-1">Mismatch</span> @endif
                         </td>
                         <td class="py-4 text-right">
-                            <button onclick='openRemoveStudent(@json($class["id"]), @json($studentId), @json($studentName))'
+                            <button type="button" data-action="openRemoveStudent" data-action-args="{{ json_encode([$class['id'], $studentId, $studentName], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                     class="text-red-400 hover:text-white text-[10px] uppercase font-bold">
                                 <i class="fas fa-user-minus mr-1"></i> Remove
                             </button>
@@ -294,12 +294,12 @@
                 <h3 id="lobby-title" class="font-orbitron font-bold uppercase text-lg text-purple-400">Live Lobby</h3>
                 <p class="text-[10px] text-slate-500 mt-2">VR Code: <span id="lobby-code" class="text-white font-mono font-bold text-base ml-1"></span></p>
             </div>
-            <button onclick="closeLobby()" class="text-slate-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            <button type="button" data-action="closeLobby" class="text-slate-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
         </div>
         <div class="overflow-y-auto max-h-80 border border-white/5 rounded bg-black/30">
             <table class="w-full"><tbody id="lobby-tbody" class="text-sm"></tbody></table>
         </div>
-        <button onclick="closeLobby()" class="btn-rect-secondary mt-6">Close</button>
+        <button type="button" data-action="closeLobby" class="btn-rect-secondary mt-6">Close</button>
     </div>
 </div>
 
@@ -307,7 +307,7 @@
     <div class="portal-frame !p-6 md:!p-8 w-full max-w-3xl text-left border-cyan-500/30">
         <div class="flex justify-between items-center border-b border-white/10 pb-4 mb-6">
             <h3 id="results-modal-title" class="font-orbitron font-bold uppercase text-lg text-cyan-400">Quiz Analytics</h3>
-            <button onclick="closeModal('viewResultsModal')" class="text-slate-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            <button type="button" data-action="closeModal" data-action-args='["viewResultsModal"]' class="text-slate-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
         </div>
         <div class="overflow-x-auto max-h-96">
             <table class="w-full min-w-[900px] text-left">
@@ -317,7 +317,7 @@
                 <tbody id="results-tbody" class="text-sm"></tbody>
             </table>
         </div>
-        <button onclick="closeModal('viewResultsModal')" class="btn-rect-secondary mt-6">Close</button>
+        <button type="button" data-action="closeModal" data-action-args='["viewResultsModal"]' class="btn-rect-secondary mt-6">Close</button>
     </div>
 </div>
 
@@ -328,7 +328,7 @@
                 <h3 id="exception-modal-title" class="font-orbitron font-bold uppercase text-purple-400">Grant Retake</h3>
                 <p id="exception-student-name" class="text-xs text-slate-400 mt-2"></p>
             </div>
-            <button type="button" onclick="closeModal('quizStudentExceptionModal')" class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
+            <button type="button" data-action="closeModal" data-action-args='["quizStudentExceptionModal"]' class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
         </div>
         <form id="quizStudentExceptionForm" class="space-y-5">
             <div>
@@ -342,7 +342,7 @@
             </div>
             <div class="modal-action-stack">
                 <button id="confirmStudentException" type="submit" class="btn-rect-primary">Grant Retake</button>
-                <button type="button" onclick="closeModal('quizStudentExceptionModal')" class="modal-cancel">Cancel</button>
+                <button type="button" data-action="closeModal" data-action-args='["quizStudentExceptionModal"]' class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -355,7 +355,7 @@
                 <h3 id="assignment-settings-title" class="font-orbitron font-bold uppercase">Assignment <span class="text-purple-400">Settings</span></h3>
                 <p id="assignment-settings-topic" class="text-xs text-slate-400 mt-2"></p>
             </div>
-            <button type="button" onclick="closeModal('assignmentSettingsModal')" class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
+            <button type="button" data-action="closeModal" data-action-args='["assignmentSettingsModal"]' class="text-slate-500 hover:text-white" aria-label="Close"><i class="fas fa-times"></i></button>
         </div>
         <form id="assignmentSettingsForm" method="POST" class="space-y-5">
             @csrf
@@ -377,7 +377,7 @@
             </div>
             <div class="modal-action-stack">
                 <button type="submit" class="btn-rect-primary">Save Settings</button>
-                <button type="button" onclick="closeModal('assignmentSettingsModal')" class="modal-cancel">Cancel</button>
+                <button type="button" data-action="closeModal" data-action-args='["assignmentSettingsModal"]' class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -399,7 +399,7 @@
                 <button type="submit" class="btn-rect-primary !bg-red-600 !text-white">
                     Delete Assignment
                 </button>
-                <button type="button" onclick="closeModal('deleteAssignmentModal')" class="modal-cancel">Cancel</button>
+                <button type="button" data-action="closeModal" data-action-args='["deleteAssignmentModal"]' class="modal-cancel">Cancel</button>
             </div>
         </form>
     </div>
@@ -411,7 +411,7 @@
         <h3 id="quiz-action-title" class="font-orbitron font-bold uppercase text-white">Start Quiz?</h3>
         <p id="quiz-action-topic" class="text-xs text-slate-400 mt-3 mb-8"></p>
         <button id="confirmQuizAction" class="btn-rect-primary">Confirm</button>
-        <button onclick="closeModal('quizActionModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["quizActionModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -423,7 +423,7 @@
         <div class="space-y-3">
             <a id="quiz-report-pdf" class="btn-rect-primary block" href="#"><i class="fas fa-file-pdf mr-2"></i> PDF</a>
             <a id="quiz-report-csv" class="btn-rect-secondary block" href="#"><i class="fas fa-file-csv mr-2"></i> CSV</a>
-            <button onclick="closeModal('quizReportModal')" class="modal-cancel">Cancel</button>
+            <button type="button" data-action="closeModal" data-action-args='["quizReportModal"]' class="modal-cancel">Cancel</button>
         </div>
     </div>
 </div>
@@ -438,7 +438,7 @@
             @method('DELETE')
             <button class="btn-rect-primary !bg-red-600 !text-white">Remove Student</button>
         </form>
-        <button onclick="closeModal('removeStudentModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["removeStudentModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -446,5 +446,5 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/teacher-classroom.js') }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-classroom.js') }}"></script>
 @endpush

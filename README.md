@@ -1,4 +1,41 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# MathVerse
+
+MathVerse is a Laravel and Supabase mathematics platform for students,
+teachers, and administrators. It includes classroom quiz assignment, reports,
+notifications, account workflows, and an autonomous adaptive Learning Hub.
+
+Deployment and database instructions live in
+[`database/supabase/README.md`](database/supabase/README.md). Review
+[`SECURITY.md`](SECURITY.md) before any production deployment.
+
+## Local setup
+
+```bash
+cp .env.example .env
+composer install
+php artisan key:generate
+php artisan migrate
+npm ci
+npm run build
+php artisan serve
+```
+
+Configure the private Supabase values in `.env`, then run the Supabase SQL files
+in date order. Never expose `SUPABASE_SERVICE_KEY` in browser code.
+
+## Verification
+
+```bash
+composer audit --locked
+npm audit --audit-level=high
+npm run build
+php artisan test
+```
+
+---
+
+<details>
+<summary>Laravel framework reference</summary>
 
 <p align="center">
 <a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
@@ -56,3 +93,5 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+</details>

@@ -113,6 +113,9 @@ create table if not exists public.rollback_quiz_session_state_20260827 (
     is_active boolean,
     max_members integer
 );
+alter table public.rollback_quiz_session_state_20260827 enable row level security;
+revoke all privileges on table public.rollback_quiz_session_state_20260827
+from public, anon, authenticated, service_role;
 
 insert into public.rollback_quiz_session_state_20260827 (
     session_id, status, is_active, max_members

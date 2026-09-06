@@ -186,6 +186,69 @@ Use
 and its scoring functions. Existing profile XP, points, levels, and trophies
 are retained by the rollback.
 
+## Security hardening
+
+After every feature migration above, run
+`2026_09_05_security_hardening.sql`. It removes schema-creation access from API
+roles, removes PostgreSQL's default public function execution privilege, and
+limits MathVerse `security definer` functions to the server-side service role.
+It is idempotent and intentionally has no rollback because restoring public
+execution would weaken the database boundary.
+
+The same migration enables Row Level Security and removes anonymous/public
+table privileges for every non-extension table currently present in the live
+`public` schema. This includes original MathVerse tables that existed before
+the dated migration set; existing authenticated RLS policies are preserved.
+Anonymous/public privileges are also removed from non-extension views and
+materialized views in that schema. Regular views are changed to
+`security_invoker` so their callers remain subject to base-table RLS;
+materialized views cannot provide that guarantee and are therefore denied to
+all browser-facing Data API roles.
+
+Existing non-extension functions lose implicit `PUBLIC` and anonymous
+execution as well. A function intended for a direct authenticated client must
+therefore receive an explicit, narrow `authenticated` grant; MathVerse's
+allowlisted privileged functions are callable only through the server role.
+Any unrecognized `security definer` function is denied to every Data API role
+until it is deliberately reviewed and added to the allowlist.
+Default table and sequence access for future anonymous/authenticated objects is
+also removed, so every new direct-client capability requires an explicit grant
+and RLS policy in its own reviewed migration.
+
+Teacher class deletion uses the allowlisted `delete_teacher_class` function.
+It rechecks both the class and teacher IDs and removes the class, assignments,
+and dependent gameplay rows in one transaction, so a failed delete cannot
+leave a partially removed classroom.
+
+It also treats sign-up metadata as untrusted: public registration may create
+only student or pending-teacher profiles, and only the server/owner may change
+a profile role. Direct profile inserts, updates, and deletes are removed from
+browser/API roles; validated profile forms, avatars, email, role, suspension,
+class, XP, points, level, and trophy changes remain server-controlled.
+Password changes also set a server-owned invalidation timestamp so Laravel
+rejects older signed-in sessions on every protected request.
+
+Class membership, notifications, push subscriptions, bookmarks, ratings,
+reports, and per-student quiz eligibility are also mutated only through
+validated Laravel actions. This prevents direct Data API calls from bypassing
+join codes or the application workflows that enforce ownership and audit
+requirements.
+
+The hardening migration also makes execution of future functions opt-in and
+removes anonymous access from existing application tables, views, and
+sequences. Future tables and sequences start without Data API mutation grants.
+When adding a new server RPC, grant it only to `service_role` and add its name
+to the hardening allowlist; do not grant it to `public`, `anon`, or
+`authenticated`. It also removes every Data API grant from retained
+`rollback_*` archive tables, which remain accessible only to the database owner
+for a deliberate rollback.
+
+Before deploying, confirm Row Level Security is enabled on every table exposed
+through the Supabase API and review each policy in the Supabase dashboard. The
+service-role key bypasses RLS and therefore belongs only in Laravel's private
+server environment; it must never use a `VITE_` prefix or appear in browser
+JavaScript.
+
 ### Configure application email delivery
 
 Supabase Auth continues to send sign-up, recovery, change-email, password
@@ -246,10 +309,11 @@ browser requirement.
    `WEB_PUSH_FUNCTION_URL` is optional; when omitted, Laravel uses
    `{SUPABASE_URL}/functions/v1/send-admin-push`.
 4. Set the Supabase Edge Function secrets. `ADMIN_PUSH_SECRET` must exactly
-   match the Laravel value:
+   match the Laravel value. Set the endpoint allowlist to the same value used
+   by Laravel (the defaults cover the major browser push providers):
 
    ```bash
-   supabase secrets set VAPID_PUBLIC_KEY="..." VAPID_PRIVATE_KEY="..." VAPID_SUBJECT="mailto:admin@example.com" ADMIN_PUSH_SECRET="..."
+   supabase secrets set VAPID_PUBLIC_KEY="..." VAPID_PRIVATE_KEY="..." VAPID_SUBJECT="mailto:admin@example.com" ADMIN_PUSH_SECRET="..." WEB_PUSH_ALLOWED_HOSTS="fcm.googleapis.com,updates.push.services.mozilla.com,push.services.mozilla.com,web.push.apple.com,*.notify.windows.com"
    ```
 
 5. Deploy the included Edge Function. The Supabase legacy JWT check is disabled

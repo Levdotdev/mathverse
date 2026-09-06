@@ -32,7 +32,7 @@
                 <form id="resetForm" method="POST" action="/update-password" class="space-y-4">
                     @csrf
 
-                    <input type="hidden" id="token" name="token">
+                    <input type="hidden" id="token" name="token" value="">
 
                     <div class="form-group">
                         <label class="input-label">New Password</label>
@@ -43,7 +43,7 @@
                                    title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol."
                                    autocomplete="new-password" placeholder="Enter new password" required
                                    class="input-mobile-ultra pr-12">
-                            <button type="button" onclick="tglPass('rPass','rIco')"
+                            <button type="button" data-action="tglPass" data-action-args='["rPass","rIco"]'
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="rIco" class="fas fa-eye-slash"></i>
                             </button>
@@ -59,7 +59,7 @@
                                    pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
                                    title="Use 8 or more characters with uppercase, lowercase, a number, and a symbol." autocomplete="new-password"
                                    placeholder="Re-type password" required class="input-mobile-ultra pr-12">
-                            <button type="button" onclick="tglPass('rcPass','rcIco')"
+                            <button type="button" data-action="tglPass" data-action-args='["rcPass","rcIco"]'
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="rcIco" class="fas fa-eye-slash"></i>
                             </button>
@@ -69,7 +69,7 @@
                     <button type="submit" class="btn-mobile-ultra mt-2">Change Password</button>
                 </form>
 
-                <button onclick="window.location.href='/'"
+                <button type="button" data-action="navigate" data-destination="/"
                         class="mt-6 w-full text-slate-500 text-[9px] font-bold uppercase tracking-widest">
                     <i class="fas fa-arrow-left mr-1"></i> Return to Login
                 </button>
@@ -82,17 +82,32 @@
 @endsection
 
 @push('scripts')
-<script>
-    const params = new URLSearchParams(window.location.search);
-    const token  = params.get('token_hash');  // reads token_hash from URL
-
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
+    const fragmentParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const tokenInput = document.getElementById('token');
+    const fragmentToken = fragmentParams.get('token_hash');
+    const hasServerToken = @json(session()->has('password_recovery_token'));
     const resetForm = document.getElementById('resetForm');
-    if (!token) {
+    if (!fragmentToken && !hasServerToken) {
         resetForm.querySelector('button[type="submit"]').disabled = true;
         showToast('This reset link is incomplete. Request a new password reset email.', true);
     } else {
-        tokenInput.value = token;
+        if (fragmentToken) {
+            tokenInput.value = fragmentToken;
+        }
+
+        // Keep the one-time recovery token out of browser history, copied
+        // URLs, screenshots, and referrers after it has been captured.
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.hash = '';
+        ['token', 'token_hash', 'access_token', 'refresh_token', 'code'].forEach(parameter => {
+            cleanUrl.searchParams.delete(parameter);
+        });
+        window.history.replaceState(
+            window.history.state,
+            document.title,
+            cleanUrl.pathname + (cleanUrl.searchParams.size ? `?${cleanUrl.searchParams.toString()}` : '')
+        );
     }
 </script>
 @endpush

@@ -4,7 +4,7 @@
 
 @section('content')
 
-<button type="button" id="sidebar-overlay" class="fixed inset-0 bg-black/80 z-40 hidden md:hidden" onclick="toggleSidebar(false)" aria-label="Close navigation"></button>
+<button type="button" id="sidebar-overlay" class="fixed inset-0 bg-black/80 z-40 hidden md:hidden" data-action="toggleSidebar" data-action-args='[false]' aria-label="Close navigation"></button>
 
 <aside id="sidebar" aria-label="Primary navigation" class="dashboard-sidebar fixed inset-y-0 left-0 w-64 border-r @yield('sidebar-border', 'border-white/10') backdrop-blur-xl bg-black/60 flex flex-col p-6 z-50 transform -translate-x-full transition-transform duration-300 md:sticky md:top-0 md:h-screen md:translate-x-0">
     <div class="mb-10 text-center">
@@ -26,11 +26,11 @@
 
     {{-- Mobile header --}}
     <div class="mobile-dashboard-header md:hidden relative z-[300] overflow-visible flex items-center justify-between gap-3 mb-8 p-4 rounded-xl border border-white/10 bg-black/80 backdrop-blur-xl shadow-2xl @yield('mobile-border', '')">
-        <button type="button" onclick="toggleSidebar()" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation" class="min-w-11 min-h-11 text-2xl @yield('accent-color', 'text-cyan-400')">
+        <button type="button" data-action="toggleSidebar" data-sidebar-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation" class="min-w-11 min-h-11 text-2xl @yield('accent-color', 'text-cyan-400')">
             <i class="fas fa-bars"></i>
         </button>
         <h1 class="min-w-0 truncate font-orbitron font-bold text-xs tracking-widest uppercase">
-            @yield('mobile-title')
+            {{ trim($__env->yieldContent('mobile-title')) }}
         </h1>
         <div class="flex items-center gap-2 shrink-0">
             @include('partials.notifications')
@@ -53,7 +53,7 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/dashboard.js') }}?v={{ filemtime(public_path('js/dashboard.js')) }}"></script>
-<script src="{{ asset('js/notifications.js') }}?v={{ filemtime(public_path('js/notifications.js')) }}"></script>
-<script src="{{ asset('js/admin-push.js') }}?v={{ filemtime(public_path('js/admin-push.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/dashboard.js') }}?v={{ filemtime(public_path('js/dashboard.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/notifications.js') }}?v={{ filemtime(public_path('js/notifications.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/admin-push.js') }}?v={{ filemtime(public_path('js/admin-push.js')) }}"></script>
 @endpush

@@ -9,7 +9,7 @@
 @endsection
 
 @section('dashboard-content')
-<button type="button" onclick="openModal('cancelSharedQuizModal')"
+<button type="button" data-action="openModal" data-action-args='["cancelSharedQuizModal"]'
    class="inline-block text-xs text-slate-400 hover:text-white font-bold uppercase mb-6">
     <i class="fas fa-arrow-left mr-2"></i> Back to Shared Library
 </button>
@@ -44,7 +44,7 @@
             </select>
             <button type="submit" class="btn-rect-secondary !py-2 !px-4 !w-auto">Save Rating</button>
         </form>
-        <button type="button" onclick="openModal('reportSharedQuizModal')" class="btn-rect-secondary !py-2 !px-4 lg:!w-auto text-red-400 !border-red-500/30">
+        <button type="button" data-action="openModal" data-action-args='["reportSharedQuizModal"]' class="btn-rect-secondary !py-2 !px-4 lg:!w-auto text-red-400 !border-red-500/30">
             <i class="fas fa-flag mr-2"></i>Report an Issue
         </button>
     </div>
@@ -86,7 +86,7 @@
         </div>
         <div id="questions-builder" class="space-y-6"></div>
         <div class="mt-6 flex justify-end">
-            <button type="button" onclick="addNewQuestion()"
+            <button type="button" data-action="addNewQuestion"
                     class="btn-rect-secondary !py-2 !px-4 sm:!w-auto">
                 <i class="fas fa-plus mr-2"></i> Add Question
             </button>
@@ -143,7 +143,7 @@
     </section>
 
     <div class="flex flex-col sm:flex-row justify-end gap-3">
-        <button type="button" onclick="openModal('cancelSharedQuizModal')"
+        <button type="button" data-action="openModal" data-action-args='["cancelSharedQuizModal"]'
                 class="btn-rect-secondary !py-3 !px-6 sm:!w-auto text-center">Cancel</button>
         <button type="submit" id="shared-assign-submit"
                 class="btn-rect-primary !py-3 !px-6 sm:!w-auto">
@@ -161,7 +161,7 @@
                     <h3 id="report-shared-quiz-title" class="font-orbitron font-bold uppercase">Report Quiz Issue</h3>
                     <p class="text-xs text-slate-400 mt-2">An administrator will review your report.</p>
                 </div>
-                <button type="button" onclick="closeModal('reportSharedQuizModal')" aria-label="Close" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
+                <button type="button" data-action="closeModal" data-action-args='["reportSharedQuizModal"]' aria-label="Close" class="text-slate-500 hover:text-white"><i class="fas fa-times"></i></button>
             </div>
             <form method="POST" action="/teacher/quiz-library/{{ $quiz['id'] }}/report" class="space-y-5">
                 @csrf
@@ -190,7 +190,7 @@
                 </div>
                 <div class="modal-action-stack">
                     <button type="submit" class="btn-rect-primary !bg-red-600 !text-white">Submit Report</button>
-                    <button type="button" onclick="closeModal('reportSharedQuizModal')" class="modal-cancel">Cancel</button>
+                    <button type="button" data-action="closeModal" data-action-args='["reportSharedQuizModal"]' class="modal-cancel">Cancel</button>
                 </div>
             </form>
         </div>
@@ -206,7 +206,7 @@
                    class="btn-rect-primary !bg-red-600 !text-white text-center">
                     <i class="fas fa-trash-alt mr-2"></i> Discard and Leave
                 </a>
-                <button type="button" onclick="closeModal('cancelSharedQuizModal')"
+                <button type="button" data-action="closeModal" data-action-args='["cancelSharedQuizModal"]'
                         class="btn-rect-secondary">Keep Editing</button>
             </div>
         </div>
@@ -231,7 +231,7 @@
                         class="btn-rect-primary !bg-purple-600 !text-white">
                     <i class="fas fa-check-circle mr-2"></i><span id="confirm-shared-quiz-button-label">Assign to Classes</span>
                 </button>
-                <button type="button" onclick="closeModal('confirmSharedQuizModal')"
+                <button type="button" data-action="closeModal" data-action-args='["confirmSharedQuizModal"]'
                         class="btn-rect-secondary">Review Again</button>
             </div>
         </div>
@@ -241,9 +241,9 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">
 window.sharedQuizReviewQuestions = @json($initialQuestions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 </script>
-<script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-<script src="{{ asset('js/shared-quiz-review.js') }}?v={{ filemtime(public_path('js/shared-quiz-review.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/shared-quiz-review.js') }}?v={{ filemtime(public_path('js/shared-quiz-review.js')) }}"></script>
 @endpush

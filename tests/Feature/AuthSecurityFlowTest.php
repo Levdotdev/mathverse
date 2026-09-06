@@ -4,10 +4,31 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\SupabaseAuth;
 use App\Services\SupabaseService;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AuthSecurityFlowTest extends TestCase
 {
+    public function test_public_login_page_discards_an_unsupported_legacy_session(): void
+    {
+        $this->withoutVite();
+        $this->mock(SupabaseService::class);
+
+        $response = $this->withSession([
+            'supabase_token' => 'old-token',
+            'supabase_user' => [
+                'id' => '11111111-1111-4111-8111-111111111111',
+                'role' => 'pending_teacher',
+            ],
+            'supabase_authenticated_at' => '2026-09-06T08:00:00+00:00',
+        ])->get('/');
+
+        $response->assertOk();
+        $response->assertSessionMissing('supabase_token');
+        $response->assertSessionMissing('supabase_user');
+        $response->assertSessionMissing('supabase_authenticated_at');
+    }
+
     public function test_registration_rejects_a_password_without_every_required_character_type(): void
     {
         $supabase = $this->mock(SupabaseService::class);
@@ -51,6 +72,128 @@ class AuthSecurityFlowTest extends TestCase
         $response->assertSessionHasErrors([
             'email' => 'No MathVerse account is registered with that email address.',
         ]);
+    }
+
+    public function test_login_rejects_a_malformed_auth_identity_before_profile_lookup(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signIn')
+            ->once()
+            ->andReturn([
+                'access_token' => 'access-token',
+                'user' => ['id' => 'not-a-user-id', 'email' => 'student@example.com'],
+            ]);
+        $supabase->shouldNotReceive('adminSelect');
+
+        $response = $this->from('/')->post('/login', [
+            'email' => 'student@example.com',
+            'password' => 'Password1!',
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionMissing('supabase_user');
+        $response->assertSessionHas(
+            'error',
+            'Your credentials were accepted, but MathVerse could not verify your account. Please try again.'
+        );
+    }
+
+    public function test_login_rejects_a_suspended_profile_before_creating_a_session(): void
+    {
+        $userId = '11111111-1111-4111-8111-111111111111';
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signIn')
+            ->once()
+            ->andReturn([
+                'access_token' => 'access-token',
+                'user' => ['id' => $userId, 'email' => 'student@example.com'],
+            ]);
+        $supabase->shouldReceive('adminSelect')
+            ->once()
+            ->with(
+                'profiles',
+                'id,role,first_name,last_name,email,avatar_url,grade_level,suspended_at,leaderboard_alias,show_on_leaderboard,auth_sessions_invalid_before',
+                ['id' => $userId]
+            )
+            ->andReturn([[
+                'id' => $userId,
+                'role' => 'student',
+                'suspended_at' => '2026-09-06T08:00:00+00:00',
+            ]]);
+
+        $response = $this->from('/')->post('/login', [
+            'email' => 'student@example.com',
+            'password' => 'Password1!',
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionMissing('supabase_user');
+        $response->assertSessionHas(
+            'error',
+            'Your account is suspended. Contact an administrator.'
+        );
+    }
+
+    public function test_logout_revokes_the_remote_auth_session_before_clearing_the_browser_session(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signOut')
+            ->once()
+            ->with('access-token')
+            ->andReturn(true);
+
+        $response = $this->withSession([
+            'supabase_token' => 'access-token',
+            'supabase_user' => [
+                'id' => '11111111-1111-4111-8111-111111111111',
+                'role' => 'student',
+            ],
+        ])->post('/logout');
+
+        $response->assertRedirect('/');
+        $response->assertSessionMissing('supabase_token');
+        $response->assertSessionMissing('supabase_user');
+    }
+
+    public function test_logout_still_clears_the_browser_session_when_remote_auth_is_unavailable(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signOut')
+            ->once()
+            ->andThrow(new \RuntimeException('Connection failed'));
+
+        $response = $this->withSession([
+            'supabase_token' => 'access-token',
+            'supabase_user' => [
+                'id' => '11111111-1111-4111-8111-111111111111',
+                'role' => 'student',
+            ],
+        ])->post('/logout');
+
+        $response->assertRedirect('/');
+        $response->assertSessionMissing('supabase_token');
+        $response->assertSessionMissing('supabase_user');
+    }
+
+    public function test_supabase_sign_out_requests_global_session_revocation(): void
+    {
+        config([
+            'services.supabase.url' => 'https://project.supabase.co',
+            'services.supabase.anon_key' => 'public-anon-key-for-testing',
+            'services.supabase.service_key' => 'private-service-key-for-testing',
+        ]);
+        Http::fake([
+            'https://project.supabase.co/auth/v1/logout*' => Http::response(null, 204),
+        ]);
+
+        $service = new SupabaseService();
+
+        $this->assertTrue($service->signOut('header.payload.signature'));
+        Http::assertSent(static fn ($request): bool =>
+            $request->url() === 'https://project.supabase.co/auth/v1/logout?scope=global'
+            && $request->hasHeader('apikey', 'public-anon-key-for-testing')
+            && $request->hasHeader('Authorization', 'Bearer header.payload.signature')
+        );
     }
 
     public function test_password_reset_sends_a_link_for_a_registered_email(): void
@@ -108,6 +251,66 @@ class AuthSecurityFlowTest extends TestCase
             'error',
             'The recovery email could not be sent. Please try again later.'
         );
+    }
+
+    public function test_password_reset_validation_keeps_the_token_only_in_the_server_session(): void
+    {
+        $this->withoutVite();
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldNotReceive('verifyRecoveryToken');
+
+        $response = $this->from('/reset-password')->post('/update-password', [
+            'token' => 'one-time-recovery-token',
+            'password' => 'alllowercase',
+            'password_confirmation' => 'alllowercase',
+        ]);
+
+        $response->assertRedirect('/reset-password');
+        $response->assertSessionHasErrors('password');
+        $response->assertSessionHas('password_recovery_token', 'one-time-recovery-token');
+        $response->assertSessionMissing('_old_input.token');
+    }
+
+    public function test_successful_recovery_invalidates_the_existing_browser_session(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('verifyRecoveryToken')
+            ->once()
+            ->with('one-time-recovery-token')
+            ->andReturn([
+                'successful' => true,
+                'data' => ['access_token' => 'recovery-access-token'],
+                'error' => null,
+                'status' => 200,
+            ]);
+        $supabase->shouldReceive('updateAuthUser')
+            ->once()
+            ->with('recovery-access-token', ['password' => 'NewPassword2!'])
+            ->andReturn([
+                'successful' => true,
+                'data' => [],
+                'error' => null,
+                'status' => 200,
+            ]);
+
+        $response = $this->withSession([
+            'password_recovery_token' => 'one-time-recovery-token',
+            'supabase_token' => 'old-access-token',
+            'supabase_user' => [
+                'id' => '11111111-1111-4111-8111-111111111111',
+                'role' => 'student',
+            ],
+        ])->post('/update-password', [
+            'token' => '',
+            'password' => 'NewPassword2!',
+            'password_confirmation' => 'NewPassword2!',
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionHas('success', 'Password updated! Please log in.');
+        $response->assertSessionMissing('password_recovery_token');
+        $response->assertSessionMissing('supabase_token');
+        $response->assertSessionMissing('supabase_user');
     }
 
     public function test_email_change_request_redirects_with_a_durable_toast_notice(): void
@@ -193,6 +396,113 @@ class AuthSecurityFlowTest extends TestCase
         $response->assertSessionHas(
             'success',
             'Email address changed successfully.'
+        );
+    }
+
+    public function test_password_change_stays_successful_when_audit_logging_is_unavailable(): void
+    {
+        $this->withoutMiddleware(SupabaseAuth::class);
+
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signIn')
+            ->once()
+            ->with('student@example.com', 'Current1!')
+            ->andReturn(['access_token' => 'fresh-token']);
+        $supabase->shouldReceive('updateAuthUser')
+            ->once()
+            ->with('fresh-token', ['password' => 'NewPassword2!'])
+            ->andReturn([
+                'successful' => true,
+                'data' => [],
+                'error' => null,
+                'status' => 200,
+            ]);
+        $supabase->shouldReceive('adminSelect')
+            ->once()
+            ->with('profiles', 'auth_sessions_invalid_before', [
+                'id' => 'user-id',
+                'limit' => 1,
+            ])
+            ->andReturn([[
+                'auth_sessions_invalid_before' => '2026-09-06T08:00:00+00:00',
+            ]]);
+        $supabase->shouldReceive('audit')
+            ->once()
+            ->andThrow(new \RuntimeException('Audit store unavailable'));
+
+        $response = $this->withSession([
+            'supabase_token' => 'old-token',
+            'supabase_user' => [
+                'id' => 'user-id',
+                'role' => 'student',
+                'email' => 'student@example.com',
+            ],
+        ])->post('/change-password', [
+            'current_password' => 'Current1!',
+            'new_password' => 'NewPassword2!',
+            'new_password_confirmation' => 'NewPassword2!',
+        ]);
+
+        $response->assertRedirect('/student/dashboard?section=security');
+        $response->assertSessionHas('supabase_token', 'fresh-token');
+        $response->assertSessionHas(
+            'supabase_authenticated_at',
+            '2026-09-06T08:00:00+00:00'
+        );
+        $response->assertSessionHas('success', 'Password changed successfully.');
+    }
+
+    public function test_password_change_rejects_reusing_the_current_password(): void
+    {
+        $this->withoutMiddleware(SupabaseAuth::class);
+
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldNotReceive('signIn');
+
+        $response = $this->withSession([
+            'supabase_user' => [
+                'id' => 'user-id',
+                'role' => 'student',
+                'email' => 'student@example.com',
+            ],
+        ])->from('/student/dashboard?section=security')->post('/change-password', [
+            'current_password' => 'Current1!',
+            'new_password' => 'Current1!',
+            'new_password_confirmation' => 'Current1!',
+        ]);
+
+        $response->assertRedirect('/student/dashboard?section=security');
+        $response->assertSessionHasErrors('new_password');
+    }
+
+    public function test_registration_defers_avatar_setup_without_a_valid_created_user_id(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signUp')
+            ->once()
+            ->andReturn([
+                'successful' => true,
+                'data' => ['user' => ['id' => 'not-a-uuid']],
+                'error' => null,
+                'status' => 200,
+            ]);
+        $supabase->shouldNotReceive('uploadAvatar');
+        $supabase->shouldNotReceive('updateProfile');
+
+        $response = $this->post('/register', [
+            'email' => 'Student@Example.com',
+            'password' => 'Password1!',
+            'password_confirmation' => 'Password1!',
+            'role' => 'student',
+            'first_name' => 'Test',
+            'last_name' => 'Student',
+            'grade_level' => 6,
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionHas(
+            'success',
+            'Registered successfully. Check your email to confirm your account. You can add your avatar after signing in.'
         );
     }
 }

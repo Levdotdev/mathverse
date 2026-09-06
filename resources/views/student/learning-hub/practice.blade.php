@@ -166,7 +166,7 @@
     </noscript>
 </div>
 
-<script id="practice-initial-state" type="application/json">{!! json_encode($practiceState, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" id="practice-initial-state" type="application/json">{!! json_encode($practiceState, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
 @endsection
 
 @section('modals')
@@ -174,5 +174,5 @@
 @endsection
 
 @push('scripts')
-<script src="{{ asset('js/learning-hub.js') }}?v={{ filemtime(public_path('js/learning-hub.js')) }}"></script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/learning-hub.js') }}?v={{ filemtime(public_path('js/learning-hub.js')) }}"></script>
 @endpush

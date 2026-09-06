@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\SupabaseService;
+use App\Support\SafePath;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -31,8 +32,8 @@ class NotificationController extends Controller
             );
         }
 
-        $actionUrl = (string) ($notification['action_url'] ?? '');
-        if ($request->boolean('follow') && preg_match('#^/(?!/)#', $actionUrl) === 1) {
+        $actionUrl = SafePath::normalize($notification['action_url'] ?? null);
+        if ($request->boolean('follow') && $actionUrl !== null) {
             return redirect($actionUrl);
         }
 

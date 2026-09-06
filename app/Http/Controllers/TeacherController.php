@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 use App\Services\SupabaseService;
 use App\Support\QuizAnswer;
 use App\Support\QuizReportStatus;
+use App\Support\ClassCustomization;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 
 class TeacherController extends Controller
 {
@@ -40,11 +42,9 @@ class TeacherController extends Controller
         );
         $customizationMap = array_column($customizations, null, 'class_id');
         foreach ($allClasses as &$class) {
-            $class['customization'] = $customizationMap[$class['id']] ?? [
-                'theme_color' => '#f59e0b',
-                'icon' => 'chalkboard',
-                'banner_pattern' => 'grid',
-            ];
+            $class['customization'] = ClassCustomization::normalize(
+                $customizationMap[$class['id']] ?? []
+            );
         }
         unset($class);
 
@@ -80,8 +80,8 @@ class TeacherController extends Controller
 
     public function updateProfile(Request $request)
     {
-        if ($avatarSizeError = $this->rejectOversizedAvatar($request, '/teacher/dashboard?section=profile')) {
-            return $avatarSizeError;
+        if ($avatarError = $this->rejectInvalidAvatar($request, '/teacher/dashboard?section=profile')) {
+            return $avatarError;
         }
 
         $validated = $request->validate([
@@ -90,15 +90,24 @@ class TeacherController extends Controller
         ]);
 
         $user  = session('supabase_user');
-        $token = session('supabase_token');
         $userId = $user['id'];
 
         // ── UPDATE BASIC INFO
-        $profileUpdated = $this->supabase->update('profiles', [
-            'first_name'  => $validated['first_name'],
-            'last_name'   => $validated['last_name'],
-            'grade_level' => 0,
-        ], ['id' => $userId], $token);
+        try {
+            $profileUpdated = $this->supabase->updateProfile($userId, [
+                'first_name'  => $validated['first_name'],
+                'last_name'   => $validated['last_name'],
+                'grade_level' => 0,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('A teacher profile could not be updated.', [
+                'user_id' => $userId,
+                'exception' => $exception::class,
+            ]);
+
+            return redirect('/teacher/dashboard?section=profile')
+                ->with('error', 'The profile service is temporarily unavailable. Please try again.');
+        }
         if (!isset($profileUpdated[0]['id'])) {
             return redirect('/teacher/dashboard?section=profile')
                 ->with('error', 'The profile could not be updated.');
@@ -108,13 +117,22 @@ class TeacherController extends Controller
         $avatarUrl = null;
 
         if ($request->hasFile('avatar')) {
-            $this->supabase->deleteAvatarByUrl($user['avatar_url'] ?? null);
-            $avatarUrl = $this->supabase->uploadAvatar($userId, $request->file('avatar'));
+            $avatarResult = $this->replaceProfileAvatar(
+                $this->supabase,
+                $userId,
+                $request->file('avatar'),
+                $user['avatar_url'] ?? null
+            );
+            $avatarUrl = $avatarResult['url'];
 
-            if ($avatarUrl) {
-                $this->supabase->updateProfile($userId, [
-                    'avatar_url' => $avatarUrl
-                ]);
+            if ($avatarResult['error'] === 'upload') {
+                return redirect('/teacher/dashboard?section=profile')
+                    ->with('error', 'Your profile details were saved, but the new avatar could not be uploaded.');
+            }
+
+            if ($avatarResult['error'] === 'attach') {
+                return redirect('/teacher/dashboard?section=profile')
+                    ->with('error', 'Your profile details were saved, but the new avatar could not be attached.');
             }
         }
 
@@ -418,9 +436,9 @@ class TeacherController extends Controller
     {
         return response()->streamDownload(function () use ($rows, $headers, $keys) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, $headers);
+            $this->writeCsvRow($out, $headers);
             foreach ($rows as $row) {
-                fputcsv($out, array_map(fn($k) => $row[$k] ?? '', $keys));
+                $this->writeCsvRow($out, array_map(fn($k) => $row[$k] ?? '', $keys));
             }
             fclose($out);
         }, "{$filename}.csv", ['Content-Type' => 'text/csv']);
@@ -595,36 +613,36 @@ class TeacherController extends Controller
                 $out = fopen('php://output', 'w');
 
                 // Summary section
-                fputcsv($out, ['Quiz Performance Report']);
-                fputcsv($out, ['Topic',           $summary['topic']]);
-                fputcsv($out, ['Room Code',        $summary['room_code']]);
-                fputcsv($out, ['Total Questions',  $summary['total_questions']]);
-                fputcsv($out, ['Total Students',   $summary['total_students']]);
-                fputcsv($out, ['Total Attempts',   $summary['total_attempts']]);
-                fputcsv($out, ['Missed',           $summary['missed']]);
-                fputcsv($out, ['Pending',          $summary['pending']]);
-                fputcsv($out, ['Excused',           $summary['excused']]);
-                fputcsv($out, ['Passed',            $summary['passed']]);
-                fputcsv($out, ['Failed',            $summary['failed']]);
-                fputcsv($out, ['Avg Attempt Accuracy', $summary['avg_accuracy'] . '%']);
-                fputcsv($out, ['Pass Rate of Attempts', $summary['pass_rate'] . '%']);
-                fputcsv($out, ['Completion Rate',   $summary['completion_rate'] . '%']);
-                fputcsv($out, ['Date Created',     $summary['created']]);
-                fputcsv($out, []);
+                $this->writeCsvRow($out, ['Quiz Performance Report']);
+                $this->writeCsvRow($out, ['Topic',           $summary['topic']]);
+                $this->writeCsvRow($out, ['Room Code',        $summary['room_code']]);
+                $this->writeCsvRow($out, ['Total Questions',  $summary['total_questions']]);
+                $this->writeCsvRow($out, ['Total Students',   $summary['total_students']]);
+                $this->writeCsvRow($out, ['Total Attempts',   $summary['total_attempts']]);
+                $this->writeCsvRow($out, ['Missed',           $summary['missed']]);
+                $this->writeCsvRow($out, ['Pending',          $summary['pending']]);
+                $this->writeCsvRow($out, ['Excused',          $summary['excused']]);
+                $this->writeCsvRow($out, ['Passed',           $summary['passed']]);
+                $this->writeCsvRow($out, ['Failed',           $summary['failed']]);
+                $this->writeCsvRow($out, ['Avg Attempt Accuracy', $summary['avg_accuracy'] . '%']);
+                $this->writeCsvRow($out, ['Pass Rate of Attempts', $summary['pass_rate'] . '%']);
+                $this->writeCsvRow($out, ['Completion Rate',   $summary['completion_rate'] . '%']);
+                $this->writeCsvRow($out, ['Date Created',      $summary['created']]);
+                $this->writeCsvRow($out, []);
 
                 // Questions section
-                fputcsv($out, ['Questions']);
-                fputcsv($out, ['#', 'Question', 'Correct Answer']);
+                $this->writeCsvRow($out, ['Questions']);
+                $this->writeCsvRow($out, ['#', 'Question', 'Correct Answer']);
                 foreach ($questions as $i => $q) {
-                    fputcsv($out, [$i + 1, $q['question'], $q['correct_answer_label']]);
+                    $this->writeCsvRow($out, [$i + 1, $q['question'], $q['correct_answer_label']]);
                 }
-                fputcsv($out, []);
+                $this->writeCsvRow($out, []);
 
                 // Results section
-                fputcsv($out, ['Student Results']);
-                fputcsv($out, ['Rank', 'Student Name', 'Grade', 'Score', 'Accuracy', 'Status', 'Date Taken']);
+                $this->writeCsvRow($out, ['Student Results']);
+                $this->writeCsvRow($out, ['Rank', 'Student Name', 'Grade', 'Score', 'Accuracy', 'Status', 'Date Taken']);
                 foreach ($rows as $r) {
-                    fputcsv($out, [
+                    $this->writeCsvRow($out, [
                         $r['rank'] ?? '—',
                         $r['name'],
                         $r['grade'],
@@ -735,19 +753,19 @@ class TeacherController extends Controller
             return response()->streamDownload(function () use ($summary, $rows) {
                 $out = fopen('php://output', 'w');
 
-                fputcsv($out, ['Classroom Report']);
-                fputcsv($out, ['Class Name',      $summary['class_name']]);
-                fputcsv($out, ['Join Code',        $summary['join_code']]);
-                fputcsv($out, ['Total Students',   $summary['total_students']]);
-                fputcsv($out, ['Avg Accuracy',     $summary['avg_accuracy'] . '%']);
-                fputcsv($out, ['Teacher',          $summary['teacher']]);
-                fputcsv($out, ['Date Created',     $summary['created']]);
-                fputcsv($out, []);
+                $this->writeCsvRow($out, ['Classroom Report']);
+                $this->writeCsvRow($out, ['Class Name',      $summary['class_name']]);
+                $this->writeCsvRow($out, ['Join Code',        $summary['join_code']]);
+                $this->writeCsvRow($out, ['Total Students',   $summary['total_students']]);
+                $this->writeCsvRow($out, ['Avg Accuracy',     $summary['avg_accuracy'] . '%']);
+                $this->writeCsvRow($out, ['Teacher',          $summary['teacher']]);
+                $this->writeCsvRow($out, ['Date Created',     $summary['created']]);
+                $this->writeCsvRow($out, []);
 
-                fputcsv($out, ['Student Roster']);
-                fputcsv($out, ['Rank', 'Student Name', 'Grade', 'Level', 'Trophies', 'Quizzes Taken', 'Avg Accuracy', 'Date Joined']);
+                $this->writeCsvRow($out, ['Student Roster']);
+                $this->writeCsvRow($out, ['Rank', 'Student Name', 'Grade', 'Level', 'Trophies', 'Quizzes Taken', 'Avg Accuracy', 'Date Joined']);
                 foreach ($rows as $i => $r) {
-                    fputcsv($out, [
+                    $this->writeCsvRow($out, [
                         $i + 1,
                         $r['name'],
                         $r['grade'],

@@ -5,12 +5,18 @@ begin;
 
 create table if not exists public.rollback_quizzes_20260827
     (like public.quizzes including all);
+alter table public.rollback_quizzes_20260827 enable row level security;
+revoke all privileges on table public.rollback_quizzes_20260827
+from public, anon, authenticated, service_role;
 insert into public.rollback_quizzes_20260827
 select * from public.quizzes
 on conflict (id) do nothing;
 
 create table if not exists public.rollback_quiz_questions_20260827
     (like public.quiz_questions including all);
+alter table public.rollback_quiz_questions_20260827 enable row level security;
+revoke all privileges on table public.rollback_quiz_questions_20260827
+from public, anon, authenticated, service_role;
 insert into public.rollback_quiz_questions_20260827
 overriding system value
 select * from public.quiz_questions
@@ -18,6 +24,9 @@ on conflict (id) do nothing;
 
 create table if not exists public.rollback_class_customizations_20260827
     (like public.class_customizations including all);
+alter table public.rollback_class_customizations_20260827 enable row level security;
+revoke all privileges on table public.rollback_class_customizations_20260827
+from public, anon, authenticated, service_role;
 insert into public.rollback_class_customizations_20260827
 select * from public.class_customizations
 on conflict (class_id) do nothing;
@@ -26,6 +35,9 @@ create table if not exists public.rollback_class_grades_20260827 (
     class_id uuid primary key,
     grade_level integer
 );
+alter table public.rollback_class_grades_20260827 enable row level security;
+revoke all privileges on table public.rollback_class_grades_20260827
+from public, anon, authenticated, service_role;
 insert into public.rollback_class_grades_20260827 (class_id, grade_level)
 select id, grade_level from public.classes
 on conflict (class_id) do update

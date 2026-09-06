@@ -22,7 +22,7 @@
             <a href="/admin/quiz-library" class="btn-rect-secondary !py-3 !px-5 text-center sm:!w-auto">
                 <i class="fas fa-book-open mr-2"></i> Shared Library
             </a>
-            <button onclick="loadQuizBuilder()" class="btn-rect-primary !py-3 sm:!w-auto px-6 !bg-red-600 !text-white">
+            <button type="button" data-action="loadQuizBuilder" class="btn-rect-primary !py-3 sm:!w-auto px-6 !bg-red-600 !text-white">
                 <i class="fas fa-plus mr-2"></i> Create Quiz
             </button>
         </div>
@@ -74,7 +74,7 @@
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-2 w-full lg:w-auto">
-                    <button onclick='loadQuizBuilder(@json($quiz["id"]))'
+                    <button type="button" data-action="loadQuizBuilder" data-action-args="{{ json_encode([$quiz['id']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                             class="btn-rect-secondary !py-2 !px-4 !w-auto !border-purple-500/30 hover:!text-purple-400">
                         <i class="fas fa-edit mr-1"></i> Edit
                     </button>
@@ -82,7 +82,7 @@
                        class="btn-rect-secondary !py-2 !px-4 !w-auto !border-cyan-500/30 hover:!text-cyan-400 text-center">
                         <i class="fas fa-history mr-1"></i> History
                     </a>
-                    <button onclick='openDeleteQuizModal(@json($quiz["id"]), @json($quiz["topic"]))'
+                    <button type="button" data-action="openDeleteQuizModal" data-action-args="{{ json_encode([$quiz['id'], $quiz['topic']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                             class="btn-rect-secondary !py-2 !px-4 !w-auto !border-red-500/30 text-red-400">
                         <i class="fas fa-trash-alt mr-1"></i> Delete
                     </button>
@@ -98,7 +98,7 @@
 
 <div id="quiz-editor-container" class="hidden">
     <div class="portal-frame !p-6 md:!p-8 relative">
-        <button type="button" onclick="toggleQuizView('list')" class="absolute top-5 right-5 text-slate-500 hover:text-white"><i class="fas fa-times-circle text-xl"></i></button>
+        <button type="button" data-action="toggleQuizView" data-action-args='["list"]' class="absolute top-5 right-5 text-slate-500 hover:text-white"><i class="fas fa-times-circle text-xl"></i></button>
         <h2 id="builder-title" class="text-xl font-orbitron font-bold mb-2 uppercase">Create <span class="text-purple-400">Quiz</span></h2>
         <p class="text-xs text-slate-500 mb-8">Choose private storage or share the quiz with teachers through the library.</p>
         <form id="quiz-form" method="POST" action="/admin/quizzes">
@@ -125,7 +125,7 @@
             </div>
             <div id="questions-builder" class="space-y-6"></div>
             <div class="mt-8 flex flex-col sm:flex-row gap-4">
-                <button type="button" onclick="addNewQuestion()" class="btn-rect-secondary flex-1"><i class="fas fa-plus mr-2"></i> Add Question</button>
+                <button type="button" data-action="addNewQuestion" class="btn-rect-secondary flex-1"><i class="fas fa-plus mr-2"></i> Add Question</button>
                 <button type="submit" id="save-quiz-btn" class="btn-rect-primary flex-1 !bg-red-600 !text-white"><i class="fas fa-save mr-2"></i> Save Quiz</button>
             </div>
         </form>
@@ -146,7 +146,7 @@
             <input type="hidden" name="grade" value="{{ $grade ?? '' }}">
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Quiz</button>
         </form>
-        <button onclick="closeModal('deleteQuizModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["deleteQuizModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 
@@ -155,13 +155,13 @@
         <i class="fas fa-power-off text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold mb-6 uppercase">End Admin Session?</h3>
         <form method="POST" action="/logout">@csrf<button class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button></form>
-        <button onclick="closeModal('logoutModal')" class="modal-cancel mt-3">Cancel</button>
+        <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>
 </div>
 @endsection
 
 @push('scripts')
-<script>window.quizRoutesBasePath = '/admin/quizzes';</script>
-<script src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-@if($errors->any())<script>document.addEventListener('DOMContentLoaded', () => loadQuizBuilder());</script>@endif
+<script nonce="{{ request()->attributes->get('csp_nonce') }}">window.quizRoutesBasePath = '/admin/quizzes';</script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
+@if($errors->any())<script nonce="{{ request()->attributes->get('csp_nonce') }}">document.addEventListener('DOMContentLoaded', () => loadQuizBuilder());</script>@endif
 @endpush

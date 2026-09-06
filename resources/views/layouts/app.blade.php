@@ -16,14 +16,12 @@
     <meta name="theme-color" content="#05070d">
     <meta name="color-scheme" content="dark">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>MathVerse | @yield('title', 'Academic Portal')</title>
+    <title>MathVerse | {{ trim($__env->yieldContent('title', 'Academic Portal')) }}</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite('resources/css/app.css')
     <link rel="icon" href="{{ asset('logo.png') }}" type="image/png">
     <link rel="apple-touch-icon" href="{{ asset('logo.png') }}">
     <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/style.css') }}?v={{ filemtime(public_path('css/style.css')) }}">
 
     @stack('head')
@@ -38,25 +36,25 @@
 
     @yield('content')
 
-    {{-- Reusable image-size alert for registration and profile forms --}}
+    {{-- Reusable image-validation alert for registration and profile forms --}}
     <div id="imageSizeModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="image-size-title">
         <div class="portal-frame !p-8 w-full max-w-sm text-center border-red-500/50">
             <i class="fas fa-image text-4xl text-red-500 mb-4"></i>
             <h3 id="image-size-title" class="font-orbitron font-bold mb-2 uppercase text-white">
-                Image <span class="text-red-500">Too Large</span>
+                Invalid <span class="text-red-500">Image</span>
             </h3>
             <p id="image-size-message" class="text-xs text-slate-400 mb-3">
-                The selected image must be 2 MB or less.
+                Choose a JPEG, PNG, or WebP image up to 2 MB and 4096 by 4096 pixels.
             </p>
             <p id="image-size-file" class="text-[10px] font-mono text-red-400 break-all mb-8">
-                Please choose a smaller image.
+                Please choose another image.
             </p>
             <div class="flex flex-col gap-3">
-                <button type="button" onclick="chooseAnotherAvatar()"
+                <button type="button" data-action="chooseAnotherAvatar"
                         class="btn-rect-primary !bg-red-600 !text-white">
                     <i class="fas fa-folder-open mr-2"></i> Choose Another Image
                 </button>
-                <button type="button" onclick="closeModal('imageSizeModal')"
+                <button type="button" data-action="closeModal" data-action-args='["imageSizeModal"]'
                         class="text-[10px] font-bold uppercase text-slate-500">
                     Close
                 </button>
@@ -64,12 +62,12 @@
         </div>
     </div>
 
-    @if(session('image_size_error'))
-    <script>
+    @if(session('image_upload_error'))
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
         document.addEventListener('DOMContentLoaded', () => {
             const message = document.getElementById('image-size-message');
             if (message) {
-                message.textContent = @json(session('image_size_error'));
+                message.textContent = @json(session('image_upload_error'));
             }
             openModal('imageSizeModal');
         });
@@ -86,16 +84,16 @@
          class="global-toast fixed z-[10000] flex items-start gap-3 rounded-lg px-4 py-3 text-sm font-bold leading-5 shadow-2xl transition-all duration-300 {{ $flashToastIsError ? 'bg-red-500 text-white' : 'bg-cyan-500 text-black' }} {{ $flashToastMessage ? 'opacity-100' : 'opacity-0 pointer-events-none' }}">
         <i class="fas {{ $flashToastIsError ? 'fa-circle-exclamation' : 'fa-circle-check' }} mt-0.5 shrink-0" data-toast-icon aria-hidden="true"></i>
         <span id="toast-msg" class="min-w-0 flex-1 break-words">{{ $flashToastMessage ?: 'Success' }}</span>
-        <button type="button" class="toast-close -m-1 ml-1 min-h-8 min-w-8 rounded p-1" aria-label="Dismiss notification" onclick="hideToast()">
+        <button type="button" class="toast-close -m-1 ml-1 min-h-8 min-w-8 rounded p-1" aria-label="Dismiss notification" data-action="hideToast">
             <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
     </div>
 
-    <script src="{{ asset('js/shared.js') }}?v={{ filemtime(public_path('js/shared.js')) }}"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/shared.js') }}?v={{ filemtime(public_path('js/shared.js')) }}"></script>
 
     {{-- One toast path for validation errors and redirect flash messages. --}}
     @if($flashToastMessage)
-    <script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
         (() => {
             const displayFlashToast = () => showToast(
                 @json($flashToastMessage),
