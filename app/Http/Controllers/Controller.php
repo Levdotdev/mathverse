@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\Log;
 abstract class Controller
 {
     protected const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
-    protected const MAX_AVATAR_DIMENSION = 4096;
 
     private const AVATAR_MIME_TYPES = [
         'image/jpeg',
@@ -40,9 +39,6 @@ abstract class Controller
         $image = is_string($path) ? @getimagesize($path) : false;
         $detectedMime = strtolower((string) ($image['mime'] ?? ''));
         $fileMime = strtolower((string) $avatar->getMimeType());
-        $width = (int) ($image[0] ?? 0);
-        $height = (int) ($image[1] ?? 0);
-
         if ($image === false
             || !in_array($detectedMime, self::AVATAR_MIME_TYPES, true)
             || $fileMime !== $detectedMime
@@ -50,17 +46,6 @@ abstract class Controller
             return $this->avatarError(
                 $redirectTo,
                 'Choose a valid JPEG, PNG, or WebP image.'
-            );
-        }
-
-        if ($width < 1
-            || $height < 1
-            || $width > self::MAX_AVATAR_DIMENSION
-            || $height > self::MAX_AVATAR_DIMENSION
-        ) {
-            return $this->avatarError(
-                $redirectTo,
-                'The image dimensions must not exceed 4096 by 4096 pixels.'
             );
         }
 

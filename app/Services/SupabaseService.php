@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Log;
 class SupabaseService
 {
     private const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
-    private const MAX_AVATAR_DIMENSION = 4096;
 
     /** @var list<string> */
     private const PROFILE_FORM_COLUMNS = [
@@ -134,16 +133,9 @@ class SupabaseService
         $detectedMime = strtolower((string) ($image['mime'] ?? ''));
         $fileMime = strtolower((string) $file->getMimeType());
         $extension = self::AVATAR_TYPES[$detectedMime] ?? null;
-        $width = (int) ($image[0] ?? 0);
-        $height = (int) ($image[1] ?? 0);
-
         if ($image === false
             || $extension === null
             || $fileMime !== $detectedMime
-            || $width < 1
-            || $height < 1
-            || $width > self::MAX_AVATAR_DIMENSION
-            || $height > self::MAX_AVATAR_DIMENSION
         ) {
             return null;
         }

@@ -412,6 +412,10 @@ body.sidebar-open {
     transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.modal-overlay.hidden {
+    display: none;
+}
+
 /* BUTTONS */
 .btn-rect-primary {
     background: #00f2ff;

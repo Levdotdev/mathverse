@@ -66,6 +66,38 @@ class SecuritySourceTest extends TestCase
         );
     }
 
+    public function test_hidden_modal_overlays_are_not_displayed(): void
+    {
+        $styles = (string) file_get_contents($this->projectPath('public/css/style.css'));
+        $layout = (string) file_get_contents($this->projectPath(
+            'resources/views/layouts/app.blade.php'
+        ));
+
+        $this->assertMatchesRegularExpression(
+            '/\.modal-overlay\.hidden\s*\{\s*display:\s*none;\s*\}/',
+            $styles
+        );
+        $this->assertStringContainsString(
+            'id="imageSizeModal" class="modal-overlay hidden"',
+            $layout
+        );
+        $this->assertStringContainsString('aria-hidden="true"', $layout);
+    }
+
+    public function test_avatar_validation_does_not_enforce_pixel_dimensions(): void
+    {
+        $avatarSources = [
+            (string) file_get_contents($this->projectPath('app/Http/Controllers/Controller.php')),
+            (string) file_get_contents($this->projectPath('app/Services/SupabaseService.php')),
+            (string) file_get_contents($this->projectPath('resources/views/layouts/app.blade.php')),
+        ];
+
+        foreach ($avatarSources as $source) {
+            $this->assertStringNotContainsString('MAX_AVATAR_DIMENSION', $source);
+            $this->assertStringNotContainsString('4096 by 4096', $source);
+        }
+    }
+
     public function test_security_definer_migration_revokes_public_execution(): void
     {
         $migration = (string) file_get_contents($this->projectPath(

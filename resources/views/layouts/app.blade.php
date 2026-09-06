@@ -37,14 +37,14 @@
     @yield('content')
 
     {{-- Reusable image-validation alert for registration and profile forms --}}
-    <div id="imageSizeModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="image-size-title">
+    <div id="imageSizeModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="image-size-title">
         <div class="portal-frame !p-8 w-full max-w-sm text-center border-red-500/50">
             <i class="fas fa-image text-4xl text-red-500 mb-4"></i>
             <h3 id="image-size-title" class="font-orbitron font-bold mb-2 uppercase text-white">
                 Invalid <span class="text-red-500">Image</span>
             </h3>
             <p id="image-size-message" class="text-xs text-slate-400 mb-3">
-                Choose a JPEG, PNG, or WebP image up to 2 MB and 4096 by 4096 pixels.
+                Choose a JPEG, PNG, or WebP image up to 2 MB.
             </p>
             <p id="image-size-file" class="text-[10px] font-mono text-red-400 break-all mb-8">
                 Please choose another image.
