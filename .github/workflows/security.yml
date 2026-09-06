@@ -52,5 +52,8 @@ jobs:
       - name: Build browser assets
         run: npm run build
 
+      - name: Verify committed browser assets
+        run: git diff --exit-code -- public/build
+
       - name: Run application tests
         run: php artisan test
