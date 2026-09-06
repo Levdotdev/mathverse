@@ -36,7 +36,7 @@ class LearningHubFlowTest extends TestCase
             ->get('/student/learning-hub');
 
         $response->assertOk();
-        $response->assertSee('MathVerse Adventure');
+        $response->assertSeeText('MathVerse Adventure');
         $response->assertSee('Endless Adventure');
         $response->assertSee('Weak Skill Rescue');
         $response->assertSee('All Topics');

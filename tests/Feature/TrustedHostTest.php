@@ -10,10 +10,8 @@ class TrustedHostTest extends TestCase
     {
         $this->withoutVite();
 
-        $response = $this->withServerVariables([
-            'HTTP_HOST' => 'attacker.example',
-            'SERVER_NAME' => 'attacker.example',
-        ])->get('/');
+        $response = $this->withHeader('Host', 'attacker.example')
+            ->get('/');
 
         $response->assertStatus(400);
     }
@@ -22,10 +20,8 @@ class TrustedHostTest extends TestCase
     {
         $this->withoutVite();
 
-        $response = $this->withServerVariables([
-            'HTTP_HOST' => 'localhost',
-            'SERVER_NAME' => 'localhost',
-        ])->get('/');
+        $response = $this->withHeader('Host', 'localhost')
+            ->get('/');
 
         $response->assertOk();
     }
