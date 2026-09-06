@@ -10,8 +10,7 @@ class TrustedHostTest extends TestCase
     {
         $this->withoutVite();
 
-        $response = $this->withHeader('Host', 'attacker.example')
-            ->get('/');
+        $response = $this->get('http://attacker.example/');
 
         $response->assertStatus(400);
     }
@@ -20,9 +19,20 @@ class TrustedHostTest extends TestCase
     {
         $this->withoutVite();
 
-        $response = $this->withHeader('Host', 'localhost')
-            ->get('/');
+        $response = $this->get('http://localhost/');
 
         $response->assertOk();
+    }
+
+    public function test_the_legacy_laravel_cloud_host_redirects_to_the_canonical_domain(): void
+    {
+        $response = $this->get(
+            'https://mathverse-production-luqbjt.laravel.cloud/reset-password?type=recovery'
+        );
+
+        $response->assertRedirect(
+            'https://mathmetaverse.space/reset-password?type=recovery'
+        );
+        $response->assertStatus(308);
     }
 }

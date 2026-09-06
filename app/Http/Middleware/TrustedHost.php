@@ -8,12 +8,26 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TrustedHost
 {
+    private const CANONICAL_URL = 'https://mathmetaverse.space';
+
+    private const LEGACY_HOST = 'mathverse-production-luqbjt.laravel.cloud';
+
     public function handle(Request $request, Closure $next): Response
     {
         $host = strtolower(rtrim($request->getHost(), '.'));
 
         if (!$this->isAllowed($host)) {
             abort(400, 'Invalid host.');
+        }
+
+        if ($host === self::LEGACY_HOST) {
+            $target = self::CANONICAL_URL.$request->getPathInfo();
+            $query = $request->getQueryString();
+            if (is_string($query) && $query !== '') {
+                $target .= '?'.$query;
+            }
+
+            return redirect()->away($target, 308);
         }
 
         return $next($request);
@@ -41,7 +55,10 @@ class TrustedHost
     private function allowedHosts(): array
     {
         $configured = config('app.trusted_hosts', []);
-        $hosts = is_array($configured) ? $configured : [];
+        $hosts = [parse_url(self::CANONICAL_URL, PHP_URL_HOST), self::LEGACY_HOST];
+        if (is_array($configured)) {
+            $hosts = array_merge($hosts, $configured);
+        }
         $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
         if (is_string($appHost) && $appHost !== '') {
             $hosts[] = $appHost;
