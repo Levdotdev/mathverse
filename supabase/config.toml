@@ -3,6 +3,14 @@ project_id = "mathverse"
 [functions.send-admin-push]
 verify_jwt = false
 
+[auth]
+site_url = "https://mathmetaverse.space"
+additional_redirect_urls = [
+  "https://mathmetaverse.space",
+  "https://mathmetaverse.space/reset-password",
+  "https://mathmetaverse.space/auth/confirm"
+]
+
 [auth.email.template.confirmation]
 subject = "Confirm your Math MetaVerse account"
 content_path = "./supabase/email-templates/confirm-signup.html"

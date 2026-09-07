@@ -3,10 +3,12 @@
 namespace App\Http\Middleware;
 
 use App\Services\SupabaseService;
+use App\Support\SupabaseAccessToken;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response;
 
 class SupabaseAuth
 {
@@ -14,10 +16,23 @@ class SupabaseAuth
 
     public function handle(Request $request, Closure $next, string $role = ''): mixed
     {
+        $legacyAccessToken = SupabaseAccessToken::legacySessionToken($request);
+        $accessToken = SupabaseAccessToken::from($request);
+        if ($accessToken !== null) {
+            $request->attributes->set(SupabaseAccessToken::ATTRIBUTE, $accessToken);
+        }
+        if ($legacyAccessToken !== null) {
+            // Cookie-backed Laravel sessions have a strict browser size limit.
+            // Move the comparatively large JWT into its own secure cookie.
+            $request->session()->forget('supabase_token');
+        }
+
         $user = session('supabase_user');
 
         if (!$user) {
-            return redirect('/')->with('error', 'Please log in first.');
+            return $this->clearAccessToken(
+                redirect('/')->with('error', 'Please log in first.')
+            );
         }
 
         try {
@@ -33,17 +48,23 @@ class SupabaseAuth
             ]);
             $this->invalidateSession($request);
 
-            return redirect('/')->with('error', 'MathVerse could not verify your session. Please sign in again.');
+            return $this->clearAccessToken(
+                redirect('/')->with('error', 'MathVerse could not verify your session. Please sign in again.')
+            );
         }
 
         if (!$currentProfile) {
             $this->invalidateSession($request);
-            return redirect('/')->with('error', 'Your account is no longer available.');
+            return $this->clearAccessToken(
+                redirect('/')->with('error', 'Your account is no longer available.')
+            );
         }
 
         if (!empty($currentProfile['suspended_at'])) {
             $this->invalidateSession($request);
-            return redirect('/')->with('error', 'Your account is suspended. Contact an administrator.');
+            return $this->clearAccessToken(
+                redirect('/')->with('error', 'Your account is suspended. Contact an administrator.')
+            );
         }
 
         if ($this->sessionPredatesPasswordChange(
@@ -52,7 +73,9 @@ class SupabaseAuth
         )) {
             $this->invalidateSession($request);
 
-            return redirect('/')->with('error', 'Your password changed. Please sign in again.');
+            return $this->clearAccessToken(
+                redirect('/')->with('error', 'Your password changed. Please sign in again.')
+            );
         }
 
         $currentRole = $currentProfile['role'] ?? null;
@@ -61,9 +84,11 @@ class SupabaseAuth
         ) {
             $this->invalidateSession($request);
 
-            return redirect('/')->with(
-                'error',
-                'Your account is not authorized to use a dashboard. Contact an administrator.'
+            return $this->clearAccessToken(
+                redirect('/')->with(
+                    'error',
+                    'Your account is not authorized to use a dashboard. Contact an administrator.'
+                )
             );
         }
 
@@ -73,11 +98,17 @@ class SupabaseAuth
         if ($role && ($user['role'] ?? '') !== $role) {
             // Redirect to their correct dashboard
             $userRole = $user['role'] ?? '';
-            if ($userRole === 'student')  return redirect('/student/dashboard');
-            if ($userRole === 'teacher')  return redirect('/teacher/dashboard');
-            if ($userRole === 'admin')    return redirect('/admin/dashboard');
+            if ($userRole === 'student') {
+                return $this->migrateAccessToken($request, redirect('/student/dashboard'), $legacyAccessToken);
+            }
+            if ($userRole === 'teacher') {
+                return $this->migrateAccessToken($request, redirect('/teacher/dashboard'), $legacyAccessToken);
+            }
+            if ($userRole === 'admin') {
+                return $this->migrateAccessToken($request, redirect('/admin/dashboard'), $legacyAccessToken);
+            }
 
-            return redirect('/')->with('error', 'Access denied.');
+            return $this->clearAccessToken(redirect('/')->with('error', 'Access denied.'));
         }
 
         $pendingTeacherCount = 0;
@@ -151,13 +182,34 @@ class SupabaseAuth
             }
         }
 
-        return $response;
+        return $this->migrateAccessToken($request, $response, $legacyAccessToken);
     }
 
     private function invalidateSession(Request $request): void
     {
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+    }
+
+    private function migrateAccessToken(
+        Request $request,
+        Response $response,
+        ?string $legacyAccessToken
+    ): Response {
+        if ($legacyAccessToken !== null
+            && !SupabaseAccessToken::isValid($request->cookie(SupabaseAccessToken::COOKIE))
+        ) {
+            $response->headers->setCookie(SupabaseAccessToken::cookie($legacyAccessToken));
+        }
+
+        return $response;
+    }
+
+    private function clearAccessToken(Response $response): Response
+    {
+        $response->headers->setCookie(SupabaseAccessToken::forgetCookie());
+
+        return $response;
     }
 
     private function sessionPredatesPasswordChange(mixed $authenticatedAt, mixed $invalidBefore): bool

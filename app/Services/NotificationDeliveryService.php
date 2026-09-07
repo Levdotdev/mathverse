@@ -159,7 +159,11 @@ class NotificationDeliveryService
 
         $presentation = $this->emailPresentation((string) ($delivery['event_type'] ?? ''));
         $actionPath = $this->safeActionPath($delivery['action_url'] ?? null);
-        $baseUrl = rtrim((string) config('app.url'), '/');
+        $baseUrl = rtrim((string) (
+            app()->isProduction()
+                ? config('app.canonical_url')
+                : config('app.url')
+        ), '/');
         $baseParts = parse_url($baseUrl);
         $baseIsValid = is_array($baseParts)
             && in_array(strtolower((string) ($baseParts['scheme'] ?? '')), ['http', 'https'], true)

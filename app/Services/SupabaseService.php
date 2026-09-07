@@ -260,6 +260,27 @@ class SupabaseService
         return $this->authResponse($response);
     }
 
+    public function verifyEmailToken(string $tokenHash, string $type): array
+    {
+        if ($tokenHash === ''
+            || strlen($tokenHash) > 2048
+            || preg_match('/[\x00-\x1F\x7F]/', $tokenHash) === 1
+            || !in_array($type, ['email', 'email_change'], true)
+        ) {
+            throw new \InvalidArgumentException('Invalid email confirmation token.');
+        }
+
+        $response = $this->request()->withHeaders([
+            'apikey' => $this->anonKey,
+            'Content-Type' => 'application/json',
+        ])->post("{$this->url}/auth/v1/verify", [
+            'token_hash' => $tokenHash,
+            'type' => $type,
+        ]);
+
+        return $this->authResponse($response);
+    }
+
     public function updateAuthUser(
         string $token,
         array $attributes,

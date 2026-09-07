@@ -57,7 +57,9 @@ class SecurityHeaders
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
         $response->headers->set(
             'Referrer-Policy',
-            $request->is('reset-password') ? 'no-referrer' : 'strict-origin-when-cross-origin'
+            ($request->is('reset-password') || $request->is('auth/confirm'))
+                ? 'no-referrer'
+                : 'strict-origin-when-cross-origin'
         );
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'DENY');
@@ -75,7 +77,7 @@ class SecurityHeaders
         $isSensitivePage = $request->hasSession()
             && $request->session()->has('supabase_user');
         $isPublicSensitiveHtml = str_contains($contentType, 'text/html')
-            && ($request->is('/') || $request->is('reset-password'));
+            && ($request->is('/') || $request->is('reset-password') || $request->is('auth/confirm'));
         if ($isSensitivePage || $isPublicSensitiveHtml) {
             $response->headers->set('Cache-Control', 'no-store, private');
             $response->headers->set('Pragma', 'no-cache');

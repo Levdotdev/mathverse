@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\SupabaseAuth;
 use App\Services\SupabaseService;
+use App\Support\SupabaseAccessToken;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -132,6 +133,44 @@ class AuthSecurityFlowTest extends TestCase
             'error',
             'Your account is suspended. Contact an administrator.'
         );
+    }
+
+    public function test_successful_login_keeps_the_large_access_token_out_of_the_laravel_session(): void
+    {
+        $userId = '11111111-1111-4111-8111-111111111111';
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signIn')
+            ->once()
+            ->andReturn([
+                'access_token' => 'header.payload.signature',
+                'user' => ['id' => $userId, 'email' => 'student@example.com'],
+            ]);
+        $supabase->shouldReceive('adminSelect')
+            ->once()
+            ->andReturn([[
+                'id' => $userId,
+                'role' => 'student',
+                'first_name' => 'Test',
+                'last_name' => 'Student',
+                'email' => 'student@example.com',
+                'avatar_url' => null,
+                'grade_level' => 6,
+                'suspended_at' => null,
+                'auth_sessions_invalid_before' => null,
+            ]]);
+        $supabase->shouldReceive('audit')->once()->andReturn(true);
+
+        $response = $this->post('/login', [
+            'email' => 'student@example.com',
+            'password' => 'Password1!',
+        ]);
+
+        $response->assertRedirect('/student/dashboard');
+        $response->assertSessionHas('supabase_user.id', $userId);
+        $response->assertSessionMissing('supabase_token');
+        $this->assertNotNull(collect($response->headers->getCookies())->first(
+            fn ($cookie): bool => $cookie->getName() === SupabaseAccessToken::COOKIE
+        ));
     }
 
     public function test_logout_revokes_the_remote_auth_session_before_clearing_the_browser_session(): void
@@ -268,7 +307,60 @@ class AuthSecurityFlowTest extends TestCase
         $response->assertRedirect('/reset-password');
         $response->assertSessionHasErrors('password');
         $response->assertSessionHas('password_recovery_token', 'one-time-recovery-token');
+        $response->assertSessionHas('password_recovery_token_type', 'token_hash');
         $response->assertSessionMissing('_old_input.token');
+    }
+
+    public function test_recovery_accepts_the_verified_access_token_returned_by_a_default_email_link(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldNotReceive('verifyRecoveryToken');
+        $supabase->shouldReceive('updateAuthUser')
+            ->once()
+            ->with('header.payload.signature', ['password' => 'NewPassword2!'])
+            ->andReturn([
+                'successful' => true,
+                'data' => [],
+                'error' => null,
+                'status' => 200,
+            ]);
+
+        $response = $this->post('/update-password', [
+            'token' => 'header.payload.signature',
+            'token_type' => 'access_token',
+            'password' => 'NewPassword2!',
+            'password_confirmation' => 'NewPassword2!',
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionHas('success', 'Password updated! Please log in.');
+        $response->assertSessionMissing('password_recovery_token');
+        $response->assertSessionMissing('password_recovery_token_type');
+    }
+
+    public function test_canonical_email_confirmation_verifies_the_token_hash(): void
+    {
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('verifyEmailToken')
+            ->once()
+            ->with('email-confirmation-token', 'email')
+            ->andReturn([
+                'successful' => true,
+                'data' => [],
+                'error' => null,
+                'status' => 200,
+            ]);
+
+        $response = $this->post('/auth/confirm', [
+            'token_hash' => 'email-confirmation-token',
+            'type' => 'email',
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionHas(
+            'success',
+            'Email confirmed successfully. You can now sign in.'
+        );
     }
 
     public function test_successful_recovery_invalidates_the_existing_browser_session(): void
@@ -444,7 +536,10 @@ class AuthSecurityFlowTest extends TestCase
         ]);
 
         $response->assertRedirect('/student/dashboard?section=security');
-        $response->assertSessionHas('supabase_token', 'fresh-token');
+        $response->assertSessionMissing('supabase_token');
+        $this->assertNotNull(collect($response->headers->getCookies())->first(
+            fn ($cookie): bool => $cookie->getName() === SupabaseAccessToken::COOKIE
+        ));
         $response->assertSessionHas(
             'supabase_authenticated_at',
             '2026-09-06T08:00:00+00:00'

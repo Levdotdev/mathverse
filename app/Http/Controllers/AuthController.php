@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\AdminPushService;
 use App\Services\SupabaseService;
+use App\Support\SupabaseAccessToken;
 use App\Support\SupabaseAuthError;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -129,8 +130,8 @@ class AuthController extends Controller
         if (!is_string($authEmail) || filter_var($authEmail, FILTER_VALIDATE_EMAIL) === false) {
             $authEmail = $validated['email'];
         }
+        $request->session()->forget('supabase_token');
         $request->session()->put([
-            'supabase_token' => $accessToken,
             'supabase_user'  => array_merge($profile, [
                 'email' => mb_strtolower($authEmail),
             ]),
@@ -150,7 +151,8 @@ class AuthController extends Controller
             ]);
         }
 
-        return $this->redirectByRole($profile['role']);
+        return $this->redirectByRole($profile['role'])
+            ->withCookie(SupabaseAccessToken::cookie($accessToken));
     }
 
     public function register(Request $request)
@@ -338,9 +340,54 @@ class AuthController extends Controller
         return back()->with('success', 'Recovery link sent.');
     }
 
+    public function confirmEmail(Request $request)
+    {
+        $validated = $request->validate([
+            'token_hash' => 'required|string|max:2048',
+            'type' => 'required|in:email,email_change',
+        ]);
+
+        try {
+            $result = $this->supabase->verifyEmailToken(
+                $validated['token_hash'],
+                $validated['type']
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Email confirmation failed.', [
+                'type' => $validated['type'],
+                'exception' => $exception::class,
+            ]);
+
+            return redirect('/')->with(
+                'error',
+                'This email confirmation link is invalid or expired.'
+            );
+        }
+
+        if (!($result['successful'] ?? false)) {
+            return redirect('/')->with(
+                'error',
+                'This email confirmation link is invalid or expired.'
+            );
+        }
+
+        $message = $validated['type'] === 'email_change'
+            ? 'Email address changed successfully.'
+            : 'Email confirmed successfully. You can now sign in.';
+
+        $response = redirect('/')->with('success', $message);
+        $refreshedAccessToken = $validated['type'] === 'email_change'
+            ? $this->validatedBearerToken($result['data']['access_token'] ?? null)
+            : null;
+
+        return $refreshedAccessToken === null
+            ? $response
+            : $response->withCookie(SupabaseAccessToken::cookie($refreshedAccessToken));
+    }
+
     public function logout(Request $request)
     {
-        $accessToken = $request->session()->get('supabase_token');
+        $accessToken = SupabaseAccessToken::from($request);
         if (is_string($accessToken) && $accessToken !== '') {
             try {
                 if (!$this->supabase->signOut($accessToken)) {
@@ -358,7 +405,7 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect('/')->withCookie(SupabaseAccessToken::forgetCookie());
     }
 
     private function redirectByRole(string $role)
@@ -431,10 +478,11 @@ class AuthController extends Controller
                 'exception' => $exception::class,
             ]);
         }
-        $request->session()->put([
-            'supabase_token' => $accessToken,
-            'supabase_authenticated_at' => $invalidBefore ?: now()->utc()->toIso8601String(),
-        ]);
+        $request->session()->forget('supabase_token');
+        $request->session()->put(
+            'supabase_authenticated_at',
+            $invalidBefore ?: now()->utc()->toIso8601String()
+        );
         try {
             $this->supabase->audit($user, 'account.password_changed', 'profile', $user['id']);
         } catch (\Throwable $exception) {
@@ -444,7 +492,9 @@ class AuthController extends Controller
             ]);
         }
 
-        return redirect($redirect)->with('success', 'Password changed successfully.');
+        return redirect($redirect)
+            ->with('success', 'Password changed successfully.')
+            ->withCookie(SupabaseAccessToken::cookie($accessToken));
     }
 
     public function changeEmail(Request $request)
@@ -503,7 +553,7 @@ class AuthController extends Controller
         }
 
         $request->session()->regenerate();
-        $request->session()->put('supabase_token', $accessToken);
+        $request->session()->forget('supabase_token');
         try {
             $this->supabase->audit($user, 'account.email_change_requested', 'profile', $user['id'], [
                 'new_email' => $newEmail,
@@ -515,22 +565,27 @@ class AuthController extends Controller
             ]);
         }
 
-        return redirect($redirect . '&notice=email-change-requested')->with(
-            'success',
-            'Email change requested. Check your new email address to confirm the change.'
-        );
+        return redirect($redirect . '&notice=email-change-requested')
+            ->with(
+                'success',
+                'Email change requested. Check your new email address to confirm the change.'
+            )
+            ->withCookie(SupabaseAccessToken::cookie($accessToken));
     }
 
     public function updatePassword(Request $request)
     {
         $submittedToken = $request->input('token');
+        $submittedTokenType = $request->input('token_type', 'token_hash');
         if (is_string($submittedToken)
             && $submittedToken !== ''
-            && strlen($submittedToken) <= 2048
+            && strlen($submittedToken) <= 8192
+            && in_array($submittedTokenType, ['token_hash', 'access_token'], true)
         ) {
             // Preserve retries in the encrypted server session instead of
             // flashing a recovery credential back into rendered HTML.
             $request->session()->put('password_recovery_token', $submittedToken);
+            $request->session()->put('password_recovery_token_type', $submittedTokenType);
         }
 
         $validated = $request->validate([
@@ -541,7 +596,8 @@ class AuthController extends Controller
                 'confirmed',
                 Password::min(8)->mixedCase()->numbers()->symbols(),
             ],
-            'token' => 'nullable|string|max:2048',
+            'token' => 'nullable|string|max:8192',
+            'token_type' => 'nullable|in:token_hash,access_token',
         ]);
 
         $recoveryToken = $request->session()->get('password_recovery_token');
@@ -549,25 +605,40 @@ class AuthController extends Controller
             return back()->with('error', 'The reset link is incomplete. Please request a new one.');
         }
 
-        try {
-            $verification = $this->supabase->verifyRecoveryToken($recoveryToken);
-        } catch (\Throwable $exception) {
-            Log::warning('Password recovery token verification failed.', [
-                'exception' => $exception::class,
-            ]);
+        $recoveryTokenType = $request->session()->get('password_recovery_token_type', 'token_hash');
+        if ($recoveryTokenType === 'access_token') {
+            $accessToken = $this->validatedBearerToken($recoveryToken);
+        } else {
+            try {
+                $verification = $this->supabase->verifyRecoveryToken($recoveryToken);
+            } catch (\Throwable $exception) {
+                Log::warning('Password recovery token verification failed.', [
+                    'exception' => $exception::class,
+                ]);
 
-            return back()->with('error', 'MathVerse could not verify the reset link. Please try again.');
+                return back()->with('error', 'MathVerse could not verify the reset link. Please try again.');
+            }
+
+            $accessToken = $this->validatedBearerToken($verification['data']['access_token'] ?? null);
+            if (!($verification['successful'] ?? false)) {
+                $accessToken = null;
+            }
         }
 
-        $accessToken = $this->validatedBearerToken($verification['data']['access_token'] ?? null);
-        if (!($verification['successful'] ?? false) || $accessToken === null) {
-            $request->session()->forget('password_recovery_token');
+        if ($accessToken === null) {
+            $request->session()->forget([
+                'password_recovery_token',
+                'password_recovery_token_type',
+            ]);
             return back()->with('error', 'Invalid or expired reset link. Please request a new one.');
         }
 
         // Verification consumes the one-time link. Never retain it after this
         // point, even if the password update itself later fails.
-        $request->session()->forget('password_recovery_token');
+        $request->session()->forget([
+            'password_recovery_token',
+            'password_recovery_token_type',
+        ]);
 
         try {
             $result = $this->supabase->updateAuthUser($accessToken, [
@@ -588,7 +659,9 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/')->with('success', 'Password updated! Please log in.');
+        return redirect('/')
+            ->with('success', 'Password updated! Please log in.')
+            ->withCookie(SupabaseAccessToken::forgetCookie());
     }
 
     private function securityRedirect(string $role): string

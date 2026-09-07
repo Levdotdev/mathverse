@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\AdminPushService;
 use App\Services\SupabaseService;
+use App\Support\SupabaseAccessToken;
 use Illuminate\Http\Request;
 
 class TeacherQuizController extends Controller
@@ -538,7 +539,7 @@ class TeacherQuizController extends Controller
     {
         $validated = $this->validateQuiz($request);
         $user = session('supabase_user');
-        $token = session('supabase_token');
+        $token = SupabaseAccessToken::from(request());
 
         $created = $this->supabase->insert('quizzes', [
             'teacher_id' => $user['id'],
@@ -579,7 +580,7 @@ class TeacherQuizController extends Controller
     public function update(Request $request, string $id)
     {
         $user = session('supabase_user');
-        $token = session('supabase_token');
+        $token = SupabaseAccessToken::from(request());
         $quiz = $this->ownedQuiz($id, $user['id']);
 
         if (!$quiz) {
@@ -708,7 +709,7 @@ class TeacherQuizController extends Controller
     public function destroy(string $id)
     {
         $user = session('supabase_user');
-        $token = session('supabase_token');
+        $token = SupabaseAccessToken::from(request());
         $quiz = $this->ownedQuiz($id, $user['id']);
         if (!$quiz) {
             return redirect('/teacher/quizzes')->with('error', 'You can only delete quizzes you created.');

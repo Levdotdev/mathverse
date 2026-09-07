@@ -157,6 +157,42 @@ function handleAuthConfirmationReturn() {
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
     const action = url.searchParams.get('auth_action') || hashParams.get('type');
     const hasAuthError = url.searchParams.has('error') || hashParams.has('error');
+
+    if (action === 'recovery') {
+        // Supabase can return either the template token hash or an already
+        // verified access token. Move both forms to the reset page without
+        // putting the credential in a query string or leaving it on login.
+        if (url.pathname === '/reset-password') return;
+
+        const tokenHash = hashParams.get('token_hash') || url.searchParams.get('token_hash');
+        const accessToken = hashParams.get('access_token') || url.searchParams.get('access_token');
+        if (!hasAuthError && (tokenHash || accessToken)) {
+            const recoveryUrl = new URL('/reset-password', 'https://mathmetaverse.space');
+            const recoveryParams = new URLSearchParams({ type: 'recovery' });
+            if (tokenHash) recoveryParams.set('token_hash', tokenHash);
+            if (!tokenHash && accessToken) recoveryParams.set('access_token', accessToken);
+            recoveryUrl.hash = recoveryParams.toString();
+            window.location.replace(recoveryUrl.toString());
+            return;
+        }
+
+        showToast(
+            hasAuthError
+                ? 'This password reset link is invalid or expired.'
+                : 'This reset link is incomplete. Request a new password reset email.',
+            true
+        );
+        ['token', 'token_hash', 'access_token', 'refresh_token', 'type', 'error', 'error_code', 'error_description']
+            .forEach(parameter => url.searchParams.delete(parameter));
+        url.hash = '';
+        window.history.replaceState(window.history.state, document.title, url.pathname);
+        return;
+    }
+
+    // The dedicated confirmation page consumes its fragment in its own
+    // nonce-protected form before any generic callback cleanup runs.
+    if (url.pathname === '/auth/confirm') return;
+
     const messages = {
         signup: 'Email confirmed successfully. You can now sign in.',
         email_change: 'Email address changed successfully.',
@@ -172,7 +208,7 @@ function handleAuthConfirmationReturn() {
         hasAuthError
     );
 
-    ['auth_action', 'code', 'token', 'token_hash', 'type', 'error', 'error_code', 'error_description']
+    ['auth_action', 'code', 'token', 'token_hash', 'access_token', 'refresh_token', 'type', 'error', 'error_code', 'error_description']
         .forEach(parameter => url.searchParams.delete(parameter));
     url.hash = '';
     const cleanUrl = url.pathname + (url.searchParams.size ? `?${url.searchParams.toString()}` : '');
@@ -473,8 +509,10 @@ function previewAvatar(input) {
 
     const reader = new FileReader();
     reader.onload = e => {
-        preview.src = e.target.result;
-        preview.classList.remove('hidden');
+        document.querySelectorAll('[data-current-user-avatar], #avatar-preview').forEach(image => {
+            image.src = e.target.result;
+            image.classList.remove('hidden');
+        });
         placeholder?.classList.add('hidden');
     };
     reader.readAsDataURL(file);

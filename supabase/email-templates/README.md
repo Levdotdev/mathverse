@@ -14,18 +14,18 @@ HTML file into each template.
 
 In **Authentication → URL Configuration**:
 
-1. Set the Site URL to the deployed MathVerse root URL.
-2. Add the deployed root URL and `/reset-password` page to the Redirect URLs.
-3. Keep `APP_URL` set to that same deployed root URL in Laravel.
+1. Set the Site URL to `https://mathmetaverse.space`.
+2. Add `https://mathmetaverse.space`, `/reset-password`, and `/auth/confirm`
+   on that host to the Redirect URLs.
+3. Keep `APP_URL` set to `https://mathmetaverse.space` in Laravel.
 
-The Laravel recovery request passes the complete `/reset-password` URL as
-`redirect_to`. For that reason, the reset template deliberately uses:
+Every user-visible template link is pinned to the canonical MathVerse domain.
+Recovery and confirmation credentials are placed in URL fragments so they are
+not sent in HTTP request lines or referrers. The recovery template uses:
 
 ```html
-{{ .RedirectTo }}#token_hash={{ .TokenHash }}&amp;type=recovery
+https://mathmetaverse.space/reset-password#token_hash={{ .TokenHash }}&amp;type=recovery
 ```
-
-Do not append `/reset-password` again in the Supabase template.
 
 To use email changes and security messages:
 

@@ -33,6 +33,7 @@
                     @csrf
 
                     <input type="hidden" id="token" name="token" value="">
+                    <input type="hidden" id="token-type" name="token_type" value="token_hash">
 
                     <div class="form-group">
                         <label class="input-label">New Password</label>
@@ -85,7 +86,11 @@
 <script nonce="{{ request()->attributes->get('csp_nonce') }}">
     const fragmentParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const tokenInput = document.getElementById('token');
-    const fragmentToken = fragmentParams.get('token_hash');
+    const tokenTypeInput = document.getElementById('token-type');
+    const fragmentTokenHash = fragmentParams.get('token_hash');
+    const fragmentAccessToken = fragmentParams.get('access_token');
+    const fragmentToken = fragmentTokenHash || fragmentAccessToken;
+    const fragmentTokenType = fragmentTokenHash ? 'token_hash' : 'access_token';
     const hasServerToken = @json(session()->has('password_recovery_token'));
     const resetForm = document.getElementById('resetForm');
     if (!fragmentToken && !hasServerToken) {
@@ -94,6 +99,7 @@
     } else {
         if (fragmentToken) {
             tokenInput.value = fragmentToken;
+            tokenTypeInput.value = fragmentTokenType;
         }
 
         // Keep the one-time recovery token out of browser history, copied

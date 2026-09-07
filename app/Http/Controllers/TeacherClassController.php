@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\SupabaseService;
 use App\Support\ClassCustomization;
+use App\Support\SupabaseAccessToken;
 use Illuminate\Http\Request;
 
 class TeacherClassController extends Controller
@@ -18,7 +19,7 @@ class TeacherClassController extends Controller
         ]);
 
         $user = session('supabase_user');
-        $token = session('supabase_token');
+        $token = SupabaseAccessToken::from(request());
         $joinCode = $this->generateJoinCode();
 
         $created = $this->supabase->insert('classes', [
@@ -137,7 +138,7 @@ class TeacherClassController extends Controller
         ]);
 
         $user = session('supabase_user');
-        $token = session('supabase_token');
+        $token = SupabaseAccessToken::from(request());
         $class = $this->ownedClass($id, $user['id']);
         if (!$class) {
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
@@ -215,7 +216,7 @@ class TeacherClassController extends Controller
     public function regenerateCode(string $id)
     {
         $user = session('supabase_user');
-        $token = session('supabase_token');
+        $token = SupabaseAccessToken::from(request());
         $class = $this->ownedClass($id, $user['id']);
         if (!$class) {
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
@@ -255,7 +256,7 @@ class TeacherClassController extends Controller
             'classes',
             ['archived_at' => now()->toIso8601String()],
             ['id' => $id, 'teacher_id' => $user['id']],
-            session('supabase_token')
+            SupabaseAccessToken::from(request())
         );
         if (!isset($updated[0]['id'])) {
             return redirect("/teacher/classes/{$id}/settings")
@@ -316,7 +317,7 @@ class TeacherClassController extends Controller
             'classes',
             ['archived_at' => null],
             ['id' => $id, 'teacher_id' => $user['id']],
-            session('supabase_token')
+            SupabaseAccessToken::from(request())
         );
 
         if (!isset($updated[0]['id'])) {
@@ -626,7 +627,7 @@ class TeacherClassController extends Controller
             'class_id' => $classId,
             'teacher_id' => $teacher['id'],
             'status' => 'waiting',
-        ], session('supabase_token'));
+        ], SupabaseAccessToken::from(request()));
 
         if (!isset($updated[0]['id'])) {
             return response()->json(['message' => 'The quiz could not be started.'], 500);
@@ -660,7 +661,7 @@ class TeacherClassController extends Controller
             'class_id' => $classId,
             'teacher_id' => $teacher['id'],
             'status' => $session['status'],
-        ], session('supabase_token'));
+        ], SupabaseAccessToken::from(request()));
 
         if (!isset($updated[0]['id'])) {
             return response()->json(['message' => 'The quiz could not be ended.'], 500);

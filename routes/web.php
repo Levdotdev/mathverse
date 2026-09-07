@@ -29,6 +29,8 @@ Route::post('/register', [AuthController::class, 'register'])->middleware('throt
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-recovery');
 Route::get('/reset-password', function () { return view('auth.reset'); });
 Route::post('/update-password', [AuthController::class, 'updatePassword'])->middleware('throttle:password-reset');
+Route::get('/auth/confirm', function () { return view('auth.confirm'); });
+Route::post('/auth/confirm', [AuthController::class, 'confirmEmail'])->middleware('throttle:email-confirmation');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware(['throttle:authenticated', 'auth.supabase'])->group(function () {

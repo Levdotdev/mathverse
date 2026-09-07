@@ -26,5 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'password',
             'password_confirmation',
             'token',
+            'token_hash',
+            'token_type',
         ]);
     })->create();

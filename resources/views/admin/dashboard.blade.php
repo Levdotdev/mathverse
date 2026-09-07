@@ -387,6 +387,7 @@
                     {{-- Preview circle --}}
                     <div class="w-16 h-16 rounded-full border-2 border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shrink-0" id="avatar-preview-wrap">
                         <img id="avatar-preview"
+                            data-current-user-avatar
                             src="{{ $user['avatar_url'] ?: asset('default.png') }}"
                             class="w-full h-full object-cover">
                         </div>

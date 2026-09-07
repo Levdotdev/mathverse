@@ -247,6 +247,11 @@ class SecuritySourceTest extends TestCase
             "? 'https://mathmetaverse.space'",
             $appConfig
         );
+        $this->assertStringContainsString(
+            "'canonical_url' => 'https://mathmetaverse.space'",
+            $appConfig
+        );
+        $this->assertStringContainsString("'session.domain' => null", $provider);
     }
 
     public function test_sensitive_rate_limits_include_identity_and_network_budgets(): void
@@ -407,12 +412,62 @@ class SecuritySourceTest extends TestCase
         ));
 
         $this->assertStringContainsString('#token_hash={{ .TokenHash }}', $template);
+        $this->assertStringContainsString(
+            'https://mathmetaverse.space/reset-password#token_hash=',
+            $template
+        );
+        $this->assertStringNotContainsString('{{ .RedirectTo }}', $template);
         $this->assertStringNotContainsString('?token_hash={{ .TokenHash }}', $template);
         $this->assertStringContainsString('window.location.hash', $resetView);
+        $this->assertStringContainsString("fragmentParams.get('access_token')", $resetView);
         $this->assertStringNotContainsString("params.get('token_hash')", $resetView);
         $this->assertStringNotContainsString("old('token')", $resetView);
         $this->assertStringContainsString('password_recovery_token', $resetView);
         $this->assertStringContainsString("cleanUrl.hash = '';", $resetView);
+    }
+
+    public function test_every_auth_email_link_uses_the_canonical_mathverse_domain(): void
+    {
+        $templates = [
+            'confirm-signup.html',
+            'reset-password.html',
+            'change-email-address.html',
+            'password-changed.html',
+            'email-address-changed.html',
+        ];
+
+        foreach ($templates as $templateName) {
+            $template = (string) file_get_contents($this->projectPath(
+                "supabase/email-templates/{$templateName}"
+            ));
+
+            $this->assertStringContainsString('https://mathmetaverse.space', $template);
+            $this->assertStringNotContainsString('mathverse-production-luqbjt.laravel.cloud', $template);
+            $this->assertStringNotContainsString('{{ .RedirectTo }}', $template);
+            $this->assertStringNotContainsString('{{ .SiteURL }}', $template);
+            $this->assertStringNotContainsString('{{ .ConfirmationURL }}', $template);
+        }
+    }
+
+    public function test_recovery_links_returned_to_login_are_forwarded_to_the_reset_page(): void
+    {
+        $sharedScript = (string) file_get_contents($this->projectPath('public/js/shared.js'));
+
+        $this->assertStringContainsString("if (action === 'recovery')", $sharedScript);
+        $this->assertStringContainsString("new URL('/reset-password', 'https://mathmetaverse.space')", $sharedScript);
+        $this->assertStringContainsString("hashParams.get('access_token')", $sharedScript);
+        $this->assertStringContainsString('window.location.replace(recoveryUrl.toString())', $sharedScript);
+    }
+
+    public function test_avatar_selection_updates_every_current_user_preview(): void
+    {
+        $sharedScript = (string) file_get_contents($this->projectPath('public/js/shared.js'));
+        $profileMenu = (string) file_get_contents($this->projectPath(
+            'resources/views/partials/profile-menu.blade.php'
+        ));
+
+        $this->assertStringContainsString('[data-current-user-avatar], #avatar-preview', $sharedScript);
+        $this->assertStringContainsString('data-current-user-avatar', $profileMenu);
     }
 
     public function test_answer_keys_require_the_whole_quiz_session_to_be_completed(): void

@@ -24,6 +24,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The public hostname is part of MathVerse's security boundary. Keep
+        // URL generation canonical even while a deployment still has the
+        // retired Laravel Cloud hostname in APP_URL.
+        if (app()->isProduction()) {
+            config([
+                'app.url' => (string) config('app.canonical_url'),
+                // A host-only cookie survives a custom-domain migration and
+                // cannot leak to unrelated subdomains.
+                'session.domain' => null,
+            ]);
+        }
+
         $appUrl = rtrim((string) config('app.url'), '/');
         $appParts = parse_url($appUrl);
         $appScheme = is_array($appParts)
@@ -104,6 +116,16 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(5)->by("reset:{$tokenKey}:{$request->ip()}"),
                 Limit::perHour(20)->by("reset-token:{$tokenKey}"),
                 Limit::perHour(30)->by("reset-ip:{$request->ip()}"),
+            ];
+        });
+
+        RateLimiter::for('email-confirmation', function (Request $request): array {
+            $tokenKey = hash('sha256', (string) $request->input('token_hash', 'missing'));
+
+            return [
+                Limit::perMinute(5)->by("email-confirmation:{$tokenKey}:{$request->ip()}"),
+                Limit::perHour(20)->by("email-confirmation-token:{$tokenKey}"),
+                Limit::perMinute(30)->by("email-confirmation-ip:{$request->ip()}"),
             ];
         });
 

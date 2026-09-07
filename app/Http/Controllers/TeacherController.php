@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\SupabaseService;
+use App\Support\SupabaseAccessToken;
 use App\Support\QuizAnswer;
 use App\Support\QuizReportStatus;
 use App\Support\ClassCustomization;
@@ -17,7 +18,7 @@ class TeacherController extends Controller
     public function index()
     {
         $user    = session('supabase_user');
-        $token   = session('supabase_token');
+        $token   = SupabaseAccessToken::from(request());
 
         if (!$user || !$token) {
             return redirect('/')->with('error', 'Please log in first.');

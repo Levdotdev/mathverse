@@ -52,6 +52,8 @@ return [
     |
     */
 
+    'canonical_url' => 'https://mathmetaverse.space',
+
     'url' => env(
         'APP_URL',
         env('APP_ENV', 'production') === 'production'
