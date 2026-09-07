@@ -33,7 +33,8 @@ service key.
 - Run `composer install --no-dev --classmap-authoritative` and `npm ci && npm
   run build` from the committed lock files.
 - Apply every SQL migration in `database/supabase` in date order, ending with
-  `2026_09_05_security_hardening.sql`.
+  `2026_09_07_quiz_assignment_web_push.sql`. The September 7 migration retains
+  the service-role-only function grant established by the hardening migration.
 - Keep public registration limited to `student` and `pending_teacher`; never
   authorize from editable Auth user metadata. The final hardening migration
   enforces this again at the profile-table boundary and removes direct profile

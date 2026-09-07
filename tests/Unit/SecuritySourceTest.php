@@ -486,6 +486,36 @@ class SecuritySourceTest extends TestCase
         $this->assertStringContainsString('["logoutModal"]', $profileMenu);
     }
 
+    public function test_admin_logout_confirmation_is_a_real_form_submit(): void
+    {
+        $dashboard = (string) file_get_contents($this->projectPath(
+            'resources/views/admin/dashboard.blade.php'
+        ));
+        $sharedScript = (string) file_get_contents($this->projectPath('public/js/shared.js'));
+
+        $this->assertMatchesRegularExpression(
+            '/<form id="logoutForm"[^>]*action="\/logout"[\s\S]*?<button type="submit"[^>]*>Confirm Logout<\/button>/',
+            $dashboard
+        );
+        $this->assertStringNotContainsString('data-action="handleLogout"', $dashboard);
+        $this->assertStringNotContainsString("'handleLogout'", $sharedScript);
+    }
+
+    public function test_teacher_registry_has_no_approval_email_resend_action(): void
+    {
+        $dashboard = (string) file_get_contents($this->projectPath(
+            'resources/views/admin/dashboard.blade.php'
+        ));
+        $routes = (string) file_get_contents($this->projectPath('routes/web.php'));
+        $controller = (string) file_get_contents($this->projectPath(
+            'app/Http/Controllers/AdminController.php'
+        ));
+
+        $this->assertStringNotContainsString('Approval Email', $dashboard);
+        $this->assertStringNotContainsString('/approval-email', $routes);
+        $this->assertStringNotContainsString('resendTeacherApprovalEmail', $controller);
+    }
+
     public function test_answer_keys_require_the_whole_quiz_session_to_be_completed(): void
     {
         $controller = (string) file_get_contents($this->projectPath(

@@ -79,7 +79,6 @@ const mathVerseDelegatedActions = new Set([
     'confirmDelete',
     'confirmSuspend',
     'copyToClipboard',
-    'handleLogout',
     'hideToast',
     'loadQuizBuilder',
     'openAssignmentSettings',

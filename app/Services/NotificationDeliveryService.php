@@ -149,6 +149,106 @@ class NotificationDeliveryService
         );
     }
 
+    /** @return array{sent: bool, queued: bool} */
+    public function deliverTeacherApprovalEmailNow(array $profile): array
+    {
+        $userId = (string) ($profile['id'] ?? '');
+        if (!Str::isUuid($userId)) {
+            return ['sent' => false, 'queued' => false];
+        }
+
+        $queued = false;
+        try {
+            $queued = $this->ensureTeacherApprovalEmailQueued($profile);
+            if (!$queued) {
+                return ['sent' => false, 'queued' => false];
+            }
+
+            $deliveryResult = $this->supabase->adminSelectResult(
+                'notification_deliveries',
+                'id,notification_id,user_id,channel,event_type,recipient_email,recipient_name,title,message,action_url,data,delivery_key,status,attempts',
+                [
+                    'user_id' => $userId,
+                    'channel' => 'email',
+                    'event_type' => 'teacher_approved',
+                    'order' => 'created_at.desc',
+                    'limit' => 1,
+                ]
+            );
+            $delivery = $deliveryResult['data'][0] ?? null;
+            if ($deliveryResult['error'] !== null || !is_array($delivery)) {
+                return ['sent' => false, 'queued' => true];
+            }
+
+            if (($delivery['status'] ?? '') === 'sent') {
+                return ['sent' => true, 'queued' => true];
+            }
+
+            $attempts = (int) ($delivery['attempts'] ?? 0);
+            $status = (string) ($delivery['status'] ?? '');
+            if (!in_array($status, ['pending', 'failed'], true) || $attempts >= 5) {
+                return [
+                    'sent' => false,
+                    'queued' => $status === 'sending' || $attempts < 5,
+                ];
+            }
+
+            // Claim this exact approval delivery so the scheduled worker cannot
+            // send a duplicate while the administrator request sends it now.
+            $workerId = (string) Str::uuid();
+            $claimed = $this->supabase->adminUpdate('notification_deliveries', [
+                'status' => 'sending',
+                'attempts' => $attempts + 1,
+                'locked_at' => now()->toIso8601String(),
+                'locked_by' => $workerId,
+                'updated_at' => now()->toIso8601String(),
+            ], [
+                'id' => (string) $delivery['id'],
+                'status' => ['operator' => 'in', 'value' => '(pending,failed)'],
+                'attempts' => $attempts,
+            ]);
+
+            if (!isset($claimed[0]['id'])) {
+                $latest = $this->supabase->adminSelectResult(
+                    'notification_deliveries',
+                    'status',
+                    ['id' => (string) $delivery['id'], 'limit' => 1]
+                );
+
+                return [
+                    'sent' => ($latest['data'][0]['status'] ?? '') === 'sent',
+                    'queued' => true,
+                ];
+            }
+
+            try {
+                $this->deliver($claimed[0]);
+                $this->markSent($claimed[0], $workerId);
+
+                return ['sent' => true, 'queued' => true];
+            } catch (\Throwable $exception) {
+                $this->markFailed($claimed[0], $workerId, $exception::class);
+                Log::warning('Immediate teacher approval email failed.', [
+                    'user_id' => $userId,
+                    'delivery_id' => $claimed[0]['id'] ?? null,
+                    'exception' => $exception::class,
+                ]);
+
+                return [
+                    'sent' => false,
+                    'queued' => (int) ($claimed[0]['attempts'] ?? 5) < 5,
+                ];
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Immediate teacher approval email could not be prepared.', [
+                'user_id' => $userId,
+                'exception' => $exception::class,
+            ]);
+
+            return ['sent' => false, 'queued' => $queued];
+        }
+    }
+
     /** @return array{claimed: int, sent: int, failed: int, error: string|null} */
     public function deliverPending(int $limit = 50): array
     {

@@ -132,9 +132,10 @@ emails by following `supabase/email-templates/README.md`.
 Then run `2026_08_31_notifications_delivery_channels.sql`. It adds a protected,
 retryable delivery outbox. The requested application events are sent as
 designed Laravel emails: teacher application receipt and decision, account
-suspension/restoration, quiz assignment/availability, retake, excuse,
+suspension/restoration, quiz availability, retake, excuse,
 submission receipts for the initial attempt and each teacher-authorized retake,
-and removal from a class. Other bell events are routed to targeted Web Push.
+and removal from a class. Quiz assignments and other bell events are routed to
+targeted Web Push after the September 7 delivery-policy migration.
 Completed password and email-address changes stay in the bell but do not create
 Web Push because Supabase Auth already sends their security emails. The original
 all-admin teacher-registration and quiz-report pushes are deliberately excluded
@@ -155,7 +156,7 @@ reclassifies unsent authorized-retake receipts as email, and rearms premature
 due reminders for the 30-minute window. Its paired `_rollback.sql` file restores
 the former delivery policy but cannot retract an alert that was already sent.
 
-Run `2026_08_31_quiz_starting_soon_5_minutes.sql` last. It upgrades existing
+Then run `2026_08_31_quiz_starting_soon_5_minutes.sql`. It upgrades existing
 installations to the five-minute quiz-start reminder window and removes earlier
 start reminders so eligible quizzes can be rearmed at the correct time. Alerts
 already delivered by the browser cannot be retracted.
@@ -249,13 +250,24 @@ service-role key bypasses RLS and therefore belongs only in Laravel's private
 server environment; it must never use a `VITE_` prefix or appear in browser
 JavaScript.
 
+### Quiz assignments through Web Push
+
+After the security hardening migration, run
+`2026_09_07_quiz_assignment_web_push.sql`. It converts unsent quiz-assignment
+emails to Web Push and routes future `quiz_assigned` events to Web Push while
+leaving quiz-availability, retake, excuse, and submission emails unchanged. The
+migration explicitly restores the service-role-only grant on the replaced
+delivery function. Its paired rollback restores assignment emails but cannot
+retract a push alert that was already delivered.
+
 ### Configure application email delivery
 
 Supabase Auth continues to send sign-up, recovery, change-email, password
 changed, and email-address-changed messages. The new event emails are not
 Supabase Auth templates, so Laravel sends them through `MAIL_*`. Configure the
 same custom SMTP provider credentials in both Supabase Auth and the deployed
-Laravel environment when one sender/provider should handle all mail:
+Laravel environment when one sender/provider should handle all mail. Saving the
+credentials in Supabase Auth does not copy them into Laravel Cloud:
 
 ```dotenv
 MAIL_MAILER=smtp
@@ -285,10 +297,10 @@ php artisan notifications:deliver --limit=50
 
 The administrator dashboard now stops teacher approval/rejection when the
 outbox or a real production mail transport is unavailable, rather than silently
-changing the account while losing its decision email. A successfully approved
-teacher can also be sent another approval message from **Teacher Registry →
-Approval Email**; repeat requests are limited to one delivery per teacher per
-hour.
+changing the account while losing its decision email. Approval now claims its
+exact outbox entry and contacts the mail server during the administrator
+request. The success toast says the email was sent only after the mail server
+accepts it; a failed immediate attempt remains queued for automatic retry.
 
 ### Enable browser push alerts
 

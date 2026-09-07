@@ -268,9 +268,6 @@
                             <td class="py-4 text-slate-400">{{ isset($p['created_at']) ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y') : 'N/A' }}</td>
                             <td class="py-4"><span class="text-[9px] uppercase font-bold {{ !empty($p['suspended_at']) ? 'text-red-400' : 'text-green-400' }}">{{ !empty($p['suspended_at']) ? 'Suspended' : 'Active' }}</span>@if(!empty($p['suspension_reason']))<p class="text-[9px] text-slate-500 mt-1 max-w-[220px] truncate" title="{{ $p['suspension_reason'] }}">{{ $p['suspension_reason'] }}</p>@endif</td>
                             <td class="py-4 text-right">
-                                @if(empty($p['suspended_at']))
-                                    <form method="POST" action="/admin/teachers/{{ $p['id'] }}/approval-email" class="inline">@csrf<button class="text-cyan-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-envelope mr-1"></i> Approval Email</button></form>
-                                @endif
                                 @if(!empty($p['suspended_at']))
                                     <form method="POST" action="/admin/user/{{ $p['id'] }}/restore" class="inline">@csrf<input type="hidden" name="return_section" value="teachers"><button class="text-green-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-undo mr-1"></i> Restore</button></form>
                                 @else
@@ -573,7 +570,7 @@
         <div class="space-y-3">
             <form id="logoutForm" method="POST" action="/logout" class="mt-10">
                 @csrf
-                <button type="button" data-action="handleLogout" class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button>
+                <button type="submit" class="btn-rect-primary !bg-red-600 !text-white">Confirm Logout</button>
             </form>
             <button type="button" data-action="closeModal" data-action-args='["logoutModal"]' class="modal-cancel">Cancel</button>
         </div>

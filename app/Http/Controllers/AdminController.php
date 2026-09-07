@@ -175,21 +175,27 @@ class AdminController extends Controller
                 ->with('error', 'The teacher application could not be approved.');
         }
 
-        $decisionEmailQueued = $this->notificationDelivery
-            ->ensureTeacherApprovalEmailQueued($profile);
+        $decisionEmail = $this->notificationDelivery
+            ->deliverTeacherApprovalEmailNow($profile);
         $this->supabase->audit(session('supabase_user'), 'teacher.approved', 'profile', $id, [
             'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
             'email' => $profile['email'] ?? null,
-            'decision_email_queued' => $decisionEmailQueued,
+            'decision_email_sent' => $decisionEmail['sent'],
+            'decision_email_queued' => $decisionEmail['queued'],
         ]);
 
-        if (!$decisionEmailQueued) {
+        if (!$decisionEmail['sent']) {
             return redirect('/admin/dashboard?section=role-verify')
-                ->with('error', 'Teacher approved, but the approval email could not be queued. Check the event-email outbox before approving another teacher.');
+                ->with(
+                    'error',
+                    $decisionEmail['queued']
+                        ? 'Teacher approved, but the mail server did not accept the approval email immediately. MathVerse will retry it automatically.'
+                        : 'Teacher approved, but the approval email could not be sent or queued. Check the mail and database settings.'
+                );
         }
 
         return redirect('/admin/dashboard?section=role-verify')
-            ->with('success', 'Teacher approved. The approval email is queued for delivery.');
+            ->with('success', 'Teacher approved. The approval email was sent.');
     }
 
     public function denyTeacher(string $id)
@@ -249,46 +255,6 @@ class AdminController extends Controller
         }
 
         return $redirect->with('success', 'Application rejected. The decision email is queued.');
-    }
-
-    public function resendTeacherApprovalEmail(string $id)
-    {
-        $profile = $this->supabase->adminSelect(
-            'profiles', 'id,role,first_name,last_name,email,suspended_at', ['id' => $id]
-        )[0] ?? null;
-        if (!$profile || ($profile['role'] ?? '') !== 'teacher' || !empty($profile['suspended_at'])) {
-            return redirect('/admin/dashboard?section=teachers')
-                ->with('error', 'An approval email can only be sent to an active teacher.');
-        }
-        if (filter_var((string) ($profile['email'] ?? ''), FILTER_VALIDATE_EMAIL) === false) {
-            return redirect('/admin/dashboard?section=teachers')
-                ->with('error', 'The teacher has no valid approval-email address.');
-        }
-        if (($emailIssue = $this->teacherDecisionEmailIssue()) !== null) {
-            return redirect('/admin/dashboard?section=teachers')
-                ->with('error', 'The approval email could not be queued. ' . $emailIssue);
-        }
-
-        $deliveryKey = 'teacher-approved-resend:' . $id . ':' . now()->utc()->format('YmdH');
-        $queued = $this->notificationDelivery->queueTeacherApprovalEmail(
-            $profile,
-            $deliveryKey
-        );
-
-        $this->supabase->audit(
-            session('supabase_user'),
-            'teacher.approval_email_requeued',
-            'profile',
-            $id,
-            ['queued' => $queued]
-        );
-
-        return redirect('/admin/dashboard?section=teachers')->with(
-            $queued ? 'success' : 'error',
-            $queued
-                ? 'The teacher approval email is queued. Duplicate requests are limited to one per hour.'
-                : 'The teacher approval email could not be queued. Check the event-email outbox.'
-        );
     }
 
     public function suspendUser(Request $request, string $id)

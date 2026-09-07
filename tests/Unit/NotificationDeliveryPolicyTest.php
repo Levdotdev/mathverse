@@ -8,6 +8,7 @@ class NotificationDeliveryPolicyTest extends TestCase
 {
     private string $migration;
     private string $fiveMinuteMigration;
+    private string $quizAssignmentWebPushMigration;
 
     protected function setUp(): void
     {
@@ -24,6 +25,12 @@ class NotificationDeliveryPolicyTest extends TestCase
         $fiveMinuteContents = file_get_contents($fiveMinutePath);
         $this->assertNotFalse($fiveMinuteContents, 'The five-minute upgrade migration must be readable.');
         $this->fiveMinuteMigration = $fiveMinuteContents;
+
+        $quizAssignmentPath = dirname(__DIR__, 2)
+            . '/database/supabase/2026_09_07_quiz_assignment_web_push.sql';
+        $quizAssignmentContents = file_get_contents($quizAssignmentPath);
+        $this->assertNotFalse($quizAssignmentContents, 'The quiz-assignment Web Push migration must be readable.');
+        $this->quizAssignmentWebPushMigration = $quizAssignmentContents;
     }
 
     public function test_completed_auth_security_events_are_not_queued_for_web_push(): void
@@ -40,6 +47,22 @@ class NotificationDeliveryPolicyTest extends TestCase
             "/when new\\.type in \\([\\s\\S]*'quiz_result_recorded'[\\s\\S]*\\) then 'email'/",
             $this->migration
         );
+    }
+
+    public function test_quiz_assignments_are_routed_to_web_push_only(): void
+    {
+        $emailPolicy = strstr(
+            $this->quizAssignmentWebPushMigration,
+            "delivery_channel := case",
+            false
+        );
+        $this->assertIsString($emailPolicy);
+        $emailPolicy = strstr($emailPolicy, "else 'web_push'", true);
+        $this->assertIsString($emailPolicy);
+
+        $this->assertStringNotContainsString("'quiz_assigned'", $emailPolicy);
+        $this->assertStringContainsString("event_type = 'quiz_assigned'", $this->quizAssignmentWebPushMigration);
+        $this->assertStringContainsString("set channel = 'web_push'", $this->quizAssignmentWebPushMigration);
     }
 
     public function test_due_soon_window_is_thirty_minutes(): void
