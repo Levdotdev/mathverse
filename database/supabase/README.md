@@ -283,6 +283,13 @@ To verify the outbox manually after deployment, run:
 php artisan notifications:deliver --limit=50
 ```
 
+The administrator dashboard now stops teacher approval/rejection when the
+outbox or a real production mail transport is unavailable, rather than silently
+changing the account while losing its decision email. A successfully approved
+teacher can also be sent another approval message from **Teacher Registry →
+Approval Email**; repeat requests are limited to one delivery per teacher per
+hour.
+
 ### Enable browser push alerts
 
 The push alert appears through the browser/operating system even when the

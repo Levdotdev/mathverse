@@ -470,6 +470,22 @@ class SecuritySourceTest extends TestCase
         $this->assertStringContainsString('data-current-user-avatar', $profileMenu);
     }
 
+    public function test_profile_menu_buttons_can_reach_the_delegated_action_handler(): void
+    {
+        $dashboardScript = (string) file_get_contents($this->projectPath('public/js/dashboard.js'));
+        $profileMenu = (string) file_get_contents($this->projectPath(
+            'resources/views/partials/profile-menu.blade.php'
+        ));
+
+        $menuClickHandler = strstr($dashboardScript, "menu.addEventListener('click'", false);
+        $this->assertIsString($menuClickHandler);
+        $menuClickHandler = strstr($menuClickHandler, "document.addEventListener('mathverse:header-menu-open'", true);
+        $this->assertIsString($menuClickHandler);
+        $this->assertStringNotContainsString('stopPropagation()', $menuClickHandler);
+        $this->assertStringContainsString('data-action="openModal"', $profileMenu);
+        $this->assertStringContainsString('["logoutModal"]', $profileMenu);
+    }
+
     public function test_answer_keys_require_the_whole_quiz_session_to_be_completed(): void
     {
         $controller = (string) file_get_contents($this->projectPath(

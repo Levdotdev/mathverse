@@ -102,12 +102,14 @@ class AdminController extends Controller
         }
         unset($log);
 
+        $eventEmailIssue = $this->teacherDecisionEmailIssue();
+
         return view('admin.dashboard', compact(
             'user', 'students', 'teachers', 'selectedGrade', 'totalUsers', 'totalTeachers',
             'totalStudents', 'totalQuizzes', 'pendingTeachers', 'studentSearch', 'teacherSearch',
             'studentSort', 'teacherSort', 'studentPage', 'teacherPage', 'studentPages',
             'teacherPages', 'studentTotal', 'teacherTotal', 'auditLogs', 'auditPage',
-            'auditPages', 'auditTotal', 'pendingReportCount'
+            'auditPages', 'auditTotal', 'pendingReportCount', 'eventEmailIssue'
         ));
     }
 
@@ -156,6 +158,14 @@ class AdminController extends Controller
             return redirect('/admin/dashboard?section=role-verify')
                 ->with('error', 'Only a pending teacher application can be approved.');
         }
+        if (filter_var((string) ($profile['email'] ?? ''), FILTER_VALIDATE_EMAIL) === false) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'The teacher was not approved because the application has no valid email address.');
+        }
+        if (($emailIssue = $this->teacherDecisionEmailIssue()) !== null) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'The teacher was not approved because the decision email is unavailable. ' . $emailIssue);
+        }
 
         $updated = $this->supabase->adminUpdate(
             'profiles', ['role' => 'teacher'], ['id' => $id, 'role' => 'pending_teacher']
@@ -165,12 +175,21 @@ class AdminController extends Controller
                 ->with('error', 'The teacher application could not be approved.');
         }
 
+        $decisionEmailQueued = $this->notificationDelivery
+            ->ensureTeacherApprovalEmailQueued($profile);
         $this->supabase->audit(session('supabase_user'), 'teacher.approved', 'profile', $id, [
             'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
             'email' => $profile['email'] ?? null,
+            'decision_email_queued' => $decisionEmailQueued,
         ]);
+
+        if (!$decisionEmailQueued) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'Teacher approved, but the approval email could not be queued. Check the event-email outbox before approving another teacher.');
+        }
+
         return redirect('/admin/dashboard?section=role-verify')
-            ->with('success', 'Teacher approved!');
+            ->with('success', 'Teacher approved. The approval email is queued for delivery.');
     }
 
     public function denyTeacher(string $id)
@@ -182,9 +201,13 @@ class AdminController extends Controller
             return redirect('/admin/dashboard?section=role-verify')
                 ->with('error', 'Only a pending teacher application can be rejected.');
         }
-        if (!$this->notificationDelivery->isReady()) {
+        if (filter_var((string) ($profile['email'] ?? ''), FILTER_VALIDATE_EMAIL) === false) {
             return redirect('/admin/dashboard?section=role-verify')
-                ->with('error', 'The application was not rejected because the decision-email outbox is not installed. Run the latest delivery database update first.');
+                ->with('error', 'The application was not rejected because it has no valid decision-email address.');
+        }
+        if (($emailIssue = $this->teacherDecisionEmailIssue()) !== null) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'The application was not rejected because the decision email is unavailable. ' . $emailIssue);
         }
 
         try {
@@ -226,6 +249,46 @@ class AdminController extends Controller
         }
 
         return $redirect->with('success', 'Application rejected. The decision email is queued.');
+    }
+
+    public function resendTeacherApprovalEmail(string $id)
+    {
+        $profile = $this->supabase->adminSelect(
+            'profiles', 'id,role,first_name,last_name,email,suspended_at', ['id' => $id]
+        )[0] ?? null;
+        if (!$profile || ($profile['role'] ?? '') !== 'teacher' || !empty($profile['suspended_at'])) {
+            return redirect('/admin/dashboard?section=teachers')
+                ->with('error', 'An approval email can only be sent to an active teacher.');
+        }
+        if (filter_var((string) ($profile['email'] ?? ''), FILTER_VALIDATE_EMAIL) === false) {
+            return redirect('/admin/dashboard?section=teachers')
+                ->with('error', 'The teacher has no valid approval-email address.');
+        }
+        if (($emailIssue = $this->teacherDecisionEmailIssue()) !== null) {
+            return redirect('/admin/dashboard?section=teachers')
+                ->with('error', 'The approval email could not be queued. ' . $emailIssue);
+        }
+
+        $deliveryKey = 'teacher-approved-resend:' . $id . ':' . now()->utc()->format('YmdH');
+        $queued = $this->notificationDelivery->queueTeacherApprovalEmail(
+            $profile,
+            $deliveryKey
+        );
+
+        $this->supabase->audit(
+            session('supabase_user'),
+            'teacher.approval_email_requeued',
+            'profile',
+            $id,
+            ['queued' => $queued]
+        );
+
+        return redirect('/admin/dashboard?section=teachers')->with(
+            $queued ? 'success' : 'error',
+            $queued
+                ? 'The teacher approval email is queued. Duplicate requests are limited to one per hour.'
+                : 'The teacher approval email could not be queued. Check the event-email outbox.'
+        );
     }
 
     public function suspendUser(Request $request, string $id)
@@ -764,6 +827,15 @@ class AdminController extends Controller
             'rows' => $rows,
             'generated' => now()->format('M d, Y h:i A'),
         ])->setPaper('a4', 'landscape')->download('platform-classroom-activity-report.pdf');
+    }
+
+    private function teacherDecisionEmailIssue(): ?string
+    {
+        if (!$this->notificationDelivery->isReady()) {
+            return 'The event-email outbox is not installed. Apply the notification delivery database updates first.';
+        }
+
+        return $this->notificationDelivery->emailConfigurationIssue();
     }
 
     private function manageableProfile(string $id): ?array

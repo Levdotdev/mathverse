@@ -122,6 +122,8 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:admin'])->group(func
     Route::put('/admin/quizzes/{id}', [AdminQuizController::class, 'update']);
     Route::delete('/admin/quizzes/{id}', [AdminQuizController::class, 'destroy']);
     Route::post('/admin/approve-teacher/{id}', [AdminController::class, 'approveTeacher']);
+    Route::post('/admin/teachers/{id}/approval-email', [AdminController::class, 'resendTeacherApprovalEmail'])
+        ->middleware('throttle:account-security');
     Route::delete('/admin/deny-teacher/{id}', [AdminController::class, 'denyTeacher']);
     Route::post('/admin/profile', [AdminController::class, 'updateProfile']);
     Route::get('/admin/stats', [AdminController::class, 'stats'])->middleware('throttle:reports');

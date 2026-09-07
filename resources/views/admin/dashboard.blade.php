@@ -248,6 +248,12 @@
             </form>
         </div>
         @if($teacherSearch !== '' || $teacherSort !== 'name_asc')<div class="flex justify-end mb-4"><a href="/admin/dashboard?section=teachers" class="text-[10px] text-blue-400 uppercase font-bold">Clear Filters</a></div>@endif
+        @if($eventEmailIssue)
+            <div class="mb-5 rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-200">
+                <i class="fas fa-envelope-circle-xmark mr-2 text-red-400"></i>
+                <span class="font-bold">Teacher emails unavailable.</span> {{ $eventEmailIssue }}
+            </div>
+        @endif
         <div class="overflow-x-auto">
             <table class="w-full text-left min-w-[780px]">
                 <thead class="text-slate-500 text-[10px] uppercase border-b border-white/5">
@@ -262,6 +268,9 @@
                             <td class="py-4 text-slate-400">{{ isset($p['created_at']) ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y') : 'N/A' }}</td>
                             <td class="py-4"><span class="text-[9px] uppercase font-bold {{ !empty($p['suspended_at']) ? 'text-red-400' : 'text-green-400' }}">{{ !empty($p['suspended_at']) ? 'Suspended' : 'Active' }}</span>@if(!empty($p['suspension_reason']))<p class="text-[9px] text-slate-500 mt-1 max-w-[220px] truncate" title="{{ $p['suspension_reason'] }}">{{ $p['suspension_reason'] }}</p>@endif</td>
                             <td class="py-4 text-right">
+                                @if(empty($p['suspended_at']))
+                                    <form method="POST" action="/admin/teachers/{{ $p['id'] }}/approval-email" class="inline">@csrf<button class="text-cyan-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-envelope mr-1"></i> Approval Email</button></form>
+                                @endif
                                 @if(!empty($p['suspended_at']))
                                     <form method="POST" action="/admin/user/{{ $p['id'] }}/restore" class="inline">@csrf<input type="hidden" name="return_section" value="teachers"><button class="text-green-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-undo mr-1"></i> Restore</button></form>
                                 @else
@@ -330,6 +339,12 @@
             Pending <span class="text-orange-400">Verifications</span>
             <span class="ml-2 px-2 py-1 rounded bg-orange-500/15 text-orange-300 text-xs align-middle">{{ $adminPendingTeacherCount ?? count($pendingTeachers) }}</span>
         </h2>
+        @if($eventEmailIssue)
+            <div class="mb-5 rounded border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-200">
+                <i class="fas fa-envelope-circle-xmark mr-2 text-red-400"></i>
+                <span class="font-bold">Teacher decisions are paused.</span> {{ $eventEmailIssue }}
+            </div>
+        @endif
         <div class="space-y-4">
             @forelse($pendingTeachers as $pt)
                 <div class="flex flex-col sm:flex-row justify-between items-center p-4 bg-white/5 border border-white/10 rounded gap-4">

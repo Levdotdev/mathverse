@@ -29,7 +29,6 @@
             }
         });
         menu.addEventListener('click', event => {
-            event.stopPropagation();
             if (event.target.closest('a, button')) closeAll();
         });
     });

@@ -25,6 +25,30 @@ class NotificationDeliveryService
         )['error'] === null;
     }
 
+    public function emailConfigurationIssue(): ?string
+    {
+        if (!app()->isProduction()) {
+            return null;
+        }
+
+        $mailer = strtolower(trim((string) config('mail.default')));
+        if (!$this->mailerUsesExternalTransport($mailer)) {
+            return 'MathVerse event email is not connected to a real mail provider. Configure MAIL_MAILER and the matching MAIL_* settings in the production environment.';
+        }
+
+        $fromAddress = mb_strtolower(trim((string) config('mail.from.address')));
+        $fromDomain = str_contains($fromAddress, '@')
+            ? substr($fromAddress, strrpos($fromAddress, '@') + 1)
+            : '';
+        if (filter_var($fromAddress, FILTER_VALIDATE_EMAIL) === false
+            || in_array($fromDomain, ['example.com', 'example.net', 'example.org'], true)
+        ) {
+            return 'MathVerse event email needs a valid production MAIL_FROM_ADDRESS.';
+        }
+
+        return null;
+    }
+
     public function queueStandaloneEmail(
         string $eventType,
         string $recipientEmail,
@@ -34,18 +58,31 @@ class NotificationDeliveryService
         ?string $actionUrl,
         array $data,
         string $deliveryKey,
+        ?string $recipientUserId = null,
     ): bool {
-        $queued = $this->supabase->adminInsertResult('notification_deliveries', [
+        $recipientEmail = mb_strtolower(trim($recipientEmail));
+        if (filter_var($recipientEmail, FILTER_VALIDATE_EMAIL) === false
+            || ($recipientUserId !== null && !Str::isUuid($recipientUserId))
+        ) {
+            return false;
+        }
+
+        $payload = [
             'channel' => 'email',
             'event_type' => $eventType,
-            'recipient_email' => mb_strtolower(trim($recipientEmail)),
+            'recipient_email' => $recipientEmail,
             'recipient_name' => trim($recipientName),
             'title' => $title,
             'message' => $message,
             'action_url' => $this->safeActionPath($actionUrl),
             'data' => $data,
             'delivery_key' => $deliveryKey,
-        ]);
+        ];
+        if ($recipientUserId !== null) {
+            $payload['user_id'] = $recipientUserId;
+        }
+
+        $queued = $this->supabase->adminInsertResult('notification_deliveries', $payload);
 
         if (isset($queued['data'][0]['id'])) {
             return true;
@@ -56,6 +93,60 @@ class NotificationDeliveryService
         return $this->supabase->adminCount('notification_deliveries', [
             'delivery_key' => $deliveryKey,
         ]) > 0;
+    }
+
+    public function ensureTeacherApprovalEmailQueued(array $profile): bool
+    {
+        $userId = (string) ($profile['id'] ?? '');
+        $recipientEmail = (string) ($profile['email'] ?? '');
+        if (!Str::isUuid($userId)
+            || filter_var(mb_strtolower(trim($recipientEmail)), FILTER_VALIDATE_EMAIL) === false
+        ) {
+            return false;
+        }
+
+        // The database notification trigger normally creates this delivery in
+        // the same request as the role transition. Verify that it did, then
+        // create one explicit fallback row if the trigger is absent or stale.
+        $existing = $this->supabase->adminSelectResult(
+            'notification_deliveries',
+            'id,status',
+            [
+                'user_id' => $userId,
+                'channel' => 'email',
+                'event_type' => 'teacher_approved',
+                'order' => 'created_at.desc',
+                'limit' => 1,
+            ]
+        );
+        if ($existing['error'] === null && isset($existing['data'][0]['id'])) {
+            return true;
+        }
+
+        return $this->queueTeacherApprovalEmail(
+            $profile,
+            'teacher-approved-fallback:' . $userId
+        );
+    }
+
+    public function queueTeacherApprovalEmail(array $profile, string $deliveryKey): bool
+    {
+        $userId = (string) ($profile['id'] ?? '');
+        $recipientName = trim(
+            (string) ($profile['first_name'] ?? '') . ' ' . (string) ($profile['last_name'] ?? '')
+        );
+
+        return $this->queueStandaloneEmail(
+            eventType: 'teacher_approved',
+            recipientEmail: (string) ($profile['email'] ?? ''),
+            recipientName: $recipientName,
+            title: 'Teacher account approved',
+            message: 'Your MathVerse teacher application was approved. You can now create classes and quizzes.',
+            actionUrl: '/teacher/dashboard',
+            data: [],
+            deliveryKey: $deliveryKey,
+            recipientUserId: $userId,
+        );
     }
 
     /** @return array{claimed: int, sent: int, failed: int, error: string|null} */
@@ -148,8 +239,8 @@ class NotificationDeliveryService
 
     private function deliverEmail(array $delivery): void
     {
-        if (app()->isProduction() && in_array(config('mail.default'), ['log', 'array'], true)) {
-            throw new \RuntimeException('Production email delivery is not configured with a real mail transport.');
+        if (($configurationIssue = $this->emailConfigurationIssue()) !== null) {
+            throw new \RuntimeException($configurationIssue);
         }
 
         $email = mb_strtolower(trim((string) ($delivery['recipient_email'] ?? '')));
@@ -365,5 +456,52 @@ class NotificationDeliveryService
     private function safeActionPath(mixed $value): ?string
     {
         return SafePath::normalize($value);
+    }
+
+    /** @param array<string, bool> $visited */
+    private function mailerUsesExternalTransport(string $mailer, array $visited = []): bool
+    {
+        if ($mailer === '' || isset($visited[$mailer])) {
+            return false;
+        }
+        $visited[$mailer] = true;
+
+        $configuration = config("mail.mailers.{$mailer}");
+        if (!is_array($configuration)) {
+            return false;
+        }
+
+        $transport = strtolower(trim((string) ($configuration['transport'] ?? $mailer)));
+        if (in_array($transport, ['log', 'array'], true)) {
+            return false;
+        }
+
+        if (in_array($transport, ['failover', 'roundrobin'], true)) {
+            $children = $configuration['mailers'] ?? [];
+            if (!is_array($children) || $children === []) {
+                return false;
+            }
+
+            foreach ($children as $child) {
+                if (!$this->mailerUsesExternalTransport((string) $child, $visited)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($transport === 'smtp') {
+            $url = trim((string) ($configuration['url'] ?? ''));
+            $host = strtolower(trim((string) ($configuration['host'] ?? '')));
+
+            return $url !== '' || !in_array($host, ['', '127.0.0.1', 'localhost', '::1'], true);
+        }
+
+        return in_array(
+            $transport,
+            ['mailgun', 'postmark', 'resend', 'sendmail', 'ses', 'ses-v2'],
+            true
+        );
     }
 }
