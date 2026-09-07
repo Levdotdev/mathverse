@@ -142,6 +142,62 @@ class NotificationDeliveryConfigurationTest extends TestCase
         );
     }
 
+    public function test_legacy_quiz_assignment_email_rows_are_delivered_as_web_push(): void
+    {
+        Mail::fake();
+        $delivery = [
+            'id' => '880e8400-e29b-41d4-a716-446655440000',
+            'notification_id' => '990e8400-e29b-41d4-a716-446655440000',
+            'user_id' => '550e8400-e29b-41d4-a716-446655440000',
+            'channel' => 'email',
+            'event_type' => 'quiz_assigned',
+            'recipient_email' => 'student@example.test',
+            'title' => 'New quiz assigned',
+            'message' => 'A new quiz is waiting for you.',
+            'action_url' => '/student/classes/770e8400-e29b-41d4-a716-446655440000',
+            'status' => 'sending',
+            'attempts' => 1,
+        ];
+
+        $supabase = Mockery::mock(SupabaseService::class);
+        $supabase->shouldReceive('adminRpc')->twice()->andReturn([]);
+        $supabase->shouldReceive('adminRpcResult')
+            ->once()
+            ->withArgs(fn (string $function, array $arguments): bool =>
+                $function === 'claim_notification_deliveries'
+                && ($arguments['p_limit'] ?? null) === 50
+            )
+            ->andReturn(['data' => [$delivery], 'error' => null, 'status' => 200]);
+        $supabase->shouldReceive('adminUpdate')
+            ->once()
+            ->withArgs(fn (string $table, array $data, array $filters): bool =>
+                $table === 'notification_deliveries'
+                && ($data['status'] ?? null) === 'sent'
+                && ($filters['id'] ?? null) === $delivery['id']
+            )
+            ->andReturn([['id' => $delivery['id']]]);
+
+        $webPush = Mockery::mock(AdminPushService::class);
+        $webPush->shouldReceive('sendToUser')
+            ->once()
+            ->withArgs(fn (string $userId, string $title, string $message, string $path, string $tag): bool =>
+                $userId === $delivery['user_id']
+                && $title === $delivery['title']
+                && $message === $delivery['message']
+                && $path === $delivery['action_url']
+                && str_contains($tag, 'quiz-assigned')
+            )
+            ->andReturn(true);
+
+        $service = new NotificationDeliveryService($supabase, $webPush);
+
+        $this->assertSame(
+            ['claimed' => 1, 'sent' => 1, 'failed' => 0, 'error' => null],
+            $service->deliverPending()
+        );
+        Mail::assertNothingSent();
+    }
+
     private function useProductionEnvironment(): void
     {
         $this->app->detectEnvironment(fn (): string => 'production');

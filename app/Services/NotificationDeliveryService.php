@@ -309,32 +309,44 @@ class NotificationDeliveryService
 
     private function deliver(array $delivery): void
     {
+        // Keep assignment fan-out off SMTP even during the short deployment
+        // window before the matching database policy migration is applied.
+        if (($delivery['event_type'] ?? '') === 'quiz_assigned') {
+            $this->deliverWebPush($delivery);
+            return;
+        }
+
         if (($delivery['channel'] ?? '') === 'email') {
             $this->deliverEmail($delivery);
             return;
         }
 
         if (($delivery['channel'] ?? '') === 'web_push') {
-            $userId = (string) ($delivery['user_id'] ?? '');
-            if ($userId === '') {
-                throw new \RuntimeException('The Web Push recipient is missing.');
-            }
-
-            $sent = $this->webPush->sendToUser(
-                $userId,
-                (string) ($delivery['title'] ?? 'MathVerse Notification'),
-                (string) ($delivery['message'] ?? 'A new item needs your attention.'),
-                $this->safeActionPath($delivery['action_url'] ?? null) ?? '/',
-                'mathverse-' . Str::slug((string) ($delivery['event_type'] ?? 'notification'))
-                    . '-' . (string) ($delivery['notification_id'] ?? $delivery['id'])
-            );
-            if (!$sent) {
-                throw new \RuntimeException('The Web Push service rejected the delivery.');
-            }
+            $this->deliverWebPush($delivery);
             return;
         }
 
         throw new \RuntimeException('The notification delivery channel is invalid.');
+    }
+
+    private function deliverWebPush(array $delivery): void
+    {
+        $userId = (string) ($delivery['user_id'] ?? '');
+        if ($userId === '') {
+            throw new \RuntimeException('The Web Push recipient is missing.');
+        }
+
+        $sent = $this->webPush->sendToUser(
+            $userId,
+            (string) ($delivery['title'] ?? 'MathVerse Notification'),
+            (string) ($delivery['message'] ?? 'A new item needs your attention.'),
+            $this->safeActionPath($delivery['action_url'] ?? null) ?? '/',
+            'mathverse-' . Str::slug((string) ($delivery['event_type'] ?? 'notification'))
+                . '-' . (string) ($delivery['notification_id'] ?? $delivery['id'])
+        );
+        if (!$sent) {
+            throw new \RuntimeException('The Web Push service rejected the delivery.');
+        }
     }
 
     private function deliverEmail(array $delivery): void
