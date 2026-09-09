@@ -166,7 +166,7 @@ document.getElementById('quizStudentExceptionForm')?.addEventListener('submit', 
         const data = await response.json();
         if (!response.ok) throw new Error(data.message ?? 'The exception could not be saved.');
         closeModal('quizStudentExceptionModal');
-        showToast(data.message ?? 'Student exception saved.');
+        showToast(data.message ?? 'Student exception saved.', data.email_sent === false);
         await openResults(classId, sessionId, currentResultsContext?.topic ?? 'Quiz');
     } catch (error) {
         showToast(error.message, true);

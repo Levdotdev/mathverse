@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\AdminPushService;
+use App\Services\NotificationDeliveryService;
 use App\Services\SupabaseService;
 use App\Support\SupabaseAccessToken;
 use App\Support\SupabaseAuthError;
@@ -15,7 +16,8 @@ class AuthController extends Controller
 {
     public function __construct(
         private SupabaseService $supabase,
-        private AdminPushService $adminPush
+        private AdminPushService $adminPush,
+        private NotificationDeliveryService $notificationDelivery,
     ) {}
 
     public function showLogin(Request $request)
@@ -264,6 +266,7 @@ class AuthController extends Controller
             }
         }
 
+        $applicationEmail = null;
         if ($validated['role'] === 'pending_teacher') {
             $teacherName = trim($validated['first_name'] . ' ' . $validated['last_name'])
                 ?: $validated['email'];
@@ -273,11 +276,21 @@ class AuthController extends Controller
                 '/admin/dashboard?section=role-verify',
                 "teacher-verification-{$userId}"
             );
+            $applicationEmail = $this->notificationDelivery->deliverNotificationEmailNow(
+                $userId,
+                'teacher_application_received',
+                "teacher-application-received:{$userId}",
+            );
         }
 
         $message = $avatarRequested && $avatarUrl === null
             ? 'Registered successfully. Please verify your email. Your avatar can be added after signing in.'
             : 'Registered successfully! Please verify your email.';
+        if (is_array($applicationEmail) && !$applicationEmail['sent']) {
+            $message .= $applicationEmail['queued']
+                ? ' Your teacher application receipt will be retried automatically.'
+                : ' Your application was saved, but its receipt email could not be prepared.';
+        }
 
         return redirect('/')->with('success', $message);
     }

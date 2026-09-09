@@ -110,6 +110,53 @@ class AdminTeacherApprovalFlowTest extends TestCase
         );
     }
 
+    public function test_rejection_sends_its_email_during_the_request(): void
+    {
+        $this->withoutMiddleware();
+        $profile = $this->pendingTeacher();
+
+        $this->mock(SupabaseService::class, function (MockInterface $mock) use ($profile): void {
+            $mock->shouldReceive('adminSelect')->once()->andReturn([$profile]);
+            $mock->shouldReceive('deleteAuthUser')
+                ->once()
+                ->with(self::TEACHER_ID)
+                ->andReturn(true);
+            $mock->shouldReceive('audit')->once()->andReturn(true);
+        });
+        $this->mock(NotificationDeliveryService::class, function (MockInterface $mock) use ($profile): void {
+            $mock->shouldReceive('isReady')->once()->andReturn(true);
+            $mock->shouldReceive('emailConfigurationIssue')->once()->andReturnNull();
+            $mock->shouldReceive('deliverStandaloneEmailNow')
+                ->once()
+                ->withArgs(fn (
+                    string $eventType,
+                    string $recipientEmail,
+                    string $recipientName,
+                    string $title,
+                    string $message,
+                    ?string $actionUrl,
+                    array $data,
+                    string $deliveryKey,
+                ): bool => $eventType === 'teacher_denied'
+                    && $recipientEmail === $profile['email']
+                    && $recipientName === 'Ada Lovelace'
+                    && $actionUrl === '/'
+                    && $deliveryKey === 'teacher-denied:' . self::TEACHER_ID
+                )
+                ->andReturn(['sent' => true, 'queued' => true]);
+        });
+
+        $response = $this->withSession([
+            'supabase_user' => ['id' => 'admin-id', 'role' => 'admin'],
+        ])->delete('/admin/deny-teacher/' . self::TEACHER_ID);
+
+        $response->assertRedirect('/admin/dashboard?section=role-verify');
+        $response->assertSessionHas(
+            'success',
+            'Application rejected. The decision email was sent.'
+        );
+    }
+
     /** @return array<string, string> */
     private function pendingTeacher(): array
     {

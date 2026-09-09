@@ -33,8 +33,10 @@ service key.
 - Run `composer install --no-dev --classmap-authoritative` and `npm ci && npm
   run build` from the committed lock files.
 - Apply every SQL migration in `database/supabase` in date order, ending with
-  `2026_09_07_quiz_assignment_web_push.sql`. The September 7 migration retains
-  the service-role-only function grant established by the hardening migration.
+  `2026_09_09_immediate_event_delivery.sql`. The September migrations retain
+  the service-role-only function grant established by the hardening migration,
+  route assignment/availability alerts to Web Push, and enable the protected
+  immediate quiz-receipt callback.
 - Keep public registration limited to `student` and `pending_teacher`; never
   authorize from editable Auth user metadata. The final hardening migration
   enforces this again at the profile-table boundary and removes direct profile
@@ -57,6 +59,11 @@ service key.
 - Keep class membership, notification, push-subscription, bookmark, rating,
   report, and quiz-eligibility mutations behind their validated Laravel
   routes. Do not restore direct authenticated table grants for these records.
+- Keep `notification_deliveries` and its `dispatch_token` column inaccessible
+  to `public`, `anon`, and `authenticated`. The public receipt callback accepts
+  only an exact random row capability, can send only a stored
+  `quiz_result_recorded` email, returns no delivery state, and is throttled.
+  Never expose or log those callback tokens.
 - Keep teacher class deletion on the server-only `delete_teacher_class`
   transaction so ownership is rechecked and dependent records cannot be only
   partly removed.

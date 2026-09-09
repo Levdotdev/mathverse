@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\NotificationDeliveryService;
 use App\Services\SupabaseService;
 use App\Support\ClassCustomization;
 use App\Support\SupabaseAccessToken;
@@ -9,7 +10,10 @@ use Illuminate\Http\Request;
 
 class TeacherClassController extends Controller
 {
-    public function __construct(private SupabaseService $supabase) {}
+    public function __construct(
+        private SupabaseService $supabase,
+        private NotificationDeliveryService $notificationDelivery,
+    ) {}
 
     public function store(Request $request)
     {
@@ -369,6 +373,7 @@ class TeacherClassController extends Controller
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
         }
 
+        $notificationWindowStart = now()->subSeconds(10)->utc()->toIso8601String();
         $removed = $this->supabase->adminDelete('class_members', [
             'class_id' => $classId,
             'student_id' => $studentId,
@@ -384,11 +389,28 @@ class TeacherClassController extends Controller
             'class_id' => $classId,
         ]);
 
+        $removalEmail = $this->notificationDelivery->deliverNotificationEmailNow(
+            $studentId,
+            'removed_from_class',
+            createdAfter: $notificationWindowStart,
+        );
         $this->supabase->audit($user, 'class.student_removed', 'profile', $studentId, [
             'class_id' => $classId,
+            'removal_email_sent' => $removalEmail['sent'],
+            'removal_email_queued' => $removalEmail['queued'],
         ]);
 
-        return redirect("/teacher/classes/{$classId}")->with('success', 'Student removed from the class.');
+        if (!$removalEmail['sent']) {
+            return redirect("/teacher/classes/{$classId}")->with(
+                'error',
+                $removalEmail['queued']
+                    ? 'Student removed, but the mail server did not accept the removal email immediately. MathVerse will retry it automatically.'
+                    : 'Student removed, but the removal email could not be sent or queued. Check the mail and database settings.'
+            );
+        }
+
+        return redirect("/teacher/classes/{$classId}")
+            ->with('success', 'Student removed from the class. The removal email was sent.');
     }
 
     public function lobby(string $classId, string $sessionId)
@@ -707,15 +729,33 @@ class TeacherClassController extends Controller
         $allowedAttempts = (int) $retake['new_allowed_attempts'];
         $dueAt = $retake['retake_due_at'] ?? $dueAt;
 
+        $retakeEmail = $this->notificationDelivery->deliverNotificationEmailNow(
+            $studentId,
+            'quiz_retake_granted',
+            "quiz-retake:{$sessionId}:{$studentId}:{$allowedAttempts}",
+        );
         $this->supabase->audit($teacher, 'quiz.retake_granted', 'profile', $studentId, [
             'session_id' => $sessionId,
             'class_id' => $classId,
             'reason' => trim($validated['reason']),
             'allowed_attempts' => $allowedAttempts,
             'due_at' => $dueAt,
+            'retake_email_sent' => $retakeEmail['sent'],
+            'retake_email_queued' => $retakeEmail['queued'],
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Retake granted. The quiz is active for this student.']);
+        $message = $retakeEmail['sent']
+            ? 'Retake granted. The student email was sent.'
+            : ($retakeEmail['queued']
+                ? 'Retake granted, but the mail server did not accept the student email immediately. MathVerse will retry it automatically.'
+                : 'Retake granted, but the student email could not be sent or queued. Check the mail and database settings.');
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'email_sent' => $retakeEmail['sent'],
+            'email_queued' => $retakeEmail['queued'],
+        ]);
     }
 
     public function excuseStudent(Request $request, string $classId, string $sessionId, string $studentId)
@@ -744,13 +784,31 @@ class TeacherClassController extends Controller
             return response()->json(['message' => 'The student could not be marked excused.'], 500);
         }
 
+        $excuseEmail = $this->notificationDelivery->deliverNotificationEmailNow(
+            $studentId,
+            'quiz_excused',
+            "quiz-excused:{$sessionId}:{$studentId}",
+        );
         $this->supabase->audit($teacher, 'quiz.student_excused', 'profile', $studentId, [
             'session_id' => $sessionId,
             'class_id' => $classId,
             'reason' => trim($validated['reason']),
+            'excuse_email_sent' => $excuseEmail['sent'],
+            'excuse_email_queued' => $excuseEmail['queued'],
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Student marked excused for this quiz.']);
+        $message = $excuseEmail['sent']
+            ? 'Student marked excused. The student email was sent.'
+            : ($excuseEmail['queued']
+                ? 'Student marked excused, but the mail server did not accept the student email immediately. MathVerse will retry it automatically.'
+                : 'Student marked excused, but the student email could not be sent or queued. Check the mail and database settings.');
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'email_sent' => $excuseEmail['sent'],
+            'email_queued' => $excuseEmail['queued'],
+        ]);
     }
 
     private function ownedClass(string $classId, string $teacherId): ?array

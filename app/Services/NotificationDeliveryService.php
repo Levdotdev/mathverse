@@ -11,6 +11,20 @@ use Illuminate\Support\Str;
 
 class NotificationDeliveryService
 {
+    private const DELIVERY_COLUMNS = 'id,notification_id,user_id,channel,event_type,recipient_email,recipient_name,title,message,action_url,data,delivery_key,status,attempts';
+
+    private const IMMEDIATE_EMAIL_EVENTS = [
+        'teacher_application_received',
+        'teacher_approved',
+        'teacher_denied',
+        'account_suspended',
+        'account_restored',
+        'quiz_retake_granted',
+        'quiz_excused',
+        'quiz_result_recorded',
+        'removed_from_class',
+    ];
+
     public function __construct(
         private SupabaseService $supabase,
         private AdminPushService $webPush,
@@ -164,81 +178,15 @@ class NotificationDeliveryService
                 return ['sent' => false, 'queued' => false];
             }
 
-            $deliveryResult = $this->supabase->adminSelectResult(
-                'notification_deliveries',
-                'id,notification_id,user_id,channel,event_type,recipient_email,recipient_name,title,message,action_url,data,delivery_key,status,attempts',
+            return $this->deliverMatchingNow(
                 [
                     'user_id' => $userId,
                     'channel' => 'email',
                     'event_type' => 'teacher_approved',
-                    'order' => 'created_at.desc',
-                    'limit' => 1,
-                ]
+                ],
+                'teacher approval',
+                true,
             );
-            $delivery = $deliveryResult['data'][0] ?? null;
-            if ($deliveryResult['error'] !== null || !is_array($delivery)) {
-                return ['sent' => false, 'queued' => true];
-            }
-
-            if (($delivery['status'] ?? '') === 'sent') {
-                return ['sent' => true, 'queued' => true];
-            }
-
-            $attempts = (int) ($delivery['attempts'] ?? 0);
-            $status = (string) ($delivery['status'] ?? '');
-            if (!in_array($status, ['pending', 'failed'], true) || $attempts >= 5) {
-                return [
-                    'sent' => false,
-                    'queued' => $status === 'sending' || $attempts < 5,
-                ];
-            }
-
-            // Claim this exact approval delivery so the scheduled worker cannot
-            // send a duplicate while the administrator request sends it now.
-            $workerId = (string) Str::uuid();
-            $claimed = $this->supabase->adminUpdate('notification_deliveries', [
-                'status' => 'sending',
-                'attempts' => $attempts + 1,
-                'locked_at' => now()->toIso8601String(),
-                'locked_by' => $workerId,
-                'updated_at' => now()->toIso8601String(),
-            ], [
-                'id' => (string) $delivery['id'],
-                'status' => ['operator' => 'in', 'value' => '(pending,failed)'],
-                'attempts' => $attempts,
-            ]);
-
-            if (!isset($claimed[0]['id'])) {
-                $latest = $this->supabase->adminSelectResult(
-                    'notification_deliveries',
-                    'status',
-                    ['id' => (string) $delivery['id'], 'limit' => 1]
-                );
-
-                return [
-                    'sent' => ($latest['data'][0]['status'] ?? '') === 'sent',
-                    'queued' => true,
-                ];
-            }
-
-            try {
-                $this->deliver($claimed[0]);
-                $this->markSent($claimed[0], $workerId);
-
-                return ['sent' => true, 'queued' => true];
-            } catch (\Throwable $exception) {
-                $this->markFailed($claimed[0], $workerId, $exception::class);
-                Log::warning('Immediate teacher approval email failed.', [
-                    'user_id' => $userId,
-                    'delivery_id' => $claimed[0]['id'] ?? null,
-                    'exception' => $exception::class,
-                ]);
-
-                return [
-                    'sent' => false,
-                    'queued' => (int) ($claimed[0]['attempts'] ?? 5) < 5,
-                ];
-            }
         } catch (\Throwable $exception) {
             Log::warning('Immediate teacher approval email could not be prepared.', [
                 'user_id' => $userId,
@@ -249,12 +197,147 @@ class NotificationDeliveryService
         }
     }
 
+    /** @return array{sent: bool, queued: bool} */
+    public function deliverNotificationEmailNow(
+        string $userId,
+        string $eventType,
+        ?string $dedupeKey = null,
+        ?string $createdAfter = null,
+    ): array {
+        if (!Str::isUuid($userId)
+            || !in_array($eventType, self::IMMEDIATE_EMAIL_EVENTS, true)
+            || ($dedupeKey !== null && (trim($dedupeKey) === '' || strlen($dedupeKey) > 240))
+        ) {
+            return ['sent' => false, 'queued' => false];
+        }
+
+        try {
+            $notificationFilters = [
+                'user_id' => $userId,
+                'type' => $eventType,
+                'order' => 'created_at.desc',
+                'limit' => 1,
+            ];
+            if ($dedupeKey !== null) {
+                $notificationFilters['dedupe_key'] = $dedupeKey;
+            }
+            if ($createdAfter !== null) {
+                $notificationFilters['created_at'] = [
+                    'operator' => 'gte',
+                    'value' => $createdAfter,
+                ];
+            }
+
+            $notificationResult = $this->supabase->adminSelectResult(
+                'notifications',
+                'id',
+                $notificationFilters,
+            );
+            $notificationId = $notificationResult['data'][0]['id'] ?? null;
+            if ($notificationResult['error'] !== null
+                || !is_string($notificationId)
+                || !Str::isUuid($notificationId)
+            ) {
+                return ['sent' => false, 'queued' => false];
+            }
+
+            return $this->deliverMatchingNow(
+                [
+                    'notification_id' => $notificationId,
+                    'user_id' => $userId,
+                    'channel' => 'email',
+                    'event_type' => $eventType,
+                ],
+                str_replace('_', ' ', $eventType),
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('An immediate notification email could not be prepared.', [
+                'user_id' => $userId,
+                'event_type' => $eventType,
+                'exception' => $exception::class,
+            ]);
+
+            return ['sent' => false, 'queued' => false];
+        }
+    }
+
+    /** @return array{sent: bool, queued: bool} */
+    public function deliverStandaloneEmailNow(
+        string $eventType,
+        string $recipientEmail,
+        string $recipientName,
+        string $title,
+        string $message,
+        ?string $actionUrl,
+        array $data,
+        string $deliveryKey,
+        ?string $recipientUserId = null,
+    ): array {
+        if (!in_array($eventType, self::IMMEDIATE_EMAIL_EVENTS, true)) {
+            return ['sent' => false, 'queued' => false];
+        }
+
+        try {
+            $queued = $this->queueStandaloneEmail(
+                eventType: $eventType,
+                recipientEmail: $recipientEmail,
+                recipientName: $recipientName,
+                title: $title,
+                message: $message,
+                actionUrl: $actionUrl,
+                data: $data,
+                deliveryKey: $deliveryKey,
+                recipientUserId: $recipientUserId,
+            );
+            if (!$queued) {
+                return ['sent' => false, 'queued' => false];
+            }
+
+            return $this->deliverMatchingNow(
+                [
+                    'delivery_key' => $deliveryKey,
+                    'channel' => 'email',
+                    'event_type' => $eventType,
+                ],
+                str_replace('_', ' ', $eventType),
+                true,
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('An immediate standalone email could not be prepared.', [
+                'event_type' => $eventType,
+                'exception' => $exception::class,
+            ]);
+
+            return ['sent' => false, 'queued' => false];
+        }
+    }
+
+    /** @return array{sent: bool, queued: bool} */
+    public function deliverQuizReceiptByCapabilityNow(
+        string $deliveryId,
+        string $dispatchToken,
+    ): array {
+        if (!Str::isUuid($deliveryId) || !Str::isUuid($dispatchToken)) {
+            return ['sent' => false, 'queued' => false];
+        }
+
+        return $this->deliverMatchingNow(
+            [
+                'id' => $deliveryId,
+                'dispatch_token' => $dispatchToken,
+                'channel' => 'email',
+                'event_type' => 'quiz_result_recorded',
+            ],
+            'quiz submission receipt',
+        );
+    }
+
     /** @return array{claimed: int, sent: int, failed: int, error: string|null} */
     public function deliverPending(int $limit = 50): array
     {
         // Scheduled quiz state changes must happen even when nobody is browsing
-        // the site, otherwise a "quiz available" email could be delayed until
-        // the next page request.
+        // the site, otherwise a "quiz available" Web Push could be delayed
+        // until the next page request.
         $this->supabase->adminRpc('advance_quiz_session_schedule');
         $this->supabase->adminRpc('generate_upcoming_quiz_notifications', [
             'p_user_id' => null,
@@ -307,11 +390,103 @@ class NotificationDeliveryService
         ];
     }
 
+    /**
+     * Claim and deliver exactly one outbox row without racing the scheduled
+     * worker. A failed immediate attempt stays in the existing retry queue.
+     *
+     * @return array{sent: bool, queued: bool}
+     */
+    private function deliverMatchingNow(
+        array $filters,
+        string $eventLabel,
+        bool $knownQueued = false,
+    ): array {
+        try {
+            $deliveryResult = $this->supabase->adminSelectResult(
+                'notification_deliveries',
+                self::DELIVERY_COLUMNS,
+                [...$filters, 'order' => 'created_at.desc', 'limit' => 1],
+            );
+            $delivery = $deliveryResult['data'][0] ?? null;
+            if ($deliveryResult['error'] !== null || !is_array($delivery)) {
+                return ['sent' => false, 'queued' => $knownQueued];
+            }
+
+            if (($delivery['status'] ?? '') === 'sent') {
+                return ['sent' => true, 'queued' => true];
+            }
+
+            $attempts = (int) ($delivery['attempts'] ?? 0);
+            $status = (string) ($delivery['status'] ?? '');
+            if (!in_array($status, ['pending', 'failed'], true) || $attempts >= 5) {
+                return [
+                    'sent' => false,
+                    'queued' => $status === 'sending' || $attempts < 5,
+                ];
+            }
+
+            $workerId = (string) Str::uuid();
+            $claimed = $this->supabase->adminUpdate('notification_deliveries', [
+                'status' => 'sending',
+                'attempts' => $attempts + 1,
+                'locked_at' => now()->toIso8601String(),
+                'locked_by' => $workerId,
+                'updated_at' => now()->toIso8601String(),
+            ], [
+                'id' => (string) $delivery['id'],
+                'status' => ['operator' => 'in', 'value' => '(pending,failed)'],
+                'attempts' => $attempts,
+            ]);
+
+            if (!isset($claimed[0]['id'])) {
+                $latest = $this->supabase->adminSelectResult(
+                    'notification_deliveries',
+                    'status,attempts',
+                    ['id' => (string) $delivery['id'], 'limit' => 1],
+                );
+                $latestStatus = (string) ($latest['data'][0]['status'] ?? '');
+                $latestAttempts = (int) ($latest['data'][0]['attempts'] ?? 5);
+
+                return [
+                    'sent' => $latestStatus === 'sent',
+                    'queued' => $latestStatus === 'sending' || $latestAttempts < 5,
+                ];
+            }
+
+            try {
+                $this->deliver($claimed[0]);
+                $this->markSent($claimed[0], $workerId);
+
+                return ['sent' => true, 'queued' => true];
+            } catch (\Throwable $exception) {
+                $this->markFailed($claimed[0], $workerId, $exception::class);
+                Log::warning('An immediate MathVerse delivery failed.', [
+                    'delivery_id' => $claimed[0]['id'] ?? null,
+                    'event_type' => $claimed[0]['event_type'] ?? null,
+                    'event_label' => $eventLabel,
+                    'exception' => $exception::class,
+                ]);
+
+                return [
+                    'sent' => false,
+                    'queued' => (int) ($claimed[0]['attempts'] ?? 5) < 5,
+                ];
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('An immediate MathVerse delivery could not be claimed.', [
+                'event_label' => $eventLabel,
+                'exception' => $exception::class,
+            ]);
+
+            return ['sent' => false, 'queued' => $knownQueued];
+        }
+    }
+
     private function deliver(array $delivery): void
     {
-        // Keep assignment fan-out off SMTP even during the short deployment
-        // window before the matching database policy migration is applied.
-        if (($delivery['event_type'] ?? '') === 'quiz_assigned') {
+        // Keep assignment and availability fan-out off SMTP even during the
+        // deployment window before the matching database migrations are run.
+        if (in_array($delivery['event_type'] ?? '', ['quiz_assigned', 'quiz_started'], true)) {
             $this->deliverWebPush($delivery);
             return;
         }

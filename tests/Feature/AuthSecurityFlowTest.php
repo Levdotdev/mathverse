@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\SupabaseAuth;
+use App\Services\AdminPushService;
+use App\Services\NotificationDeliveryService;
 use App\Services\SupabaseService;
 use App\Support\SupabaseAccessToken;
 use Illuminate\Support\Facades\Http;
@@ -47,6 +49,50 @@ class AuthSecurityFlowTest extends TestCase
 
         $response->assertRedirect('/');
         $response->assertSessionHasErrors('password');
+    }
+
+    public function test_teacher_registration_sends_its_application_receipt_during_the_request(): void
+    {
+        $userId = '11111111-1111-4111-8111-111111111111';
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('signUp')
+            ->once()
+            ->andReturn([
+                'successful' => true,
+                'data' => ['user' => ['id' => $userId]],
+                'error' => null,
+                'status' => 200,
+            ]);
+        $supabase->shouldNotReceive('uploadAvatar');
+        $supabase->shouldNotReceive('updateProfile');
+
+        $adminPush = $this->mock(AdminPushService::class);
+        $adminPush->shouldReceive('send')->once()->andReturn(true);
+
+        $delivery = $this->mock(NotificationDeliveryService::class);
+        $delivery->shouldReceive('deliverNotificationEmailNow')
+            ->once()
+            ->with(
+                $userId,
+                'teacher_application_received',
+                'teacher-application-received:' . $userId,
+            )
+            ->andReturn(['sent' => true, 'queued' => true]);
+
+        $response = $this->post('/register', [
+            'email' => 'Teacher@Example.com',
+            'password' => 'Password1!',
+            'password_confirmation' => 'Password1!',
+            'role' => 'pending_teacher',
+            'first_name' => 'Test',
+            'last_name' => 'Teacher',
+        ]);
+
+        $response->assertRedirect('/');
+        $response->assertSessionHas(
+            'success',
+            'Registered successfully! Please verify your email.'
+        );
     }
 
     public function test_password_reset_rejects_an_unregistered_email(): void

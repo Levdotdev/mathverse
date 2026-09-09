@@ -232,7 +232,7 @@ class AdminController extends Controller
         }
 
         $teacherName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
-        $decisionEmailQueued = $this->notificationDelivery->queueStandaloneEmail(
+        $decisionEmail = $this->notificationDelivery->deliverStandaloneEmailNow(
             eventType: 'teacher_denied',
             recipientEmail: (string) ($profile['email'] ?? ''),
             recipientName: $teacherName,
@@ -246,15 +246,21 @@ class AdminController extends Controller
         $this->supabase->audit(session('supabase_user'), 'teacher.rejected', 'profile', $id, [
             'name' => $teacherName,
             'email' => $profile['email'] ?? null,
-            'decision_email_queued' => $decisionEmailQueued,
+            'decision_email_sent' => $decisionEmail['sent'],
+            'decision_email_queued' => $decisionEmail['queued'],
         ]);
 
         $redirect = redirect('/admin/dashboard?section=role-verify');
-        if (!$decisionEmailQueued) {
-            return $redirect->with('error', 'Application rejected, but its decision email could not be queued. Check the delivery migration and mail settings.');
+        if (!$decisionEmail['sent']) {
+            return $redirect->with(
+                'error',
+                $decisionEmail['queued']
+                    ? 'Application rejected, but the mail server did not accept the decision email immediately. MathVerse will retry it automatically.'
+                    : 'Application rejected, but the decision email could not be sent or queued. Check the mail and database settings.'
+            );
         }
 
-        return $redirect->with('success', 'Application rejected. The decision email is queued.');
+        return $redirect->with('success', 'Application rejected. The decision email was sent.');
     }
 
     public function suspendUser(Request $request, string $id)
@@ -280,6 +286,7 @@ class AdminController extends Controller
             return redirect("/admin/dashboard?section={$section}")
                 ->with('error', 'The authentication service could not suspend that account. No profile changes were made.');
         }
+        $notificationWindowStart = now()->subSeconds(10)->utc()->toIso8601String();
         $updated = $this->supabase->adminUpdate('profiles', [
             'suspended_at' => now()->toIso8601String(),
             'suspended_by' => $admin['id'],
@@ -292,13 +299,30 @@ class AdminController extends Controller
                 ->with('error', 'The account could not be suspended.');
         }
 
+        $statusEmail = $this->notificationDelivery->deliverNotificationEmailNow(
+            $id,
+            'account_suspended',
+            createdAfter: $notificationWindowStart,
+        );
         $this->supabase->audit($admin, 'user.suspended', 'profile', $id, [
             'role' => $profile['role'],
             'reason' => trim($validated['reason']),
+            'status_email_sent' => $statusEmail['sent'],
+            'status_email_queued' => $statusEmail['queued'],
         ]);
 
+        if (!$statusEmail['sent']) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with(
+                    'error',
+                    $statusEmail['queued']
+                        ? 'Account suspended, but the mail server did not accept the status email immediately. MathVerse will retry it automatically.'
+                        : 'Account suspended, but its status email could not be sent or queued. Check the mail and database settings.'
+                );
+        }
+
         return redirect("/admin/dashboard?section={$section}")
-            ->with('success', 'Account suspended. Its data was preserved.');
+            ->with('success', 'Account suspended. Its data was preserved, and the status email was sent.');
     }
 
     public function restoreUser(Request $request, string $id)
@@ -314,6 +338,7 @@ class AdminController extends Controller
             return redirect("/admin/dashboard?section={$section}")
                 ->with('error', 'The authentication service could not restore that account. It remains suspended.');
         }
+        $notificationWindowStart = now()->subSeconds(10)->utc()->toIso8601String();
         $updated = $this->supabase->adminUpdate('profiles', [
             'suspended_at' => null,
             'suspended_by' => null,
@@ -326,12 +351,29 @@ class AdminController extends Controller
                 ->with('error', 'The account could not be restored.');
         }
 
+        $statusEmail = $this->notificationDelivery->deliverNotificationEmailNow(
+            $id,
+            'account_restored',
+            createdAfter: $notificationWindowStart,
+        );
         $this->supabase->audit(session('supabase_user'), 'user.restored', 'profile', $id, [
             'role' => $profile['role'],
+            'status_email_sent' => $statusEmail['sent'],
+            'status_email_queued' => $statusEmail['queued'],
         ]);
 
+        if (!$statusEmail['sent']) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with(
+                    'error',
+                    $statusEmail['queued']
+                        ? 'Account restored, but the mail server did not accept the status email immediately. MathVerse will retry it automatically.'
+                        : 'Account restored, but its status email could not be sent or queued. Check the mail and database settings.'
+                );
+        }
+
         return redirect("/admin/dashboard?section={$section}")
-            ->with('success', 'Account restored.');
+            ->with('success', 'Account restored. The status email was sent.');
     }
 
     public function updateProfile(Request $request)

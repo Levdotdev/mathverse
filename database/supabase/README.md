@@ -132,10 +132,11 @@ emails by following `supabase/email-templates/README.md`.
 Then run `2026_08_31_notifications_delivery_channels.sql`. It adds a protected,
 retryable delivery outbox. The requested application events are sent as
 designed Laravel emails: teacher application receipt and decision, account
-suspension/restoration, quiz availability, retake, excuse,
+suspension/restoration, retake, excuse,
 submission receipts for the initial attempt and each teacher-authorized retake,
-and removal from a class. Quiz assignments and other bell events are routed to
-targeted Web Push after the September 7 delivery-policy migration.
+and removal from a class. Quiz assignments, quiz availability, and other bell
+events are routed to targeted Web Push after the September 7 delivery-policy
+migrations.
 Completed password and email-address changes stay in the bell but do not create
 Web Push because Supabase Auth already sends their security emails. The original
 all-admin teacher-registration and quiz-report pushes are deliberately excluded
@@ -145,7 +146,9 @@ Unapproved repeat result inserts are still ignored by
 `2026_08_30_assignment_usage_and_attempt_integrity.sql`. A submission-receipt
 email is queued for every result row the database successfully accepts. The
 initial attempt receives one receipt, and each teacher grant permits exactly one
-additional immutable retake result and receipt. Use
+additional immutable retake result and receipt. The final September 7 migration
+also asks Laravel to send each accepted receipt immediately, while this queue
+remains the fallback if the callback or mail server is unavailable. Use
 `2026_08_31_notifications_delivery_channels_rollback.sql` to remove only the
 delivery outbox and restore the prior notification function bodies.
 
@@ -255,10 +258,27 @@ JavaScript.
 After the security hardening migration, run
 `2026_09_07_quiz_assignment_web_push.sql`. It converts unsent quiz-assignment
 emails to Web Push and routes future `quiz_assigned` events to Web Push while
-leaving quiz-availability, retake, excuse, and submission emails unchanged. The
+leaving quiz-availability, retake, excuse, and submission delivery unchanged. The
 migration explicitly restores the service-role-only grant on the replaced
 delivery function. Its paired rollback restores assignment emails but cannot
 retract a push alert that was already delivered.
+
+Then run `2026_09_09_immediate_event_delivery.sql`. It routes both manually and
+automatically opened `quiz_started` events to Web Push and converts their unsent
+email rows. Teacher application receipt/decision, suspension/restoration,
+retake, excuse, and class-removal actions contact SMTP during their Laravel
+request. Failed attempts stay in the outbox for retry.
+
+VR quiz results can be inserted directly into Supabase without a Laravel
+request, so the migration enables `pg_net` and gives each protected outbox row
+a random, row-scoped dispatch token. After an accepted result commits, Supabase
+asynchronously calls the fixed HTTPS MathVerse receipt endpoint with that row's
+ID and token. The endpoint can only claim the exact stored
+`quiz_result_recorded` email; callers cannot choose an address or message, and
+the outbox and tokens remain inaccessible to browser roles. If the callback
+fails, the normal minute worker sends the receipt instead. The paired rollback
+removes the callback and token column and restores quiz-availability email; it
+retains `pg_net` in case another database feature uses it.
 
 ### Configure application email delivery
 
@@ -300,7 +320,10 @@ outbox or a real production mail transport is unavailable, rather than silently
 changing the account while losing its decision email. Approval now claims its
 exact outbox entry and contacts the mail server during the administrator
 request. The success toast says the email was sent only after the mail server
-accepts it; a failed immediate attempt remains queued for automatic retry.
+accepts it; a failed immediate attempt remains queued for automatic retry. The
+same immediate-attempt and durable-retry behavior applies to teacher application
+receipts/denials, suspension/restoration, retakes, excuses, submission receipts,
+and class removal.
 
 ### Enable browser push alerts
 
