@@ -60,7 +60,7 @@
 
             <div class="min-h-40 flex flex-col justify-center">
                 <p class="text-[10px] uppercase tracking-[0.3em] text-slate-600 font-bold mb-4">Solve the challenge</p>
-                <h1 id="practice-prompt" class="font-orbitron text-xl md:text-3xl font-black leading-relaxed text-white" aria-live="polite">
+                <h1 id="practice-prompt" class="font-orbitron text-xl md:text-3xl font-black leading-relaxed text-white whitespace-pre-line" aria-live="polite">
                     {{ $practiceState['question']['prompt'] }}
                 </h1>
             </div>

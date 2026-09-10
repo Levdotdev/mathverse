@@ -279,12 +279,12 @@ class AdaptivePracticeService
 
         $recentQuestions = $this->supabase->adminSelect(
             'practice_questions',
-            'competency_key,sequence,is_correct,prompt',
+            'competency_key,is_correct',
             [
                 'session_id' => $sessionId,
                 'student_id' => $student['id'],
                 'order' => 'sequence.desc',
-                'limit' => 8,
+                'limit' => 1,
             ]
         );
         $lastQuestion = $recentQuestions[0] ?? null;
@@ -316,10 +316,16 @@ class AdaptivePracticeService
         $masteryMap = array_column($masteryRows, null, 'competency_key');
         $difficulty = (int) ($masteryMap[$competency['key']]['difficulty'] ?? 1);
         $sequence = (int) ($session['questions_answered'] ?? 0) + 1;
-        $recentForCompetency = array_slice(array_values(array_filter(
-            $recentQuestions,
-            fn (array $question): bool => ($question['competency_key'] ?? null) === $competency['key']
-        )), 0, 5);
+        $recentForCompetency = $this->supabase->adminSelect(
+            'practice_questions',
+            'prompt',
+            [
+                'student_id' => $student['id'],
+                'competency_key' => $competency['key'],
+                'order' => 'answered_at.desc.nullslast,created_at.desc',
+                'limit' => 20,
+            ]
+        );
         $problem = $this->freshProblem(
             $grade,
             $competency['key'],
@@ -374,7 +380,7 @@ class AdaptivePracticeService
     ): array {
         $candidate = [];
 
-        for ($retry = 0; $retry < 64; $retry++) {
+        for ($retry = 0; $retry < 160; $retry++) {
             $seed = (int) hexdec(substr(
                 hash('sha256', "{$sessionId}:{$sequence}:{$competencyKey}:{$retry}"),
                 0,
@@ -446,14 +452,32 @@ class AdaptivePracticeService
 
     private function promptForm(string $prompt): string
     {
-        return preg_replace('/-?\d+(?:\.\d+)?(?:st|nd|rd|th)?/u', '{n}', $prompt) ?? $prompt;
+        $form = preg_replace('/-?\d+(?:\.\d+)?(?:st|nd|rd|th)?/u', '{n}', $prompt) ?? $prompt;
+        $form = preg_replace('/★+/u', '{icons}', $form) ?? $form;
+        $form = preg_replace(
+            '/\b(?:Ari|Bea|Cleo|Dino|Ella|Finn|Gio|Hana|Iris|Javi|Kira|Luis)\b/u',
+            '{name}',
+            $form
+        ) ?? $form;
+
+        return preg_replace(
+            '/\b(?:red|blue|green|gold|purple|mango|banana|guava|robotics|art|music|cats?|dogs?|fish)\b/iu',
+            '{label}',
+            $form
+        ) ?? $form;
     }
 
     private function numberSignature(string $prompt): array
     {
         preg_match_all('/-?\d+(?:\.\d+)?/u', $prompt, $matches);
+        preg_match_all('/★+/u', $prompt, $iconMatches);
 
-        return $matches[0] ?? [];
+        $iconCounts = array_map(
+            fn (string $icons): string => 'icons:' . substr_count($icons, '★'),
+            $iconMatches[0] ?? []
+        );
+
+        return array_merge($matches[0] ?? [], $iconCounts);
     }
 
     public function revealHint(array $student, string $questionId): array
