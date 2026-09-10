@@ -474,6 +474,7 @@ declare
         'quiz_management_url',
         'refresh_quiz_rating_summary',
         'refresh_source_quiz_usage',
+        'request_immediate_quiz_receipt_delivery',
         'require_explicit_quiz_retake',
         'restore_quiz_version',
         'restore_quiz_version_v2',
