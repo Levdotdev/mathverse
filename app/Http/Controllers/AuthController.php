@@ -270,7 +270,7 @@ class AuthController extends Controller
         if ($validated['role'] === 'pending_teacher') {
             $teacherName = trim($validated['first_name'] . ' ' . $validated['last_name'])
                 ?: $validated['email'];
-            $this->adminPush->send(
+            $this->adminPush->sendAfterResponse(
                 'Teacher verification requested',
                 "{$teacherName} registered and is ready for verification.",
                 '/admin/dashboard?section=role-verify',

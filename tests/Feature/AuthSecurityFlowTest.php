@@ -67,7 +67,7 @@ class AuthSecurityFlowTest extends TestCase
         $supabase->shouldNotReceive('updateProfile');
 
         $adminPush = $this->mock(AdminPushService::class);
-        $adminPush->shouldReceive('send')->once()->andReturn(true);
+        $adminPush->shouldReceive('sendAfterResponse')->once();
 
         $delivery = $this->mock(NotificationDeliveryService::class);
         $delivery->shouldReceive('deliverNotificationEmailNow')

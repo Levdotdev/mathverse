@@ -101,25 +101,28 @@
         <button type="button" data-action="toggleQuizView" data-action-args='["list"]' class="absolute top-5 right-5 text-slate-500 hover:text-white"><i class="fas fa-times-circle text-xl"></i></button>
         <h2 id="builder-title" class="text-xl font-orbitron font-bold mb-2 uppercase">Create <span class="text-purple-400">Quiz</span></h2>
         <p class="text-xs text-slate-500 mb-8">Choose private storage or share the quiz with teachers through the library.</p>
-        <form id="quiz-form" method="POST" action="/admin/quizzes">
+        <form id="quiz-form" method="POST" action="/admin/quizzes"
+              data-quiz-base-path="/admin/quizzes"
+              data-editing-quiz-id="{{ old('editing_quiz_id') }}"
+              data-auto-open-builder="{{ $errors->any() ? 'true' : 'false' }}">
             @csrf
             <span id="method-field"></span>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
                 <div class="form-group">
                     <label class="input-label">Quiz Topic</label>
-                    <input type="text" name="topic" id="q-topic" maxlength="150" class="input-mobile-ultra !pl-4" required>
+                    <input type="text" name="topic" id="q-topic" value="{{ old('topic') }}" maxlength="150" class="input-mobile-ultra !pl-4" required>
                 </div>
                 <div class="form-group">
                     <label class="input-label">Library Visibility</label>
                     <select name="visibility" id="q-visibility" class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
-                        <option value="shared">Shared with teachers</option>
-                        <option value="private">Private</option>
+                        <option value="shared" @selected(old('visibility', 'shared') === 'shared')>Shared with teachers</option>
+                        <option value="private" @selected(old('visibility') === 'private')>Private</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label class="input-label">Grade Level</label>
                     <select name="grade_level" id="q-grade" class="input-mobile-ultra !pl-4 bg-slate-900 text-white" required>
-                        @for($g = 1; $g <= 6; $g++)<option value="{{ $g }}">Grade {{ $g }}</option>@endfor
+                        @for($g = 1; $g <= 6; $g++)<option value="{{ $g }}" @selected((int) old('grade_level', 1) === $g)>Grade {{ $g }}</option>@endfor
                     </select>
                 </div>
             </div>
@@ -129,6 +132,9 @@
                 <button type="submit" id="save-quiz-btn" class="btn-rect-primary flex-1 !bg-red-600 !text-white"><i class="fas fa-save mr-2"></i> Save Quiz</button>
             </div>
         </form>
+        @if($errors->any())
+            <template data-quiz-question-state>{!! json_encode(old('questions', []), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</template>
+        @endif
     </div>
 </div>
 @endsection
@@ -159,9 +165,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">window.quizRoutesBasePath = '/admin/quizzes';</script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-@if($errors->any())<script nonce="{{ request()->attributes->get('csp_nonce') }}">document.addEventListener('DOMContentLoaded', () => loadQuizBuilder());</script>@endif
-@endpush

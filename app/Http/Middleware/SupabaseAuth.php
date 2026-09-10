@@ -115,8 +115,29 @@ class SupabaseAuth
         $pendingReportCount = 0;
         $notifications = [];
         $unreadNotificationCount = 0;
-        try {
-            if (($user['role'] ?? '') === 'admin') {
+        $isSeamlessPageRequest = $request->isMethod('GET')
+            && $request->header('X-MathVerse-Navigation') === '1';
+        $isBackgroundRevalidation = $request->isMethod('GET')
+            && $request->header('X-MathVerse-Revalidate') === '1';
+        $isNotificationSnapshot = $request->is('notifications/snapshot');
+        $isReportDownload = $request->is(
+            'student/report/*',
+            'teacher/report/*',
+            'admin/report/*',
+        );
+        $isDashboardDocumentRequest = $request->isMethod('GET')
+            && !$request->expectsJson()
+            && !$isReportDownload;
+        $wantsFreshChrome = $isNotificationSnapshot
+            || ($isDashboardDocumentRequest
+                && (!$isSeamlessPageRequest || $request->header('X-MathVerse-Chrome') === '1'));
+        $dashboardChromeFresh = $wantsFreshChrome;
+        if (($user['role'] ?? '') === 'admin'
+            && $wantsFreshChrome
+            && !$isNotificationSnapshot
+            && !$request->is('admin/dashboard')
+        ) {
+            try {
                 $pendingTeacherCount = $this->supabase->adminCount('profiles', [
                     'role' => 'pending_teacher',
                 ]);
@@ -127,40 +148,53 @@ class SupabaseAuth
                     'adminPendingTeacherCount' => $pendingTeacherCount,
                     'adminPendingReportCount' => $pendingReportCount,
                 ]);
+            } catch (\Throwable $exception) {
+                $dashboardChromeFresh = false;
+                Log::warning('Non-critical admin navigation counts failed.', [
+                    'user_id' => $user['id'] ?? null,
+                    'exception' => $exception::class,
+                ]);
             }
-
-            // These updates and notification reads are useful but must not turn
-            // a temporary delivery failure into a broken authenticated page.
-            $this->supabase->adminRpc('advance_quiz_session_schedule');
-            $this->supabase->adminRpc('generate_upcoming_quiz_notifications', [
-                'p_user_id' => $user['id'],
-            ]);
-
-            $notifications = $this->supabase->adminSelect(
-                'notifications',
-                'id,type,title,message,action_url,data,read_at,created_at',
-                [
-                    'user_id' => $user['id'],
-                    'order' => 'created_at.desc',
-                    'limit' => 12,
-                ]
-            );
-            $unreadNotificationCount = $this->supabase->adminCount('notifications', [
-                'user_id' => $user['id'],
-                'read_at' => ['operator' => 'is', 'value' => 'null'],
-            ]);
-        } catch (\Throwable $exception) {
-            Log::warning('Non-critical dashboard preparation failed.', [
-                'user_id' => $user['id'] ?? null,
-                'exception' => $exception::class,
-            ]);
         }
-        view()->share(compact('notifications', 'unreadNotificationCount'));
+
+        // The minute scheduler advances quiz sessions and creates upcoming
+        // notifications. Keeping those writes out of page requests avoids
+        // repeating the same non-critical work for every open tab.
+        if ($wantsFreshChrome) {
+            try {
+                $notifications = $this->supabase->adminSelect(
+                    'notifications',
+                    'id,type,title,message,action_url,data,read_at,created_at',
+                    [
+                        'user_id' => $user['id'],
+                        'order' => 'created_at.desc',
+                        'limit' => 12,
+                    ]
+                );
+                $unreadNotificationCount = $this->supabase->adminCount('notifications', [
+                    'user_id' => $user['id'],
+                    'read_at' => ['operator' => 'is', 'value' => 'null'],
+                ]);
+            } catch (\Throwable $exception) {
+                $dashboardChromeFresh = false;
+                Log::warning('Non-critical dashboard notifications failed.', [
+                    'user_id' => $user['id'] ?? null,
+                    'exception' => $exception::class,
+                ]);
+            }
+        }
+        view()->share([
+            'notifications' => $notifications,
+            'unreadNotificationCount' => $unreadNotificationCount,
+            'dashboardChromeFresh' => $dashboardChromeFresh,
+        ]);
+        $request->attributes->set('dashboard_chrome_fresh', $dashboardChromeFresh);
 
         $response = $next($request);
 
         $contentType = (string) $response->headers->get('Content-Type', '');
         if ($request->isMethod('GET')
+            && !$isBackgroundRevalidation
             && $response->getStatusCode() === 200
             && str_contains($contentType, 'text/html')) {
             $route = $request->route();

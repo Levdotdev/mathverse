@@ -159,14 +159,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">
-function openReportDeleteModal(quizId, topic, reportId) {
-    document.getElementById('reportDeleteQuizForm').action = `/admin/quizzes/${quizId}`;
-    document.getElementById('report-delete-topic').textContent = `“${topic}” will be removed from the shared library.`;
-    document.getElementById('report-delete-report-id').value = reportId;
-    openModal('reportDeleteQuizModal');
-}
-</script>
-@endpush

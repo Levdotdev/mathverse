@@ -1,11 +1,15 @@
-(() => {
+function initializeLearningHub() {
     const root = document.getElementById('practice-arena');
     const stateElement = document.getElementById('practice-initial-state');
-    if (!root || !stateElement) return;
+    if (!root || !stateElement || root.dataset.practiceReady === 'true') return;
+    root.dataset.practiceReady = 'true';
 
     let initialState;
     try {
-        initialState = JSON.parse(stateElement.textContent);
+        const serialized = stateElement instanceof HTMLTemplateElement
+            ? stateElement.content.textContent
+            : stateElement.textContent;
+        initialState = JSON.parse(serialized);
     } catch {
         showToast('MathVerse could not load this practice mission.', true);
         return;
@@ -229,6 +233,7 @@
             throw new Error(validationMessage || data.message || 'MathVerse could not complete that action.');
         }
 
+        document.dispatchEvent(new CustomEvent('mathverse:data-changed'));
         return data;
     }
 
@@ -363,4 +368,6 @@
     });
 
     renderQuestion(question);
-})();
+}
+
+onMathVerseReady(initializeLearningHub);

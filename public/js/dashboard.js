@@ -1,8 +1,10 @@
 (() => {
-    const roots = [...document.querySelectorAll('[data-profile-root]')];
+    function roots() {
+        return [...document.querySelectorAll('[data-profile-root]')];
+    }
 
     function closeAll(except = null) {
-        roots.forEach(root => {
+        roots().forEach(root => {
             if (root === except) return;
             root.querySelector('[data-profile-menu]')?.classList.remove('open');
             root.querySelector('[data-profile-menu]')?.setAttribute('aria-hidden', 'true');
@@ -10,12 +12,13 @@
         });
     }
 
-    roots.forEach(root => {
-        const toggle = root.querySelector('[data-profile-toggle]');
-        const menu = root.querySelector('[data-profile-menu]');
-        if (!toggle || !menu) return;
+    document.addEventListener('click', event => {
+        const toggle = event.target.closest('[data-profile-toggle]');
+        if (toggle) {
+            const root = toggle.closest('[data-profile-root]');
+            const menu = root?.querySelector('[data-profile-menu]');
+            if (!root || !menu) return;
 
-        toggle.addEventListener('click', event => {
             event.stopPropagation();
             const willOpen = !menu.classList.contains('open');
             closeAll(root);
@@ -27,20 +30,27 @@
                     detail: { kind: 'profile' },
                 }));
             }
-        });
-        menu.addEventListener('click', event => {
+            return;
+        }
+
+        const menu = event.target.closest('[data-profile-menu]');
+        if (menu) {
+            event.stopPropagation();
             if (event.target.closest('a, button')) closeAll();
-        });
+            return;
+        }
+
+        closeAll();
     });
 
     document.addEventListener('mathverse:header-menu-open', event => {
         if (event.detail?.kind !== 'profile') closeAll();
     });
-    document.addEventListener('click', () => closeAll());
+    document.addEventListener('mathverse:before-navigate', () => closeAll());
 
     document.addEventListener('keydown', event => {
         if (event.key !== 'Escape') return;
-        const openRoot = roots.find(root => root.querySelector('[data-profile-menu]')?.classList.contains('open'));
+        const openRoot = roots().find(root => root.querySelector('[data-profile-menu]')?.classList.contains('open'));
         closeAll();
         openRoot?.querySelector('[data-profile-toggle]')?.focus();
     });

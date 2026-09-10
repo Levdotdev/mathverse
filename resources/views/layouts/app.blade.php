@@ -37,14 +37,14 @@
     @yield('content')
 
     {{-- Reusable image-validation alert for registration and profile forms --}}
-    <div id="imageSizeModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="image-size-title">
+    <div id="imageSizeModal" class="modal-overlay hidden" data-initial-open="{{ session('image_upload_error') ? 'true' : 'false' }}" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="image-size-title">
         <div class="portal-frame !p-8 w-full max-w-sm text-center border-red-500/50">
             <i class="fas fa-image text-4xl text-red-500 mb-4"></i>
             <h3 id="image-size-title" class="font-orbitron font-bold mb-2 uppercase text-white">
                 Invalid <span class="text-red-500">Image</span>
             </h3>
             <p id="image-size-message" class="text-xs text-slate-400 mb-3">
-                Choose a JPEG, PNG, or WebP image up to 2 MB.
+                {{ session('image_upload_error') ?: 'Choose a JPEG, PNG, or WebP image up to 2 MB.' }}
             </p>
             <p id="image-size-file" class="text-[10px] font-mono text-red-400 break-all mb-8">
                 Please choose another image.
@@ -62,18 +62,6 @@
         </div>
     </div>
 
-    @if(session('image_upload_error'))
-    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
-        document.addEventListener('DOMContentLoaded', () => {
-            const message = document.getElementById('image-size-message');
-            if (message) {
-                message.textContent = @json(session('image_upload_error'));
-            }
-            openModal('imageSizeModal');
-        });
-    </script>
-    @endif
-
     {{-- Toast notification - available on every page --}}
     <div id="toast"
          role="{{ $flashToastIsError ? 'alert' : 'status' }}"
@@ -90,34 +78,6 @@
     </div>
 
     <script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/shared.js') }}?v={{ filemtime(public_path('js/shared.js')) }}"></script>
-
-    {{-- One toast path for validation errors and redirect flash messages. --}}
-    @if($flashToastMessage)
-    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
-        (() => {
-            const displayFlashToast = () => showToast(
-                @json($flashToastMessage),
-                @json($flashToastIsError)
-            );
-
-            @if($queryToastMessage)
-            const url = new URL(window.location.href);
-            url.searchParams.delete('notice');
-            window.history.replaceState(
-                window.history.state,
-                document.title,
-                url.pathname + (url.searchParams.size ? `?${url.searchParams.toString()}` : '') + url.hash
-            );
-            @endif
-
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', displayFlashToast, { once: true });
-            } else {
-                displayFlashToast();
-            }
-        })();
-    </script>
-    @endif
 
     @stack('scripts')
 </body>

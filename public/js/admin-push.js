@@ -1,6 +1,8 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const buttons = [...document.querySelectorAll('[data-push-toggle]')];
+async function initializeAdminPush() {
+    const buttons = [...document.querySelectorAll('[data-push-toggle]')]
+        .filter(button => button.dataset.pushReady !== 'true');
     if (!buttons.length) return;
+    buttons.forEach(button => { button.dataset.pushReady = 'true'; });
     const statuses = [...document.querySelectorAll('[data-push-status]')];
 
     const publicKey = buttons[0].dataset.vapidKey ?? '';
@@ -112,7 +114,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function setStatus(message) {
         statuses.forEach(status => { status.textContent = message; });
     }
-});
+}
+
+onMathVerseReady(() => void initializeAdminPush());
 
 async function saveSubscription(subscription, endpoint = '/push-subscription') {
     const response = await fetch(endpoint || '/push-subscription', {

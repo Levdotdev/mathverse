@@ -1,4 +1,10 @@
-@php $activePage = $activePage ?? 'dashboard'; @endphp
+@php
+    $activePage = $activePage ?? 'dashboard';
+    $sidebarPendingReports = $adminPendingReportCount ?? $pendingReportCount ?? 0;
+    $sidebarPendingTeachers = $adminPendingTeacherCount
+        ?? $totalPending
+        ?? count($pendingTeachers ?? []);
+@endphp
 
 <a href="/admin/dashboard" id="btn-overview"
    class="nav-link w-full {{ $activePage === 'dashboard' ? 'active' : '' }}">
@@ -19,8 +25,8 @@
 <a href="/admin/quiz-reports"
    class="nav-link w-full {{ $activePage === 'quiz-reports' ? 'active' : '' }}">
     <i class="fas fa-flag mr-3 w-5 text-red-400"></i> Quiz Reports
-    @if(($adminPendingReportCount ?? 0) > 0)
-        <span class="ml-auto min-w-5 h-5 px-1 rounded-full bg-red-500 text-black text-[9px] font-black flex items-center justify-center">{{ $adminPendingReportCount }}</span>
+    @if($sidebarPendingReports > 0)
+        <span class="ml-auto min-w-5 h-5 px-1 rounded-full bg-red-500 text-black text-[9px] font-black flex items-center justify-center">{{ $sidebarPendingReports }}</span>
     @endif
 </a>
 <a href="/admin/dashboard?section=students" id="btn-students"
@@ -34,8 +40,8 @@
 <a href="/admin/dashboard?section=role-verify" id="btn-role-verify"
    class="nav-link w-full {{ $activePage === 'verification' ? 'active' : '' }}">
     <i class="fas fa-user-shield mr-3 w-5 text-orange-400"></i> Verification
-    @if(($adminPendingTeacherCount ?? 0) > 0)
-        <span class="ml-auto min-w-5 h-5 px-1 rounded-full bg-orange-400 text-black text-[9px] font-black flex items-center justify-center">{{ $adminPendingTeacherCount }}</span>
+    @if($sidebarPendingTeachers > 0)
+        <span class="ml-auto min-w-5 h-5 px-1 rounded-full bg-orange-400 text-black text-[9px] font-black flex items-center justify-center">{{ $sidebarPendingTeachers }}</span>
     @endif
 </a>
 <a href="/admin/dashboard?section=audit" id="btn-audit"

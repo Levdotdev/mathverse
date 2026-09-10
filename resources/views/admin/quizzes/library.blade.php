@@ -177,8 +177,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">window.quizRoutesBasePath = '/admin/quizzes';</script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-@endpush

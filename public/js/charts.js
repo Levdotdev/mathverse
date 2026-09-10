@@ -169,6 +169,7 @@ function buildDoughnutChart(canvasId, labels, data, colors) {
 // ── Helpers ───────────────────────────────────────────────
 
 function destroyCharts(ids) {
+    if (typeof Chart === 'undefined') return;
     ids.forEach(id => {
         const existing = Chart.getChart(id);
         if (existing) existing.destroy();
@@ -189,24 +190,67 @@ function showStatsError(message) {
 
 // ── Cache ─────────────────────────────────────────────────
 
-const _statsCache = { teacher: null, admin: null };
+const _statsCache = {
+    teacher: { data: null, fetchedAt: 0, promise: null },
+    admin: { data: null, fetchedAt: 0, promise: null },
+};
+const STATS_CACHE_TTL_MS = 60000;
+let statsCacheGeneration = 0;
+
+function clearStatsCache() {
+    statsCacheGeneration++;
+    Object.values(_statsCache).forEach(entry => {
+        entry.data = null;
+        entry.fetchedAt = 0;
+        entry.promise = null;
+    });
+}
+
+async function cachedStats(kind, url) {
+    const entry = _statsCache[kind];
+    if (entry.data && Date.now() - entry.fetchedAt < STATS_CACHE_TTL_MS) return entry.data;
+    if (entry.promise) return entry.promise;
+
+    const requestedGeneration = statsCacheGeneration;
+    const request = fetch(url, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+    })
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(data => {
+            if (requestedGeneration === statsCacheGeneration) {
+                entry.data = data;
+                entry.fetchedAt = Date.now();
+            }
+            return data;
+        })
+        .finally(() => {
+            if (entry.promise === request) entry.promise = null;
+        });
+    entry.promise = request;
+
+    return request;
+}
 
 // ── Teacher stats ─────────────────────────────────────────
 
 async function loadTeacherStats() {
     const loading = document.getElementById('stats-loading');
     const content = document.getElementById('stats-content');
+    if (typeof Chart === 'undefined') {
+        showStatsError('Analytics resources are unavailable. Please refresh the page.');
+        return;
+    }
 
     // Show spinner, hide content
     loading?.classList.remove('hidden');
     content?.classList.add('hidden');
 
     try {
-        const data = _statsCache.teacher
-            ?? (_statsCache.teacher = await fetch('/teacher/stats').then(r => {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
-            }));
+        const data = await cachedStats('teacher', '/teacher/stats');
 
         // Populate summary cards
         document.getElementById('stat-total-attempts').innerText = data.totalAttempts ?? '0';
@@ -259,7 +303,8 @@ async function loadTeacherStats() {
 
     } catch (err) {
         console.error('Teacher stats error:', err);
-        _statsCache.teacher = null; // clear cache so retry works
+        _statsCache.teacher.data = null;
+        _statsCache.teacher.fetchedAt = 0;
         showStatsError('Failed to load analytics. Please try again.');
     }
 }
@@ -269,16 +314,16 @@ async function loadTeacherStats() {
 async function loadAdminStats() {
     const loading = document.getElementById('stats-loading');
     const content = document.getElementById('stats-content');
+    if (typeof Chart === 'undefined') {
+        showStatsError('Analytics resources are unavailable. Please refresh the page.');
+        return;
+    }
 
     loading?.classList.remove('hidden');
     content?.classList.add('hidden');
 
     try {
-        const data = _statsCache.admin
-            ?? (_statsCache.admin = await fetch('/admin/stats').then(r => {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
-            }));
+        const data = await cachedStats('admin', '/admin/stats');
 
         document.getElementById('stat-total-attempts').innerText = data.totalAttempts ?? '0';
         document.getElementById('stat-avg-accuracy').innerText   = (data.avgAccuracy ?? 0) + '%';
@@ -336,7 +381,19 @@ async function loadAdminStats() {
 
     } catch (err) {
         console.error('Admin stats error:', err);
-        _statsCache.admin = null;
+        _statsCache.admin.data = null;
+        _statsCache.admin.fetchedAt = 0;
         showStatsError('Failed to load analytics. Please try again.');
     }
 }
+
+document.addEventListener('mathverse:before-navigate', () => {
+    destroyCharts([
+        'chart-attempts',
+        'chart-distribution',
+        'chart-class-accuracy',
+        'chart-registrations',
+        'chart-roles',
+    ]);
+});
+document.addEventListener('mathverse:data-changed', clearStatsCache);

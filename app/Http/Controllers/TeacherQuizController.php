@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RecalculateQuizUsageCount;
 use App\Services\AdminPushService;
 use App\Services\SupabaseService;
 use App\Support\SupabaseAccessToken;
@@ -270,7 +271,7 @@ class TeacherQuizController extends Controller
         $reporterName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''))
             ?: 'A teacher';
         $reason = ucfirst(str_replace('_', ' ', $validated['reason']));
-        $this->adminPush->send(
+        $this->adminPush->sendAfterResponse(
             'Shared quiz reported',
             "{$reporterName} reported {$quiz['topic']}: {$reason}.",
             "/admin/quiz-reports/{$created[0]['id']}",
@@ -1017,36 +1018,8 @@ class TeacherQuizController extends Controller
 
     private function refreshQuizUsageCount(string $quizId): void
     {
-        $quizResult = $this->supabase->adminSelectResult(
-            'quizzes',
-            'id,teacher_id',
-            ['id' => $quizId]
-        );
-        $quiz = $quizResult['data'][0] ?? null;
-        if ($quizResult['error'] !== null || !$quiz) {
-            return;
-        }
-
-        $result = $this->supabase->adminSelectResult(
-            'quiz_sessions',
-            'id,teacher_id,class_id',
-            ['source_quiz_id' => $quizId]
-        );
-        if ($result['error'] !== null) {
-            return;
-        }
-
-        $usageCount = count(array_filter(
-            $result['data'],
-            fn (array $assignment): bool => !empty($assignment['class_id'])
-                && ($assignment['teacher_id'] ?? null) !== ($quiz['teacher_id'] ?? null)
-        ));
-
-        $this->supabase->adminUpdate(
-            'quizzes',
-            ['usage_count' => $usageCount],
-            ['id' => $quizId]
-        );
+        RecalculateQuizUsageCount::dispatch($quizId)
+            ->onConnection('deferred');
     }
 
     private function sharedAssignmentDestination(array $classes): string

@@ -2,12 +2,25 @@ let editingQuizId = null;
 let questionIndex = 0;
 
 function getQuizBasePath() {
-    return window.quizRoutesBasePath || '/teacher/quizzes';
+    const explicitPath = document.getElementById('quiz-form')?.dataset.quizBasePath;
+    if (explicitPath) return explicitPath;
+    return window.location.pathname.startsWith('/admin/') ? '/admin/quizzes' : '/teacher/quizzes';
+}
+
+function configureQuizEditMode(form, quizId) {
+    editingQuizId = quizId;
+    form.action = `${getQuizBasePath()}/${quizId}`;
+    document.getElementById('method-field').innerHTML = `
+        <input type="hidden" name="_method" value="PUT">
+        <input type="hidden" name="editing_quiz_id" value="${escapeAttribute(quizId)}">`;
+    document.getElementById('builder-title').innerHTML = 'Edit <span class="text-purple-400">Quiz</span>';
+    document.getElementById('save-quiz-btn').innerHTML = '<i class="fas fa-check-circle mr-2"></i> Update Quiz';
 }
 
 async function loadQuizBuilder(quizId = null) {
     const form = document.getElementById('quiz-form');
     if (!form) return;
+    form.dataset.mathverseDirty = 'true';
 
     editingQuizId = quizId;
     questionIndex = 0;
@@ -19,15 +32,18 @@ async function loadQuizBuilder(quizId = null) {
     builder.innerHTML = '';
 
     if (quizId) {
-        form.action = `${getQuizBasePath()}/${quizId}`;
-        method.innerHTML = '<input type="hidden" name="_method" value="PUT">';
-        title.innerHTML = 'Edit <span class="text-purple-400">Quiz</span>';
-        saveButton.innerHTML = '<i class="fas fa-check-circle mr-2"></i> Update Quiz';
+        configureQuizEditMode(form, quizId);
 
         try {
-            const response = await fetch(`${getQuizBasePath()}/${quizId}`);
+            const response = await fetch(`${getQuizBasePath()}/${quizId}`, {
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' },
+            });
             if (!response.ok) throw new Error('Quiz could not be loaded.');
             const data = await response.json();
+            if (!form.isConnected
+                || document.getElementById('quiz-form') !== form
+                || editingQuizId !== quizId) return;
 
             document.getElementById('q-topic').value = data.quiz.topic ?? '';
             document.getElementById('q-grade').value = String(data.quiz.grade_level ?? 1);
@@ -45,7 +61,7 @@ async function loadQuizBuilder(quizId = null) {
 
             if (!builder.children.length) addNewQuestion();
         } catch (error) {
-            showToast(error.message);
+            if (form.isConnected && editingQuizId === quizId) showToast(error.message, true);
             return;
         }
     } else {
@@ -80,6 +96,41 @@ function toggleQuizView(view) {
 
 function addNewQuestion() {
     addQuestionBlock('', ['', '', '', ''], 0);
+}
+
+function resetQuestionBuilder() {
+    questionIndex = 0;
+    document.getElementById('questions-builder')?.replaceChildren();
+}
+
+function hydrateQuestionBuilder() {
+    const stateElement = document.querySelector('[data-quiz-question-state]');
+    const builder = document.getElementById('questions-builder');
+    if (!stateElement || !builder || builder.dataset.questionStateReady === 'true') return false;
+
+    let questions = [];
+    try {
+        const serialized = stateElement instanceof HTMLTemplateElement
+            ? stateElement.content.textContent
+            : stateElement.textContent;
+        const parsed = JSON.parse(serialized);
+        questions = Array.isArray(parsed) ? parsed : [];
+    } catch {
+        showToast('MathVerse could not load these quiz questions.', true);
+    }
+
+    resetQuestionBuilder();
+    questions.forEach(question => {
+        addQuestionBlock(
+            question.question ?? '',
+            Array.isArray(question.options) ? question.options : ['', '', '', ''],
+            Number.parseInt(question.correct, 10) || 0
+        );
+    });
+    if (!builder.children.length) addNewQuestion();
+    builder.dataset.questionStateReady = 'true';
+
+    return true;
 }
 
 function addQuestionBlock(text, options, correctIndex) {
@@ -184,6 +235,16 @@ function openDeleteQuizModal(quizId, topic) {
     openModal('deleteQuizModal');
 }
 
+function openRestoreQuizVersion(version, topic) {
+    const form = document.getElementById('restoreQuizVersionForm');
+    if (!form) return;
+    const basePath = form.dataset.restoreBase
+        || window.location.pathname.replace(/\/$/, '');
+    form.action = `${basePath}/${version}/restore`;
+    document.getElementById('restore-version-summary').textContent = `Restore version ${version} of “${topic}”?`;
+    openModal('restoreQuizVersionModal');
+}
+
 function escapeAttribute(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -192,3 +253,23 @@ function escapeAttribute(value) {
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;');
 }
+
+function initializeQuizTools() {
+    const hydrated = hydrateQuestionBuilder();
+    const form = document.getElementById('quiz-form');
+    if (form?.dataset.autoOpenBuilder === 'true') {
+        form.dataset.mathverseDirty = 'true';
+        const previousEditId = form.dataset.editingQuizId || '';
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(previousEditId)) {
+            configureQuizEditMode(form, previousEditId);
+        }
+        if (!hydrated && !document.getElementById('questions-builder')?.children.length) addNewQuestion();
+        toggleQuizView('editor');
+    }
+}
+
+onMathVerseReady(initializeQuizTools);
+document.addEventListener('mathverse:before-navigate', () => {
+    editingQuizId = null;
+    questionIndex = 0;
+});

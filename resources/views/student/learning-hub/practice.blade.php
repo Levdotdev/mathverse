@@ -9,7 +9,7 @@
 @endsection
 
 @section('dashboard-content')
-<div id="practice-arena" class="max-w-6xl mx-auto" style="--practice-accent: {{ $practiceState['question']['color'] }};">
+<div id="practice-arena" data-seamless-refresh="manual" class="max-w-6xl mx-auto" style="--practice-accent: {{ $practiceState['question']['color'] }};">
     <header class="flex flex-wrap items-center justify-between gap-4 mb-5 border-b border-white/10 pb-4">
         <div class="flex items-center gap-4 min-w-0">
             <a href="/student/learning-hub" class="w-11 h-11 rounded-lg border border-white/10 bg-white/5 hover:border-cyan-400/40 flex items-center justify-center shrink-0" aria-label="Exit Practice Arena">
@@ -166,13 +166,9 @@
     </noscript>
 </div>
 
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" id="practice-initial-state" type="application/json">{!! json_encode($practiceState, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</script>
+<template id="practice-initial-state">{!! json_encode($practiceState, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}</template>
 @endsection
 
 @section('modals')
     @include('student.partials.logout-modal')
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/learning-hub.js') }}?v={{ filemtime(public_path('js/learning-hub.js')) }}"></script>
-@endpush

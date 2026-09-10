@@ -2,12 +2,19 @@
 
 namespace App\Services;
 
+use App\Jobs\SendAdminPush;
 use App\Support\SafePath;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AdminPushService
 {
+    public function sendAfterResponse(string $title, string $body, string $url, string $tag): void
+    {
+        SendAdminPush::dispatch($title, $body, $url, $tag)
+            ->onConnection('deferred');
+    }
+
     public function send(string $title, string $body, string $url, string $tag): bool
     {
         // Keeping this call recipient-free preserves the existing broadcast to

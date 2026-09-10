@@ -57,7 +57,8 @@
 
 <form id="shared-quiz-assignment-form" method="POST"
       action="/teacher/quiz-library/{{ $quiz['id'] }}/assign"
-      data-quiz-grade="{{ (int) $quiz['grade_level'] }}" class="space-y-7">
+      data-quiz-grade="{{ (int) $quiz['grade_level'] }}"
+      data-seamless-refresh="manual" class="space-y-7">
     @csrf
 
     <section class="portal-frame !p-6 md:!p-8">
@@ -151,6 +152,7 @@
         </button>
     </div>
 </form>
+<template data-quiz-question-state>{!! json_encode($initialQuestions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</template>
 @endsection
 
 @section('modals')
@@ -239,11 +241,3 @@
 
     @include('teacher.partials.logout-modal')
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">
-window.sharedQuizReviewQuestions = @json($initialQuestions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-</script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/shared-quiz-review.js') }}?v={{ filemtime(public_path('js/shared-quiz-review.js')) }}"></script>
-@endpush

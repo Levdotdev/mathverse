@@ -19,7 +19,10 @@ async function fetchLobby() {
     const body = document.getElementById('lobby-tbody');
 
     try {
-        const response = await fetch(currentLobbyUrl);
+        const response = await fetch(currentLobbyUrl, {
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+        });
         if (!response.ok) throw new Error('The lobby could not be loaded.');
         const participants = await response.json();
 
@@ -56,7 +59,10 @@ async function openResults(classId, sessionId, topic) {
     openModal('viewResultsModal');
 
     try {
-        const response = await fetch(`/teacher/classes/${classId}/quizzes/${sessionId}/results`);
+        const response = await fetch(`/teacher/classes/${classId}/quizzes/${sessionId}/results`, {
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+        });
         if (!response.ok) throw new Error('Quiz analytics could not be loaded.');
         const results = await response.json();
 
@@ -112,17 +118,22 @@ async function openResults(classId, sessionId, topic) {
     }
 }
 
-document.getElementById('results-tbody')?.addEventListener('click', (event) => {
-    const button = event.target.closest('.quiz-student-action');
-    if (!button || !currentResultsContext) return;
-    openStudentException(
-        button.dataset.action,
-        currentResultsContext.classId,
-        currentResultsContext.sessionId,
-        button.dataset.studentId,
-        button.dataset.studentName,
-    );
-});
+function initializeClassroomResultActions() {
+    const resultsBody = document.getElementById('results-tbody');
+    if (!resultsBody || resultsBody.dataset.classroomReady === 'true') return;
+    resultsBody.dataset.classroomReady = 'true';
+    resultsBody.addEventListener('click', (event) => {
+        const button = event.target.closest('.quiz-student-action');
+        if (!button || !currentResultsContext) return;
+        openStudentException(
+            button.dataset.action,
+            currentResultsContext.classId,
+            currentResultsContext.sessionId,
+            button.dataset.studentId,
+            button.dataset.studentName,
+        );
+    });
+}
 
 function openStudentException(action, classId, sessionId, studentId, studentName) {
     pendingStudentException = { action, classId, sessionId, studentId };
@@ -138,43 +149,49 @@ function openStudentException(action, classId, sessionId, studentId, studentName
     openModal('quizStudentExceptionModal');
 }
 
-document.getElementById('quizStudentExceptionForm')?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (!pendingStudentException) return;
+function initializeStudentExceptionForm() {
+    const form = document.getElementById('quizStudentExceptionForm');
+    if (!form || form.dataset.classroomReady === 'true') return;
+    form.dataset.classroomReady = 'true';
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!pendingStudentException) return;
 
-    const button = document.getElementById('confirmStudentException');
-    const { action, classId, sessionId, studentId } = pendingStudentException;
-    const payload = {
-        reason: document.getElementById('exception-reason').value.trim(),
-    };
-    if (action === 'retake') {
-        payload.due_at = document.getElementById('exception-due-at').value || null;
-    }
-    button.disabled = true;
-    button.classList.add('opacity-50');
+        const button = document.getElementById('confirmStudentException');
+        const { action, classId, sessionId, studentId } = pendingStudentException;
+        const payload = {
+            reason: document.getElementById('exception-reason').value.trim(),
+        };
+        if (action === 'retake') {
+            payload.due_at = document.getElementById('exception-due-at').value || null;
+        }
+        button.disabled = true;
+        button.classList.add('opacity-50');
 
-    try {
-        const response = await fetch(`/teacher/classes/${classId}/quizzes/${sessionId}/students/${studentId}/${action}`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': csrfToken(),
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message ?? 'The exception could not be saved.');
-        closeModal('quizStudentExceptionModal');
-        showToast(data.message ?? 'Student exception saved.', data.email_sent === false);
-        await openResults(classId, sessionId, currentResultsContext?.topic ?? 'Quiz');
-    } catch (error) {
-        showToast(error.message, true);
-    } finally {
-        button.disabled = false;
-        button.classList.remove('opacity-50');
-    }
-});
+        try {
+            const response = await fetch(`/teacher/classes/${classId}/quizzes/${sessionId}/students/${studentId}/${action}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message ?? 'The exception could not be saved.');
+            document.dispatchEvent(new CustomEvent('mathverse:data-changed'));
+            closeModal('quizStudentExceptionModal');
+            showToast(data.message ?? 'Student exception saved.', data.email_sent === false);
+            await openResults(classId, sessionId, currentResultsContext?.topic ?? 'Quiz');
+        } catch (error) {
+            showToast(error.message, true);
+        } finally {
+            button.disabled = false;
+            button.classList.remove('opacity-50');
+        }
+    });
+}
 
 function openQuizAction(classId, sessionId, action, topic) {
     pendingQuizAction = { classId, sessionId, action };
@@ -191,31 +208,42 @@ function openQuizAction(classId, sessionId, action, topic) {
     openModal('quizActionModal');
 }
 
-document.getElementById('confirmQuizAction')?.addEventListener('click', async () => {
-    if (!pendingQuizAction) return;
-    const { classId, sessionId, action } = pendingQuizAction;
+function initializeQuizActionButton() {
     const button = document.getElementById('confirmQuizAction');
-    button.disabled = true;
-    button.classList.add('opacity-50');
+    if (!button || button.dataset.classroomReady === 'true') return;
+    button.dataset.classroomReady = 'true';
+    button.addEventListener('click', async () => {
+        if (!pendingQuizAction) return;
+        const { classId, sessionId, action } = pendingQuizAction;
+        button.disabled = true;
+        button.classList.add('opacity-50');
 
-    try {
-        const response = await fetch(`/teacher/classes/${classId}/quizzes/${sessionId}/${action}`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': csrfToken(),
-                'Accept': 'application/json',
-            },
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message ?? 'The quiz status could not be changed.');
-        window.location.reload();
-    } catch (error) {
-        showToast(error.message, true);
-        button.disabled = false;
-        button.classList.remove('opacity-50');
-        closeModal('quizActionModal');
-    }
-});
+        try {
+            const response = await fetch(`/teacher/classes/${classId}/quizzes/${sessionId}/${action}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message ?? 'The quiz status could not be changed.');
+            document.dispatchEvent(new CustomEvent('mathverse:data-changed'));
+            closeModal('quizActionModal');
+            showToast(action === 'end' ? 'Quiz ended.' : 'Quiz started.');
+            if (window.MathVerseNavigation) {
+                await window.MathVerseNavigation.refresh();
+            } else {
+                window.location.assign(window.location.href);
+            }
+        } catch (error) {
+            showToast(error.message, true);
+            button.disabled = false;
+            button.classList.remove('opacity-50');
+            closeModal('quizActionModal');
+        }
+    });
+}
 
 function openSessionReport(sessionId, topic) {
     document.getElementById('quiz-report-topic').textContent = topic;
@@ -264,3 +292,19 @@ function escapeClassroomHtml(value) {
 function escapeClassroomAttribute(value) {
     return escapeClassroomHtml(value).replaceAll('`', '&#096;');
 }
+
+function initializeTeacherClassroom() {
+    initializeClassroomResultActions();
+    initializeStudentExceptionForm();
+    initializeQuizActionButton();
+}
+
+onMathVerseReady(initializeTeacherClassroom);
+document.addEventListener('mathverse:before-navigate', () => {
+    clearInterval(lobbyTimer);
+    lobbyTimer = null;
+    currentLobbyUrl = null;
+    currentResultsContext = null;
+    pendingStudentException = null;
+    pendingQuizAction = null;
+});

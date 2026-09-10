@@ -94,7 +94,8 @@
             <h3 id="restore-version-title" class="font-orbitron font-bold uppercase">Restore Quiz Version?</h3>
             <p id="restore-version-summary" class="text-xs text-slate-400 my-5"></p>
             <p class="text-[10px] text-red-400 mb-6">The selected snapshot becomes current, and all later snapshots are deleted.</p>
-            <form id="restoreQuizVersionForm" method="POST">
+            <form id="restoreQuizVersionForm" method="POST"
+                  data-restore-base="/teacher/quizzes/{{ $quiz['id'] }}/versions">
                 @csrf
                 <button type="submit" class="btn-rect-primary !bg-yellow-500 !text-black">Restore Version</button>
             </form>
@@ -103,13 +104,3 @@
     </div>
     @include('teacher.partials.logout-modal')
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">
-function openRestoreQuizVersion(version, topic) {
-    document.getElementById('restoreQuizVersionForm').action = `/teacher/quizzes/{{ $quiz['id'] }}/versions/${version}/restore`;
-    document.getElementById('restore-version-summary').textContent = `Restore version ${version} of “${topic}”?`;
-    openModal('restoreQuizVersionModal');
-}
-</script>
-@endpush

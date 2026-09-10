@@ -444,7 +444,3 @@
 
 @include('teacher.partials.logout-modal')
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-classroom.js') }}"></script>
-@endpush

@@ -36,6 +36,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::middleware(['throttle:authenticated', 'auth.supabase'])->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword'])->middleware('throttle:account-security');
     Route::post('/change-email', [AuthController::class, 'changeEmail'])->middleware('throttle:account-security');
+    Route::get('/notifications/snapshot', [NotificationController::class, 'snapshot'])
+        ->middleware('throttle:60,1');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'read']);
     Route::post('/push-subscription', [AdminPushController::class, 'store'])->middleware('throttle:30,1');

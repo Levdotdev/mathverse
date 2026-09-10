@@ -82,7 +82,8 @@
 @endif
 
 @php $initialQuestions = old('questions', $questionsForForm); @endphp
-<form id="admin-review-quiz-form" method="POST" action="{{ $formAction }}" class="space-y-7">
+<form id="admin-review-quiz-form" method="POST" action="{{ $formAction }}"
+      data-seamless-refresh="manual" class="space-y-7">
     @csrf
     @method('PUT')
     <input type="hidden" name="visibility" value="{{ $isOwnQuiz ? ($quiz['visibility'] ?? 'shared') : 'shared' }}">
@@ -132,6 +133,7 @@
         </button>
     </div>
 </form>
+<template data-quiz-question-state>{!! json_encode($initialQuestions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</template>
 @endsection
 
 @section('modals')
@@ -154,18 +156,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">
-window.adminReviewQuestions = @json($initialQuestions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-</script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/teacher-quizzes.js') }}?v={{ filemtime(public_path('js/teacher-quizzes.js')) }}"></script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">
-document.addEventListener('DOMContentLoaded', () => {
-    (window.adminReviewQuestions || []).forEach((question) => {
-        addQuestionBlock(question.question || '', question.options || ['', '', '', ''], Number.parseInt(question.correct, 10) || 0);
-    });
-    if (!document.getElementById('questions-builder')?.children.length) addNewQuestion();
-});
-</script>
-@endpush

@@ -1,21 +1,10 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const questions = Array.isArray(window.sharedQuizReviewQuestions)
-        ? window.sharedQuizReviewQuestions
-        : [];
-
-    questions.forEach(question => {
-        addQuestionBlock(
-            question.question ?? '',
-            Array.isArray(question.options) ? question.options : ['', '', '', ''],
-            Number.parseInt(question.correct, 10) || 0
-        );
-    });
-
-    if (!document.getElementById('questions-builder')?.children.length) {
-        addNewQuestion();
-    }
-
+function initializeSharedQuizReview() {
+    const builder = document.getElementById('questions-builder');
     const form = document.getElementById('shared-quiz-assignment-form');
+    if (!form || !builder || builder.dataset.reviewReady === 'true') return;
+    builder.dataset.reviewReady = 'true';
+
+    hydrateQuestionBuilder();
     const quizGrade = Number(form?.dataset.quizGrade);
     const classOptions = [...document.querySelectorAll('[data-class-option]')];
     const noMatchingClass = document.getElementById('review-no-matching-class');
@@ -139,4 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
         form.requestSubmit();
     });
     filterClassesByGrade();
-});
+}
+
+onMathVerseReady(initializeSharedQuizReview);

@@ -1,5 +1,17 @@
 const _syms = ['+','−','×','÷','=','π','∑','√','Δ','∞','∫','f(x)','y²','x³'];
 
+function onMathVerseReady(callback) {
+    document.addEventListener('mathverse:page-ready', callback);
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', callback, { once: true });
+    } else {
+        queueMicrotask(callback);
+    }
+}
+
+window.onMathVerseReady = onMathVerseReady;
+
 function _spawn() {
     const c = document.getElementById('particle-container');
     if (!c || c.children.length > 10) return;
@@ -69,6 +81,44 @@ function hideToast() {
     toast.classList.remove('opacity-100');
     toast.classList.add('opacity-0', 'pointer-events-none');
 }
+
+function displayMathVerseDocumentFeedback(sourceDocument = document) {
+    const sourceToast = sourceDocument.getElementById('toast');
+    let displayedToast = false;
+    if (sourceToast?.dataset.initialVisible === 'true') {
+        showToast(
+            sourceToast.querySelector('#toast-msg')?.textContent?.trim() || 'Done.',
+            sourceToast.getAttribute('role') === 'alert'
+        );
+        sourceToast.dataset.initialVisible = 'false';
+        displayedToast = true;
+    }
+
+    const sourceImageModal = sourceDocument.getElementById('imageSizeModal');
+    if (sourceImageModal?.dataset.initialOpen === 'true') {
+        const currentImageModal = document.getElementById('imageSizeModal');
+        const sourceMessage = sourceImageModal.querySelector('#image-size-message')?.textContent;
+        const currentMessage = currentImageModal?.querySelector('#image-size-message');
+        if (sourceMessage && currentMessage) currentMessage.textContent = sourceMessage.trim();
+        openModal('imageSizeModal');
+        sourceImageModal.dataset.initialOpen = 'false';
+    }
+
+    if (displayedToast) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('notice')) {
+            url.searchParams.delete('notice');
+            window.history.replaceState(
+                window.history.state,
+                document.title,
+                url.pathname + (url.searchParams.size ? `?${url.searchParams.toString()}` : '') + url.hash
+            );
+        }
+    }
+}
+
+window.displayMathVerseDocumentFeedback = displayMathVerseDocumentFeedback;
+onMathVerseReady(() => displayMathVerseDocumentFeedback(document));
 
 const mathVerseDelegatedActions = new Set([
     'addNewQuestion',
@@ -401,7 +451,7 @@ window.addEventListener('resize', () => {
 function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
-document.addEventListener('DOMContentLoaded', () => {
+onMathVerseReady(() => {
     const sections = [...document.querySelectorAll('.content-section')];
     if (!sections.length) return;
 
@@ -416,9 +466,11 @@ function syncTemporalInputTone(input) {
     input?.classList.toggle('temporal-input-empty', !input.value);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+onMathVerseReady(() => {
     document.querySelectorAll('input[type="date"], input[type="datetime-local"], input[type="month"], input[type="time"]')
         .forEach(input => {
+            if (input.dataset.temporalToneReady === 'true') return;
+            input.dataset.temporalToneReady = 'true';
             syncTemporalInputTone(input);
             input.addEventListener('input', () => syncTemporalInputTone(input));
             input.addEventListener('change', () => syncTemporalInputTone(input));
@@ -483,8 +535,15 @@ function chooseAnotherAvatar() {
     setTimeout(() => input?.click(), 100);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('mathverse:before-navigate', () => {
+    invalidAvatarInput = null;
+    closeModal('imageSizeModal');
+});
+
+onMathVerseReady(() => {
     document.querySelectorAll('input[type="file"][name="avatar"]').forEach(input => {
+        if (input.dataset.avatarValidationReady === 'true') return;
+        input.dataset.avatarValidationReady = 'true';
         const form = input.closest('form');
         if (!form) return;
 

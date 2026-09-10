@@ -578,17 +578,3 @@
 </div>
 
 @endsection
-
-@push('scripts')
-@vite('resources/js/chart.js')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/admin.js') }}?v={{ filemtime(public_path('js/admin.js')) }}"></script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/charts.js') }}"></script>
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">
-    document.addEventListener('DOMContentLoaded', () => {
-        applyChartDefaults();
-        document.getElementById('btn-stats')?.addEventListener('click', () => {
-            requestAnimationFrame(() => requestAnimationFrame(() => loadAdminStats()));
-        });
-    });
-</script>
-@endpush

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\StoreAuditLog;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -738,6 +739,23 @@ class SupabaseService
     }
 
     public function audit(
+        array $actor,
+        string $action,
+        string $targetType,
+        string|int|null $targetId = null,
+        array $metadata = []
+    ): bool {
+        if (app()->runningInConsole()) {
+            return $this->storeAudit($actor, $action, $targetType, $targetId, $metadata);
+        }
+
+        StoreAuditLog::dispatch($actor, $action, $targetType, $targetId, $metadata)
+            ->onConnection('deferred');
+
+        return true;
+    }
+
+    public function storeAudit(
         array $actor,
         string $action,
         string $targetType,

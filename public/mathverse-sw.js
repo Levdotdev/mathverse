@@ -16,7 +16,10 @@ self.addEventListener('push', event => {
         data: { url: payload.url || '/' },
     };
 
-    event.waitUntil(self.registration.showNotification(title, options));
+    event.waitUntil(Promise.all([
+        self.registration.showNotification(title, options),
+        notifyOpenMathVerseWindows(),
+    ]));
 });
 
 self.addEventListener('notificationclick', event => {
@@ -34,6 +37,11 @@ self.addEventListener('notificationclick', event => {
         return clients.openWindow(destination);
     })());
 });
+
+async function notifyOpenMathVerseWindows() {
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    windows.forEach(client => client.postMessage({ type: 'mathverse:notifications-changed' }));
+}
 
 function safeDestination(value) {
     try {
