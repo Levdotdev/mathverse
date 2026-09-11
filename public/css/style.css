@@ -376,6 +376,307 @@ body.sidebar-open {
     to { opacity: 0; transform: translate(var(--reward-x), var(--reward-y)) rotate(260deg); }
 }
 
+/* --- NUMBER GUESS ARCADE --- */
+.number-guess-stage {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(1.25rem, 4vw, 2.5rem) !important;
+    border-color: rgba(34, 211, 238, 0.28);
+    background:
+        radial-gradient(circle at 50% 25%, rgba(188, 19, 254, 0.12), transparent 38%),
+        linear-gradient(155deg, rgba(6, 10, 24, 0.98), rgba(4, 7, 16, 0.96));
+}
+
+.number-guess-stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.22;
+    background-image:
+        linear-gradient(rgba(34, 211, 238, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 211, 238, 0.08) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to bottom, black, transparent 72%);
+}
+
+.number-guess-stage > * {
+    position: relative;
+    z-index: 1;
+}
+
+.number-guess-stat {
+    min-width: 0;
+    padding: 0.85rem 0.7rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 0.7rem;
+    background: rgba(255, 255, 255, 0.035);
+    text-align: center;
+}
+
+.number-guess-stat span {
+    display: block;
+    color: #64748b;
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.number-guess-stat strong {
+    display: block;
+    margin-top: 0.25rem;
+    color: #f8fafc;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.15rem, 4vw, 1.6rem);
+}
+
+.number-guess-timer {
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(34, 211, 238, 0.16);
+    border-radius: 0.75rem;
+    background: rgba(8, 145, 178, 0.05);
+}
+
+.number-guess-timer-track {
+    height: 0.7rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.number-guess-timer-track > span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #22d3ee, #a855f7);
+    box-shadow: 0 0 16px rgba(34, 211, 238, 0.55);
+    transition: width 100ms linear, background 0.2s ease;
+}
+
+.number-guess-timer-track.is-urgent > span {
+    background: linear-gradient(90deg, #fb7185, #f97316);
+    box-shadow: 0 0 18px rgba(248, 113, 113, 0.68);
+}
+
+.number-guess-console {
+    display: flex;
+    min-height: 17rem;
+    margin-top: 1.25rem;
+    padding: 2rem 1rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(168, 85, 247, 0.18);
+    border-radius: 1rem;
+    background: rgba(2, 6, 23, 0.68);
+    text-align: center;
+}
+
+.number-guess-orb {
+    display: flex;
+    width: 5.25rem;
+    height: 5.25rem;
+    margin-bottom: 1.1rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 999px;
+    color: #67e8f9;
+    background: radial-gradient(circle, rgba(34, 211, 238, 0.19), rgba(168, 85, 247, 0.07));
+    box-shadow: 0 0 34px rgba(34, 211, 238, 0.14);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+}
+
+.number-guess-feedback {
+    width: min(100%, 34rem);
+    min-height: 3rem;
+    margin-top: 1.25rem;
+    padding: 0.8rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 0.7rem;
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, 0.05);
+    font-size: 0.8rem;
+}
+
+.number-guess-feedback[data-tone='low'] {
+    border-color: rgba(34, 211, 238, 0.3);
+    color: #67e8f9;
+    background: rgba(34, 211, 238, 0.07);
+}
+
+.number-guess-feedback[data-tone='high'] {
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #fca5a5;
+    background: rgba(248, 113, 113, 0.07);
+}
+
+.number-guess-feedback[data-tone='correct'] {
+    border-color: rgba(74, 222, 128, 0.35);
+    color: #86efac;
+    background: rgba(74, 222, 128, 0.08);
+}
+
+.number-guess-feedback[data-tone='finished'] {
+    border-color: rgba(250, 204, 21, 0.3);
+    color: #fde047;
+    background: rgba(250, 204, 21, 0.06);
+}
+
+.number-guess-input-row {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr) 3.5rem;
+    gap: 0.65rem;
+    width: min(100%, 32rem);
+    margin: 0.5rem auto 0;
+}
+
+.number-guess-input {
+    width: 100%;
+    min-width: 0;
+    height: 4.25rem;
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 0.75rem;
+    outline: none;
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.94);
+    box-shadow: inset 0 0 22px rgba(34, 211, 238, 0.04);
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.25rem, 5vw, 2rem);
+    font-weight: 900;
+    text-align: center;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    -moz-appearance: textfield;
+}
+
+.number-guess-input::-webkit-outer-spin-button,
+.number-guess-input::-webkit-inner-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+}
+
+.number-guess-input:focus {
+    border-color: #22d3ee;
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12), inset 0 0 22px rgba(34, 211, 238, 0.06);
+}
+
+.number-guess-stepper {
+    display: flex;
+    min-width: 0;
+    min-height: 3.5rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.75rem;
+    color: #c4b5fd;
+    background: rgba(168, 85, 247, 0.08);
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.number-guess-stepper:hover:not(:disabled),
+.number-guess-stepper:focus-visible {
+    border-color: rgba(168, 85, 247, 0.55);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.number-guess-stage kbd {
+    display: inline-flex;
+    min-width: 1.45rem;
+    min-height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.08rem 0.3rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-bottom-width: 2px;
+    border-radius: 0.3rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.05);
+    font-family: 'Share Tech Mono', monospace;
+}
+
+.number-guess-leaderboard {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.number-guess-rank {
+    display: flex;
+    min-width: 0;
+    min-height: 3.8rem;
+    padding: 0.7rem;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.number-guess-rank.is-current {
+    border-color: rgba(34, 211, 238, 0.35);
+    background: rgba(34, 211, 238, 0.07);
+}
+
+.number-guess-rank-number {
+    width: 2.2rem;
+    flex: 0 0 2.2rem;
+    color: #64748b;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.number-guess-rank[data-rank='1'] .number-guess-rank-number { color: #facc15; }
+.number-guess-rank[data-rank='2'] .number-guess-rank-number { color: #cbd5e1; }
+.number-guess-rank[data-rank='3'] .number-guess-rank-number { color: #fb923c; }
+
+.number-guess-rank strong {
+    color: #e2e8f0;
+    font-size: 0.8rem;
+}
+
+.number-guess-rank small {
+    display: block;
+    margin-top: 0.12rem;
+    color: #64748b;
+    font-size: 0.62rem;
+}
+
+.number-guess-rank-score {
+    color: #67e8f9 !important;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem !important;
+}
+
+.number-guess-board-empty {
+    padding: 1.5rem 0.8rem;
+    color: #64748b;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
+#number-guess-refresh-board.is-spinning i {
+    animation: numberGuessSpin 0.8s linear infinite;
+}
+
+.number-guess-correct-flash .number-guess-orb {
+    animation: numberGuessCorrect 560ms ease-out;
+}
+
+@keyframes numberGuessCorrect {
+    0% { transform: scale(1); color: #67e8f9; }
+    42% { transform: scale(1.16); color: #86efac; box-shadow: 0 0 46px rgba(74, 222, 128, 0.45); }
+    100% { transform: scale(1); color: #67e8f9; }
+}
+
+@keyframes numberGuessSpin {
+    to { transform: rotate(360deg); }
+}
+
 /* Sidebar Nav Links */
 .nav-link {
     display: flex;

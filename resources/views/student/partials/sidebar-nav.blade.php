@@ -6,6 +6,10 @@
    class="nav-link w-full {{ in_array($activePage, ['learning', 'practice'], true) ? 'active' : '' }}">
     <i class="fas fa-rocket mr-3 w-5 text-purple-400"></i> Learning Hub
 </a>
+<a href="/student/games/number-guess" id="btn-games"
+   class="nav-link w-full {{ $activePage === 'games' ? 'active' : '' }}">
+    <i class="fas fa-gamepad mr-3 w-5 text-pink-400"></i> Math Games
+</a>
 <a href="/student/dashboard?section=stats" id="btn-stats"
    class="nav-link w-full {{ $activePage === 'stats' ? 'active' : '' }}">
     <i class="fas fa-chart-line mr-3 w-5 text-cyan-400"></i> My Stats

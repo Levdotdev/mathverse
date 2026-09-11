@@ -280,6 +280,21 @@ fails, the normal minute worker sends the receipt instead. The paired rollback
 removes the callback and token column and restores quiz-availability email; it
 retains `pg_net` in case another database feature uses it.
 
+## Number Guess game
+
+After the security-hardening migration, run
+`2026_09_11_number_guess_game.sql` before enabling the student game page. It
+creates private, server-authoritative game sessions and a persistent
+grade-level leaderboard. The target number and countdown never leave the
+database through direct browser access; Laravel receives only safe session
+fields from the service-role-only functions. A run starts with 60 seconds and
+a 1–100 range.
+Each correct answer adds 15 seconds and increases the upper limit by 50.
+
+Use `2026_09_11_number_guess_game_rollback.sql` only after rolling back the
+matching application code. It permanently removes Number Guess sessions and
+leaderboard scores without changing Learning Hub mastery, XP, or trophies.
+
 ### Configure application email delivery
 
 Supabase Auth continues to send sign-up, recovery, change-email, password

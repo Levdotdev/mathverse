@@ -449,12 +449,14 @@ declare
         'enforce_quiz_result_attempt',
         'enforce_quiz_usage_count',
         'freeze_completed_assignment_attempts',
+        'finish_number_guess_game',
         'generate_upcoming_quiz_notifications',
         'grant_quiz_retake',
         'handle_auth_security_change',
         'ignore_repeat_quiz_result',
         'invalidate_profile_sessions_after_password_change',
         'keep_quiz_results_immutable',
+        'number_guess_dashboard',
         'notify_all_admins',
         'notify_class_archive_changed',
         'notify_class_membership_changed',
@@ -482,6 +484,8 @@ declare
         'revoke_member_open_quiz_eligibility',
         'seed_quiz_session_students',
         'snapshot_quiz_report_context',
+        'start_number_guess_game',
+        'submit_number_guess',
         'submit_practice_answer'
     ];
 begin

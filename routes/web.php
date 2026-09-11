@@ -12,6 +12,7 @@ use App\Http\Controllers\AdminQuizController;
 use App\Http\Controllers\AdminPushController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\LearningHubController;
+use App\Http\Controllers\NumberGuessGameController;
 
 $uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
 Route::pattern('id', $uuidPattern);
@@ -55,6 +56,15 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:student'])->group(fu
         ->middleware('throttle:60,1');
     Route::post('/student/learning-hub/questions/{questionId}/answer', [LearningHubController::class, 'submitAnswer'])
         ->middleware('throttle:120,1');
+    Route::get('/student/games/number-guess', [NumberGuessGameController::class, 'index']);
+    Route::get('/student/games/number-guess/leaderboard', [NumberGuessGameController::class, 'leaderboard'])
+        ->middleware('throttle:60,1');
+    Route::post('/student/games/number-guess/start', [NumberGuessGameController::class, 'start'])
+        ->middleware('throttle:20,1');
+    Route::post('/student/games/number-guess/{sessionId}/guess', [NumberGuessGameController::class, 'guess'])
+        ->middleware('throttle:180,1');
+    Route::post('/student/games/number-guess/{sessionId}/finish', [NumberGuessGameController::class, 'finish'])
+        ->middleware('throttle:60,1');
     Route::post('/student/classes/join', [StudentClassController::class, 'join'])->middleware('throttle:class-join');
     Route::get('/student/classes/{id}', [StudentClassController::class, 'show']);
     Route::get('/student/classes/{classId}/quizzes/{sessionId}/review', [StudentClassController::class, 'review']);

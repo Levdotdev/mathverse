@@ -26,19 +26,34 @@
         </div>
     </div>
 
-    <a href="/student/learning-hub" class="portal-frame !p-6 mb-7 flex flex-col md:flex-row md:items-center justify-between gap-5 border-purple-500/40 learning-dashboard-card">
-        <div class="flex items-center gap-4">
-            <div class="w-14 h-14 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
-                <i class="fas fa-rocket text-2xl"></i>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-7">
+        <a href="/student/learning-hub" class="portal-frame !p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 border-purple-500/40 learning-dashboard-card">
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                    <i class="fas fa-rocket text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-[9px] uppercase font-bold tracking-[0.3em] text-purple-400">Autonomous Practice</p>
+                    <h3 class="font-orbitron font-bold text-lg mt-1">Continue Your MathVerse Adventure</h3>
+                    <p class="text-xs text-slate-500 mt-1">Adaptive problems, automatic hints, mastery, XP, and daily quests.</p>
+                </div>
             </div>
-            <div>
-                <p class="text-[9px] uppercase font-bold tracking-[0.3em] text-purple-400">New Autonomous Practice</p>
-                <h3 class="font-orbitron font-bold text-lg mt-1">Continue Your MathVerse Adventure</h3>
-                <p class="text-xs text-slate-500 mt-1">Endless adaptive problems, automatic hints, mastery, XP, and daily quests.</p>
+            <span class="text-purple-300 text-sm shrink-0" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>
+        </a>
+        <a href="/student/games/number-guess" class="portal-frame !p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 border-pink-500/40 learning-dashboard-card">
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-xl bg-pink-500/10 border border-pink-500/30 flex items-center justify-center text-pink-400 shrink-0">
+                    <i class="fas fa-gamepad text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-[9px] uppercase font-bold tracking-[0.3em] text-pink-400">MathVerse Arcade</p>
+                    <h3 class="font-orbitron font-bold text-lg mt-1">Play Number Guess</h3>
+                    <p class="text-xs text-slate-500 mt-1">Race the clock, follow high-or-low clues, and climb your grade leaderboard.</p>
+                </div>
             </div>
-        </div>
-        <span class="btn-rect-primary !w-auto px-6 py-3 text-center shrink-0">Enter Learning Hub <i class="fas fa-arrow-right ml-2"></i></span>
-    </a>
+            <span class="text-pink-300 text-sm shrink-0" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>
+        </a>
+    </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div class="portal-frame !p-5 border-b-2 border-cyan-500">
