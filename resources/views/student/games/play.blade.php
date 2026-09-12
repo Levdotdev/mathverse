@@ -14,6 +14,7 @@
      data-seamless-refresh="manual"
      data-game-key="{{ $gameState['game']['key'] }}"
      data-accent="{{ $gameState['game']['accent'] }}"
+     data-configured="{{ $gameState['configured'] ? 'true' : 'false' }}"
      data-testid="arcade-game">
     <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-white/10 pb-5">
         <div class="flex items-center gap-4 min-w-0">

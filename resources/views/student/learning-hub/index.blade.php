@@ -33,7 +33,7 @@
         }
     }
 @endphp
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto" data-testid="student-learning-hub" data-configured="{{ $hub['configured'] ? 'true' : 'false' }}">
     <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-7 border-b border-white/10 pb-5">
         <div>
             <p class="text-[10px] font-bold uppercase tracking-[0.35em] text-purple-400 mb-2">Autonomous Learning System</p>

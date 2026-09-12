@@ -33,7 +33,7 @@ service key.
 - Run `composer install --no-dev --classmap-authoritative` and `npm ci && npm
   run build` from the committed lock files.
 - Apply every SQL migration in `database/supabase` in date order, ending with
-  `2026_09_09_immediate_event_delivery.sql`. The September migrations retain
+  `2026_09_12_shared_math_arcade.sql`. The September migrations retain
   the service-role-only function grant established by the hardening migration,
   route assignment/availability alerts to Web Push, and enable the protected
   immediate quiz-receipt callback.
@@ -87,11 +87,21 @@ composer audit --locked
 npm audit --audit-level=high
 npm run build
 php artisan test
+npm run test:browser
 ```
 
 The GitHub workflow repeats these checks for pushes, pull requests, and weekly
-scheduled runs. Dependabot opens update pull requests for Composer, npm, and
-workflow dependencies.
+scheduled runs. A separate staging workflow exercises dedicated student,
+teacher, and administrator accounts every day and on demand. It verifies
+browser runtime errors, notifications, Web Push prerequisites, quizzes,
+Learning Hub practice and analytics, all five games, audit filters, delivery
+health, deployed identity, and the mobile Join layout. Dependabot opens update
+pull requests for Composer, npm, and workflow dependencies.
+
+Privileged administrator actions must continue to use the durable audit-intent
+lifecycle. Never replace it with a deferred best-effort log. Treat a stale
+pending intent as an incident: preserve the row, determine whether the action
+completed, and finalize or reconcile it with an explicit recorded outcome.
 
 Monitor failed logins, password recovery requests, permission failures,
 suspensions, administrator actions, notification-delivery failures, and unusual

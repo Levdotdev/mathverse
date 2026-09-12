@@ -295,6 +295,50 @@ Use `2026_09_11_number_guess_game_rollback.sql` only after rolling back the
 matching application code. It permanently removes Number Guess sessions and
 leaderboard scores without changing Learning Hub mastery, XP, or trophies.
 
+## Platform insights, durable audits, and bounded ranks
+
+After Number Guess, run
+`2026_09_12_platform_insights_and_durable_audit.sql`. It creates the migration
+registry and scheduler heartbeat used by **Admin → System Health**, adds
+server-only bounded queries for the trophy leaderboard and teacher Learning
+Hub analytics, and separates high-volume page activity from security events.
+
+Administrator deletion, suspension/restoration, and teacher approval/denial
+now create a privileged audit intent before the protected action begins. The
+intent and its pending security event are inserted in one database transaction,
+then finalized to either `succeeded` or `failed`. A protected action is blocked
+if its durable audit intent cannot be created. Stale intents and recorded
+failures are visible on System Health instead of disappearing in a deferred
+queue.
+
+The migration also registers every earlier forward SQL file. After deployment,
+run Laravel's scheduler every minute so the `laravel_scheduler` heartbeat stays
+current, and set `MATHVERSE_COMMIT` (or one of the supported platform commit
+variables) to the deployed Git SHA. Use the paired rollback only after rolling
+back the matching application code; it archives the durable outbox before
+removing this layer.
+
+## Shared Math Arcade
+
+Next run `2026_09_12_shared_math_arcade.sql`. It adds Mental Arithmetic,
+Equation Balance, Fraction Comparison, and Pattern Pulse beside Number Guess.
+All questions, expected answers, countdowns, score changes, and grade-level
+ranks remain server-authoritative. A question's answer and explanation are
+removed before its challenge reaches the browser and are revealed only after
+that question is submitted. Question families rotate through eight variants
+before repeating while operands remain randomized for the student's grade.
+
+The arcade has one shared 12-badge achievement system across all five games.
+Its scores, badges, and leaderboards are intentionally separate from Learning
+Hub mastery, XP, levels, points, and trophies. The leaderboard returns only the
+configured top ranks plus the current student rather than downloading an entire
+grade.
+
+Use `2026_09_12_shared_math_arcade_rollback.sql` only after rolling back the
+matching application code. It archives arcade scores and badges, removes active
+sessions and server functions, and does not alter Learning Hub progress or the
+existing Number Guess leaderboard.
+
 ### Configure application email delivery
 
 Supabase Auth continues to send sign-up, recovery, change-email, password

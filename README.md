@@ -30,7 +30,14 @@ composer audit --locked
 npm audit --audit-level=high
 npm run build
 php artisan test
+npm run test:browser
 ```
+
+The browser suite runs against a deployed HTTPS staging environment and needs
+dedicated student, teacher, and administrator accounts. See
+[`docs/staging-browser.md`](docs/staging-browser.md) for fixture requirements,
+the seven required environment variables, and the coverage matrix. GitHub's
+`staging-browser.yml` workflow runs the same journeys every day and on demand.
 
 ---
 

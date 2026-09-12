@@ -9,7 +9,7 @@
 @endsection
 
 @section('dashboard-content')
-<div class="max-w-7xl mx-auto" data-testid="arcade-hub">
+<div class="max-w-7xl mx-auto" data-testid="arcade-hub" data-configured="{{ $arcade['configured'] ? 'true' : 'false' }}">
     <header class="arcade-hub-hero portal-frame !p-6 md:!p-8 mb-6">
         <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div class="max-w-3xl">

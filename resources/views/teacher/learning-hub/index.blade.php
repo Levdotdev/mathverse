@@ -9,7 +9,7 @@
 @endsection
 
 @section('dashboard-content')
-<div class="max-w-7xl mx-auto" data-testid="teacher-learning-hub">
+<div class="max-w-7xl mx-auto" data-testid="teacher-learning-hub" data-configured="{{ $analytics['configured'] ? 'true' : 'false' }}">
     <header class="flex flex-col xl:flex-row xl:items-end justify-between gap-5 mb-7 border-b border-white/10 pb-6">
         <div>
             <p class="text-[9px] uppercase tracking-[0.3em] font-bold text-green-400">Adaptive practice evidence</p>
