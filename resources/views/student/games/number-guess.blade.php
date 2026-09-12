@@ -12,7 +12,7 @@
 <div id="number-guess-game" data-seamless-refresh="manual" class="max-w-7xl mx-auto">
     <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-white/10 pb-5">
         <div class="flex items-center gap-4 min-w-0">
-            <a href="/student/dashboard" class="w-11 h-11 rounded-lg border border-white/10 bg-white/5 hover:border-cyan-400/40 flex items-center justify-center shrink-0" aria-label="Back to Student Hub">
+            <a href="/student/games" class="w-11 h-11 rounded-lg border border-white/10 bg-white/5 hover:border-cyan-400/40 flex items-center justify-center shrink-0" aria-label="Back to Math Arcade">
                 <i class="fas fa-arrow-left"></i>
             </a>
             <div class="min-w-0">

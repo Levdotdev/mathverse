@@ -78,6 +78,7 @@
 @elseif(($user['role'] ?? '') === 'student')
     <script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/learning-hub.js') }}?v={{ filemtime(public_path('js/learning-hub.js')) }}"></script>
     <script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/number-guess.js') }}?v={{ filemtime(public_path('js/number-guess.js')) }}"></script>
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/math-arcade.js') }}?v={{ filemtime(public_path('js/math-arcade.js')) }}"></script>
 @endif
 <script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/seamless-navigation.js') }}?v={{ filemtime(public_path('js/seamless-navigation.js')) }}"></script>
 @endpush

@@ -1310,3 +1310,282 @@ body.mathverse-navigating #dashboard-content {
         transition: none;
     }
 }
+
+/* --- SHARED MATH ARCADE --- */
+.arcade-hub-hero {
+    position: relative;
+    overflow: hidden;
+    border-color: rgba(236, 72, 153, 0.3);
+    background:
+        radial-gradient(circle at 86% 20%, rgba(236, 72, 153, 0.16), transparent 32%),
+        radial-gradient(circle at 12% 90%, rgba(34, 211, 238, 0.12), transparent 36%),
+        rgba(5, 8, 20, 0.94);
+}
+
+.arcade-hub-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.2;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    background-size: 36px 36px;
+    mask-image: linear-gradient(115deg, transparent, black 65%, transparent);
+}
+
+.arcade-grade-chip {
+    display: flex;
+    min-width: 12rem;
+    padding: 1rem 1.1rem;
+    align-items: center;
+    gap: 0.85rem;
+    border: 1px solid rgba(250, 204, 21, 0.25);
+    border-radius: 0.8rem;
+    background: rgba(250, 204, 21, 0.06);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+}
+
+.arcade-grade-chip > i { font-size: 1.45rem; }
+.arcade-grade-chip small { display: block; margin-bottom: 0.2rem; color: #64748b; font-family: 'Rajdhani', sans-serif; font-size: 0.52rem; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.arcade-notice-icon {
+    display: flex;
+    width: 3rem;
+    height: 3rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(250, 204, 21, 0.3);
+    border-radius: 0.75rem;
+    color: #fde047;
+    background: rgba(250, 204, 21, 0.08);
+}
+
+.arcade-game-card,
+#math-arcade-game {
+    --arcade-accent: #22d3ee;
+    --arcade-accent-rgb: 34, 211, 238;
+}
+
+.arcade-game-card[data-accent='purple'], #math-arcade-game[data-accent='purple'] { --arcade-accent: #c084fc; --arcade-accent-rgb: 192, 132, 252; }
+.arcade-game-card[data-accent='green'], #math-arcade-game[data-accent='green'] { --arcade-accent: #4ade80; --arcade-accent-rgb: 74, 222, 128; }
+.arcade-game-card[data-accent='orange'], #math-arcade-game[data-accent='orange'] { --arcade-accent: #fb923c; --arcade-accent-rgb: 251, 146, 60; }
+.arcade-game-card[data-accent='pink'], #math-arcade-game[data-accent='pink'] { --arcade-accent: #f472b6; --arcade-accent-rgb: 244, 114, 182; }
+
+.arcade-game-card {
+    display: block;
+    min-width: 0;
+    padding: 1.35rem !important;
+    border-top: 2px solid rgba(var(--arcade-accent-rgb), 0.52);
+    background: linear-gradient(155deg, rgba(var(--arcade-accent-rgb), 0.075), rgba(5, 8, 20, 0.96) 44%);
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.arcade-game-card:hover,
+.arcade-game-card:focus-visible {
+    border-color: rgba(var(--arcade-accent-rgb), 0.58);
+    box-shadow: 0 16px 38px rgba(var(--arcade-accent-rgb), 0.08);
+    transform: translateY(-3px);
+}
+
+.arcade-game-card.is-unavailable {
+    pointer-events: none;
+    filter: grayscale(0.45);
+    opacity: 0.55;
+}
+
+.arcade-game-icon {
+    display: inline-flex;
+    width: 3.25rem;
+    height: 3.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(var(--arcade-accent-rgb), 0.32);
+    border-radius: 0.8rem;
+    color: var(--arcade-accent);
+    background: rgba(var(--arcade-accent-rgb), 0.09);
+    box-shadow: 0 0 28px rgba(var(--arcade-accent-rgb), 0.08);
+    font-size: 1.25rem;
+}
+
+.arcade-launch-icon { color: #475569; font-size: 0.7rem; }
+.arcade-locked-label { color: #94a3b8; font-size: 0.55rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.arcade-card-eyebrow { margin-top: 1rem; color: var(--arcade-accent); font-size: 0.52rem; font-weight: 900; letter-spacing: 0.15em; text-transform: uppercase; }
+
+.arcade-mini-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.arcade-mini-stats > span { min-width: 0; text-align: center; }
+.arcade-mini-stats small { display: block; color: #475569; font-size: 0.48rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.arcade-mini-stats strong { display: block; margin-top: 0.2rem; color: #e2e8f0; font-family: 'Share Tech Mono', monospace; font-size: 1rem; }
+
+.arcade-badge-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.arcade-badge {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.7rem;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.018);
+    filter: grayscale(1);
+}
+
+.arcade-badge.is-unlocked {
+    border-color: rgba(168, 85, 247, 0.28);
+    color: #e2e8f0;
+    background: rgba(168, 85, 247, 0.055);
+    filter: none;
+}
+
+.arcade-badge-icon { display: inline-flex; width: 2.5rem; height: 2.5rem; align-items: center; justify-content: center; border-radius: 999px; color: #94a3b8; background: rgba(148, 163, 184, 0.08); }
+.arcade-badge.is-unlocked .arcade-badge-icon { color: #facc15; background: rgba(250, 204, 21, 0.1); box-shadow: 0 0 18px rgba(250, 204, 21, 0.08); }
+.arcade-badge strong { display: block; overflow: hidden; font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+.arcade-badge small { display: block; margin-top: 0.2rem; color: #475569; font-size: 0.55rem; line-height: 1.25; }
+.arcade-badge-state { color: #475569; font-size: 0.65rem; }
+.arcade-badge.is-unlocked .arcade-badge-state { color: #4ade80; }
+
+.arcade-play-stage {
+    position: relative;
+    overflow: hidden;
+    padding: clamp(1.25rem, 4vw, 2.5rem) !important;
+    border-color: rgba(var(--arcade-accent-rgb), 0.3);
+    background:
+        radial-gradient(circle at 50% 24%, rgba(var(--arcade-accent-rgb), 0.12), transparent 36%),
+        linear-gradient(155deg, rgba(6, 10, 24, 0.98), rgba(4, 7, 16, 0.96));
+}
+
+.arcade-play-stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.2;
+    background-image: linear-gradient(rgba(var(--arcade-accent-rgb), 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--arcade-accent-rgb), 0.08) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to bottom, black, transparent 75%);
+}
+
+.arcade-play-stage > * { position: relative; z-index: 1; }
+
+.arcade-question-console {
+    display: flex;
+    min-height: 17rem;
+    margin-top: 1.25rem;
+    padding: 2rem 1rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(var(--arcade-accent-rgb), 0.2);
+    border-radius: 1rem;
+    background: rgba(2, 6, 23, 0.72);
+    text-align: center;
+}
+
+.arcade-question-prompt {
+    margin-top: 0.85rem;
+    color: #f8fafc;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.5rem, 5vw, 2.55rem);
+    font-weight: 900;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.arcade-answer-input {
+    display: block;
+    width: min(100%, 30rem);
+    min-width: 0;
+    height: 4.25rem;
+    margin: 0.5rem auto 0;
+    border: 1px solid rgba(var(--arcade-accent-rgb), 0.38);
+    border-radius: 0.75rem;
+    outline: none;
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.94);
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.25rem, 5vw, 2rem);
+    font-weight: 900;
+    text-align: center;
+}
+
+.arcade-answer-input:focus { border-color: var(--arcade-accent); box-shadow: 0 0 0 3px rgba(var(--arcade-accent-rgb), 0.12); }
+.arcade-answer-input.hidden { display: none; }
+
+.arcade-choice-options {
+    display: grid;
+    width: min(100%, 30rem);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.7rem;
+    margin: 0.6rem auto 0;
+}
+
+.arcade-choice-options.hidden { display: none; }
+
+.arcade-choice-button {
+    min-width: 0;
+    min-height: 4.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.75rem;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.035);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.65rem;
+    font-weight: 900;
+    transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.arcade-choice-button:hover:not(:disabled),
+.arcade-choice-button:focus-visible,
+.arcade-choice-button.is-selected {
+    border-color: rgba(var(--arcade-accent-rgb), 0.68);
+    color: white;
+    background: rgba(var(--arcade-accent-rgb), 0.13);
+    transform: translateY(-2px);
+}
+
+#math-arcade-game .number-guess-feedback[data-tone='incorrect'] {
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #fca5a5;
+    background: rgba(248, 113, 113, 0.07);
+}
+
+.arcade-correct-flash .arcade-question-console { animation: arcadeCorrectFlash 420ms ease-out; }
+@keyframes arcadeCorrectFlash { 50% { border-color: rgba(74, 222, 128, 0.72); box-shadow: 0 0 30px rgba(74, 222, 128, 0.11); } }
+
+.student-join-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-width: 0;
+}
+
+@media (max-width: 1023px) {
+    .arcade-badge-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 639px) {
+    .arcade-badge-grid { grid-template-columns: 1fr; }
+    .arcade-grade-chip { width: 100%; min-width: 0; }
+    .arcade-game-card { padding: 1.15rem !important; }
+    .arcade-question-console { min-height: 14rem; padding: 1.5rem 0.75rem; }
+}
+
+@media (max-width: 420px) {
+    .student-join-form { grid-template-columns: minmax(0, 1fr); }
+    .student-join-form > button { width: 100% !important; }
+}

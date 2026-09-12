@@ -40,15 +40,15 @@
             </div>
             <span class="text-purple-300 text-sm shrink-0" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>
         </a>
-        <a href="/student/games/number-guess" class="portal-frame !p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 border-pink-500/40 learning-dashboard-card">
+        <a href="/student/games" class="portal-frame !p-6 flex flex-col md:flex-row md:items-center justify-between gap-5 border-pink-500/40 learning-dashboard-card">
             <div class="flex items-center gap-4">
                 <div class="w-14 h-14 rounded-xl bg-pink-500/10 border border-pink-500/30 flex items-center justify-center text-pink-400 shrink-0">
                     <i class="fas fa-gamepad text-2xl"></i>
                 </div>
                 <div>
                     <p class="text-[9px] uppercase font-bold tracking-[0.3em] text-pink-400">MathVerse Arcade</p>
-                    <h3 class="font-orbitron font-bold text-lg mt-1">Play Number Guess</h3>
-                    <p class="text-xs text-slate-500 mt-1">Race the clock, follow high-or-low clues, and climb your grade leaderboard.</p>
+                    <h3 class="font-orbitron font-bold text-lg mt-1">Enter the Math Arcade</h3>
+                    <p class="text-xs text-slate-500 mt-1">Five reasoning games, shared badges, and separate grade-level leaderboards.</p>
                 </div>
             </div>
             <span class="text-pink-300 text-sm shrink-0" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>
@@ -138,13 +138,13 @@
             <h3 class="font-orbitron font-bold text-lg uppercase mb-1">Join a New Class</h3>
             <p class="text-xs text-slate-400">Enter the 6-character code from your teacher.</p>
         </div>
-        <form method="POST" action="/student/classes/join" class="flex w-full md:w-auto gap-2">
+        <form method="POST" action="/student/classes/join" class="student-join-form w-full md:w-auto gap-2">
             @csrf
-            <div class="relative w-full md:w-48">
-                <input type="text" name="join_code" placeholder="Join Code"
-                       class="input-mobile-ultra font-mono uppercase !pl-4 tracking-widest" required>
+            <div class="relative min-w-0 w-full md:w-48">
+                <input type="text" name="join_code" placeholder="Join Code" maxlength="6"
+                       class="input-mobile-ultra min-w-0 font-mono uppercase !pl-4 tracking-widest" required>
             </div>
-            <button type="submit" class="btn-rect-primary !bg-green-500 !text-black !w-auto px-6">Join</button>
+            <button type="submit" class="btn-rect-primary !bg-green-500 !text-black !w-auto px-6 whitespace-nowrap shrink-0">Join</button>
         </form>
     </div>
 

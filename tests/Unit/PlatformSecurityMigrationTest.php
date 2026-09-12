@@ -29,6 +29,21 @@ class PlatformSecurityMigrationTest extends TestCase
         $this->assertStringContainsString('limit 200', $sql);
     }
 
+    public function test_arcade_is_server_authoritative_bounded_and_has_no_learning_rewards(): void
+    {
+        $sql = $this->migration('2026_09_12_shared_math_arcade.sql');
+
+        $this->assertStringContainsString("game_now+interval '60 seconds'", $sql);
+        $this->assertStringContainsString("p_session.expires_at-clock_timestamp()", $sql);
+        $this->assertStringContainsString("p_session.challenge-'answer'-'explanation'", $sql);
+        $this->assertStringContainsString('and student_id=p_student_id and game_key=p_game_key for update', $sql);
+        $this->assertStringContainsString('position<=greatest(3,least(coalesce(p_limit,10),50))', $sql);
+        $this->assertStringContainsString('arcade_refresh_achievements', $sql);
+        $this->assertStringNotContainsString('learning_profiles', $sql);
+        $this->assertStringNotContainsString('total_xp', $sql);
+        $this->assertStringNotContainsString('trophy_count', $sql);
+    }
+
     private function migration(string $name): string
     {
         return (string) file_get_contents(dirname(__DIR__, 2).'/database/supabase/'.$name);

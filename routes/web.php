@@ -13,6 +13,7 @@ use App\Http\Controllers\AdminPushController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\LearningHubController;
 use App\Http\Controllers\NumberGuessGameController;
+use App\Http\Controllers\MathArcadeController;
 use App\Http\Controllers\TeacherLearningHubController;
 use App\Http\Controllers\SystemHealthController;
 
@@ -23,6 +24,7 @@ Route::pattern('studentId', $uuidPattern);
 Route::pattern('sessionId', $uuidPattern);
 Route::pattern('reportId', $uuidPattern);
 Route::pattern('questionId', $uuidPattern);
+Route::pattern('gameKey', '(?:mental-arithmetic|equation-balance|fraction-comparison|pattern-pulse)');
 Route::pattern('version', '[1-9][0-9]{0,8}');
 
 // Auth routes
@@ -58,6 +60,7 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:student'])->group(fu
         ->middleware('throttle:60,1');
     Route::post('/student/learning-hub/questions/{questionId}/answer', [LearningHubController::class, 'submitAnswer'])
         ->middleware('throttle:120,1');
+    Route::get('/student/games', [MathArcadeController::class, 'index']);
     Route::get('/student/games/number-guess', [NumberGuessGameController::class, 'index']);
     Route::get('/student/games/number-guess/leaderboard', [NumberGuessGameController::class, 'leaderboard'])
         ->middleware('throttle:60,1');
@@ -66,6 +69,15 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:student'])->group(fu
     Route::post('/student/games/number-guess/{sessionId}/guess', [NumberGuessGameController::class, 'guess'])
         ->middleware('throttle:180,1');
     Route::post('/student/games/number-guess/{sessionId}/finish', [NumberGuessGameController::class, 'finish'])
+        ->middleware('throttle:60,1');
+    Route::get('/student/games/{gameKey}', [MathArcadeController::class, 'show']);
+    Route::get('/student/games/{gameKey}/leaderboard', [MathArcadeController::class, 'leaderboard'])
+        ->middleware('throttle:60,1');
+    Route::post('/student/games/{gameKey}/start', [MathArcadeController::class, 'start'])
+        ->middleware('throttle:20,1');
+    Route::post('/student/games/{gameKey}/{sessionId}/answer', [MathArcadeController::class, 'answer'])
+        ->middleware('throttle:180,1');
+    Route::post('/student/games/{gameKey}/{sessionId}/finish', [MathArcadeController::class, 'finish'])
         ->middleware('throttle:60,1');
     Route::post('/student/classes/join', [StudentClassController::class, 'join'])->middleware('throttle:class-join');
     Route::get('/student/classes/{id}', [StudentClassController::class, 'show']);
