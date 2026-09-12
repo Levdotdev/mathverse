@@ -11,6 +11,7 @@ class AdminImmediateAccountEmailFlowTest extends TestCase
 {
     private const ADMIN_ID = '110e8400-e29b-41d4-a716-446655440000';
     private const USER_ID = '220e8400-e29b-41d4-a716-446655440000';
+    private const AUDIT_ID = '330e8400-e29b-41d4-a716-446655440000';
 
     public function test_suspension_sends_the_status_email_during_the_request(): void
     {
@@ -30,7 +31,8 @@ class AdminImmediateAccountEmailFlowTest extends TestCase
             $mock->shouldReceive('adminUpdate')
                 ->once()
                 ->andReturn([['id' => self::USER_ID]]);
-            $mock->shouldReceive('audit')->once()->andReturn(true);
+            $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturn(self::AUDIT_ID);
+            $mock->shouldReceive('completePrivilegedAudit')->once()->andReturn(true);
         });
         $this->expectImmediateStatusEmail('account_suspended');
 
@@ -65,7 +67,8 @@ class AdminImmediateAccountEmailFlowTest extends TestCase
             $mock->shouldReceive('adminUpdate')
                 ->once()
                 ->andReturn([['id' => self::USER_ID]]);
-            $mock->shouldReceive('audit')->once()->andReturn(true);
+            $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturn(self::AUDIT_ID);
+            $mock->shouldReceive('completePrivilegedAudit')->once()->andReturn(true);
         });
         $this->expectImmediateStatusEmail('account_restored');
 

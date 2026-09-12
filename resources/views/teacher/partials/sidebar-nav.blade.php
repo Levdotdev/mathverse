@@ -29,3 +29,7 @@
    class="nav-link w-full {{ $activePage === 'analytics' ? 'active' : '' }}">
     <i class="fas fa-chart-bar mr-3 w-5 text-pink-400"></i> Analytics
 </a>
+<a href="/teacher/learning-hub"
+   class="nav-link w-full {{ $activePage === 'learning-analytics' ? 'active' : '' }}">
+    <i class="fas fa-rocket mr-3 w-5 text-green-400"></i> Learning Hub Insights
+</a>

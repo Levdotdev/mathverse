@@ -533,6 +533,12 @@ class SupabaseService
 
     public function adminCount(string $table, array $filters = []): int
     {
+        return $this->adminCountResult($table, $filters)['count'];
+    }
+
+    /** Return an exact count without hiding provider errors as zero. */
+    public function adminCountResult(string $table, array $filters = []): array
+    {
         $this->assertResourceIdentifier($table, 'table');
         $params = $this->buildAdminSelectParams('id', $filters);
         $params['limit'] = 1;
@@ -544,13 +550,24 @@ class SupabaseService
         ])->get("{$this->url}/rest/v1/{$table}", $params);
 
         if (!$response->successful()) {
-            return 0;
+            $message = $this->databaseErrorMessage($response);
+            return [
+                'count' => 0,
+                'error' => $message ?: "Database count on {$table} failed with status {$response->status()}.",
+                'status' => $response->status(),
+            ];
         }
 
         $contentRange = (string) $response->header('Content-Range');
-        return preg_match('/\/(\d+)$/', $contentRange, $matches)
-            ? (int) $matches[1]
-            : 0;
+        if (preg_match('/\/(\d+)$/', $contentRange, $matches) !== 1) {
+            return [
+                'count' => 0,
+                'error' => "Database count on {$table} did not include an exact total.",
+                'status' => $response->status(),
+            ];
+        }
+
+        return ['count' => (int) $matches[1], 'error' => null, 'status' => $response->status()];
     }
 
     private function buildAdminSelectParams(string $query, array $filters): array
@@ -738,6 +755,82 @@ class SupabaseService
         return $response->successful();
     }
 
+    /**
+     * Store the privileged action intent and its pending security event in one
+     * database transaction. Call this before changing an account or role.
+     */
+    public function beginPrivilegedAudit(
+        array $actor,
+        string $action,
+        string $targetType,
+        string|int|null $targetId = null,
+        array $metadata = []
+    ): ?string {
+        try {
+            $result = $this->adminRpcResult('create_privileged_audit_intent', [
+                'p_actor_id' => $actor['id'] ?? null,
+                'p_action' => $action,
+                'p_target_type' => $targetType,
+                'p_target_id' => $targetId === null ? null : (string) $targetId,
+                'p_metadata' => $metadata,
+            ]);
+            $intentId = (string) ($result['data'][0]['intent_id'] ?? '');
+            if ($result['error'] === null && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $intentId) === 1) {
+                return $intentId;
+            }
+
+            Log::critical('A privileged action was blocked because its audit intent could not be stored.', [
+                'action' => $action,
+                'target_type' => $targetType,
+                'target_id' => $targetId === null ? null : (string) $targetId,
+                'status' => $result['status'] ?? null,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::critical('A privileged action was blocked by an audit storage failure.', [
+                'action' => $action,
+                'target_type' => $targetType,
+                'target_id' => $targetId === null ? null : (string) $targetId,
+                'exception' => $exception::class,
+            ]);
+        }
+
+        return null;
+    }
+
+    /** A failed call leaves the pending outbox row visible to System Health. */
+    public function completePrivilegedAudit(
+        string $intentId,
+        bool $succeeded,
+        array $metadata = [],
+        ?string $error = null
+    ): bool {
+        try {
+            $result = $this->adminRpcResult('complete_privileged_audit_intent', [
+                'p_intent_id' => $intentId,
+                'p_succeeded' => $succeeded,
+                'p_metadata' => $metadata,
+                'p_error' => $error,
+            ]);
+            if ($result['error'] === null && (bool) ($result['data'][0]['completed'] ?? false)) {
+                return true;
+            }
+
+            Log::critical('A privileged audit intent is still pending.', [
+                'intent_id' => $intentId,
+                'succeeded' => $succeeded,
+                'status' => $result['status'] ?? null,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::critical('A privileged audit intent could not be finalized.', [
+                'intent_id' => $intentId,
+                'succeeded' => $succeeded,
+                'exception' => $exception::class,
+            ]);
+        }
+
+        return false;
+    }
+
     public function audit(
         array $actor,
         string $action,
@@ -763,16 +856,31 @@ class SupabaseService
         array $metadata = []
     ): bool {
         try {
-            $created = $this->adminInsert('audit_logs', [
+            $actorName = trim((string) ($actor['name'] ?? ''));
+            if ($actorName === '') {
+                $actorName = trim((string) ($actor['first_name'] ?? '') . ' ' . (string) ($actor['last_name'] ?? ''));
+            }
+            $category = $action === 'page.viewed' ? 'activity' : 'security';
+            $payload = [
                 'actor_id' => $actor['id'] ?? null,
                 'actor_role' => $actor['role'] ?? null,
+                'actor_name' => $actorName !== '' ? mb_substr($actorName, 0, 200) : null,
                 'action' => $action,
                 'target_type' => $targetType,
                 'target_id' => $targetId === null ? null : (string) $targetId,
                 'metadata' => $metadata,
-            ]);
+                'event_category' => $category,
+                'severity' => $category === 'activity' ? 'info' : (str_starts_with($action, 'user.') || str_starts_with($action, 'teacher.') ? 'high' : 'medium'),
+                'outcome' => 'succeeded',
+            ];
+            $result = $this->adminInsertResult('audit_logs', $payload);
+            if ($result['error'] !== null && str_contains(strtolower((string) $result['error']), 'column')) {
+                $result = $this->adminInsertResult('audit_logs', array_intersect_key($payload, array_flip([
+                    'actor_id', 'actor_role', 'action', 'target_type', 'target_id', 'metadata',
+                ])));
+            }
 
-            return isset($created[0]['id']);
+            return isset($result['data'][0]['id']);
         } catch (\Throwable $exception) {
             // Audit logging is important, but it must never turn an otherwise
             // successful user action into a 500 response.

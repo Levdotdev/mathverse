@@ -74,11 +74,29 @@ class AdminController extends Controller
         $pendingReportCount = $this->supabase->adminCount('quiz_reports', ['status' => 'pending']);
 
         $auditPage = max(1, (int) $request->query('audit_page', 1));
-        $auditResult = $this->supabase->adminSelectPage(
-            'audit_logs', '*', ['order' => 'created_at.desc'], 30, ($auditPage - 1) * 30
-        );
-        $auditLogs = $auditResult['data'];
-        $auditTotal = $auditResult['total'];
+        $auditFilters = $this->auditFilters($request);
+        $auditResult = $this->supabase->adminRpcResult('search_audit_logs', [
+            'p_search' => $auditFilters['search'] ?: null,
+            'p_category' => $auditFilters['category'] ?: null,
+            'p_actor_role' => $auditFilters['actor_role'] ?: null,
+            'p_action' => $auditFilters['action'] ?: null,
+            'p_outcome' => $auditFilters['outcome'] ?: null,
+            'p_from' => $this->auditDate($auditFilters['from']),
+            'p_to' => $this->auditDate($auditFilters['to'], true),
+            'p_limit' => 30,
+            'p_offset' => ($auditPage - 1) * 30,
+        ]);
+        $auditSearchReady = $auditResult['error'] === null;
+        if ($auditSearchReady) {
+            $auditLogs = $auditResult['data'];
+            $auditTotal = (int) ($auditLogs[0]['total_count'] ?? 0);
+        } else {
+            $legacy = $this->supabase->adminSelectPage(
+                'audit_logs', '*', ['order' => 'created_at.desc'], 30, ($auditPage - 1) * 30
+            );
+            $auditLogs = $legacy['data'];
+            $auditTotal = $legacy['total'];
+        }
         $auditPages = max(1, (int) ceil($auditTotal / 30));
         if ($auditPage > $auditPages && $auditTotal > 0) {
             return redirect()->to($request->fullUrlWithQuery([
@@ -86,7 +104,10 @@ class AdminController extends Controller
                 'section' => 'audit',
             ]));
         }
-        $actorIds = array_values(array_unique(array_filter(array_column($auditLogs, 'actor_id'))));
+        $actorIds = array_values(array_unique(array_filter(array_map(
+            fn (array $log): mixed => trim((string) ($log['actor_name'] ?? '')) === '' ? ($log['actor_id'] ?? null) : null,
+            $auditLogs
+        ))));
         $actors = empty($actorIds) ? [] : $this->supabase->adminSelect(
             'profiles', 'id,first_name,last_name',
             ['id' => ['operator' => 'in', 'value' => '(' . implode(',', $actorIds) . ')']]
@@ -98,7 +119,8 @@ class AdminController extends Controller
             ) ?: 'Administrator';
         }
         foreach ($auditLogs as &$log) {
-            $log['actor_name'] = $actorNames[$log['actor_id'] ?? ''] ?? 'System';
+            $log['actor_name'] = trim((string) ($log['actor_name'] ?? ''))
+                ?: ($actorNames[$log['actor_id'] ?? ''] ?? 'System');
         }
         unset($log);
 
@@ -109,7 +131,8 @@ class AdminController extends Controller
             'totalStudents', 'totalQuizzes', 'pendingTeachers', 'studentSearch', 'teacherSearch',
             'studentSort', 'teacherSort', 'studentPage', 'teacherPage', 'studentPages',
             'teacherPages', 'studentTotal', 'teacherTotal', 'auditLogs', 'auditPage',
-            'auditPages', 'auditTotal', 'pendingReportCount', 'eventEmailIssue'
+            'auditPages', 'auditTotal', 'auditFilters', 'auditSearchReady',
+            'pendingReportCount', 'eventEmailIssue'
         ));
     }
 
@@ -122,6 +145,18 @@ class AdminController extends Controller
             return redirect('/admin/dashboard')->with('error', 'Only student and teacher accounts can be deleted here.');
         }
         $section = $profile['role'] === 'student' ? 'students' : 'teachers';
+        $auditMetadata = [
+            'role' => $profile['role'],
+            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
+            'email' => $profile['email'] ?? null,
+        ];
+        $intentId = $this->supabase->beginPrivilegedAudit(
+            session('supabase_user'), 'user.deleted', 'profile', $id, $auditMetadata
+        );
+        if ($intentId === null) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'Deletion was blocked because the secure audit trail is unavailable. Check System Health and try again.');
+        }
 
         // Delete from auth.users — this cascades to profiles automatically.
         try {
@@ -135,15 +170,14 @@ class AdminController extends Controller
         }
 
         if (!$deleted) {
+            $this->supabase->completePrivilegedAudit(
+                $intentId, false, ['stage' => 'authentication_delete'], 'The account deletion failed.'
+            );
             return redirect("/admin/dashboard?section={$section}")
                 ->with('error', 'The user could not be deleted. Please try again.');
         }
 
-        $this->supabase->audit(session('supabase_user'), 'user.deleted', 'profile', $id, [
-            'role' => $profile['role'],
-            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
-            'email' => $profile['email'] ?? null,
-        ]);
+        $this->supabase->completePrivilegedAudit($intentId, true, ['deleted' => true]);
 
         return redirect("/admin/dashboard?section={$section}")
             ->with('success', 'User deleted.');
@@ -167,19 +201,32 @@ class AdminController extends Controller
                 ->with('error', 'The teacher was not approved because the decision email is unavailable. ' . $emailIssue);
         }
 
+        $auditMetadata = [
+            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
+            'email' => $profile['email'] ?? null,
+        ];
+        $intentId = $this->supabase->beginPrivilegedAudit(
+            session('supabase_user'), 'teacher.approved', 'profile', $id, $auditMetadata
+        );
+        if ($intentId === null) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'Approval was blocked because the secure audit trail is unavailable. Check System Health and try again.');
+        }
+
         $updated = $this->supabase->adminUpdate(
             'profiles', ['role' => 'teacher'], ['id' => $id, 'role' => 'pending_teacher']
         );
         if (!isset($updated[0]['id'])) {
+            $this->supabase->completePrivilegedAudit(
+                $intentId, false, ['stage' => 'role_update'], 'The teacher role update failed.'
+            );
             return redirect('/admin/dashboard?section=role-verify')
                 ->with('error', 'The teacher application could not be approved.');
         }
 
         $decisionEmail = $this->notificationDelivery
             ->deliverTeacherApprovalEmailNow($profile);
-        $this->supabase->audit(session('supabase_user'), 'teacher.approved', 'profile', $id, [
-            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
-            'email' => $profile['email'] ?? null,
+        $this->supabase->completePrivilegedAudit($intentId, true, [
             'decision_email_sent' => $decisionEmail['sent'],
             'decision_email_queued' => $decisionEmail['queued'],
         ]);
@@ -216,6 +263,16 @@ class AdminController extends Controller
                 ->with('error', 'The application was not rejected because the decision email is unavailable. ' . $emailIssue);
         }
 
+        $teacherName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
+        $intentId = $this->supabase->beginPrivilegedAudit(
+            session('supabase_user'), 'teacher.rejected', 'profile', $id,
+            ['name' => $teacherName, 'email' => $profile['email'] ?? null]
+        );
+        if ($intentId === null) {
+            return redirect('/admin/dashboard?section=role-verify')
+                ->with('error', 'Rejection was blocked because the secure audit trail is unavailable. Check System Health and try again.');
+        }
+
         try {
             $deleted = $this->supabase->deleteAuthUser($id);
         } catch (\Throwable $exception) {
@@ -227,11 +284,13 @@ class AdminController extends Controller
         }
 
         if (!$deleted) {
+            $this->supabase->completePrivilegedAudit(
+                $intentId, false, ['stage' => 'authentication_delete'], 'The pending account deletion failed.'
+            );
             return redirect('/admin/dashboard?section=role-verify')
                 ->with('error', 'Failed to reject application.');
         }
 
-        $teacherName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
         $decisionEmail = $this->notificationDelivery->deliverStandaloneEmailNow(
             eventType: 'teacher_denied',
             recipientEmail: (string) ($profile['email'] ?? ''),
@@ -243,9 +302,7 @@ class AdminController extends Controller
             deliveryKey: 'teacher-denied:' . $id,
         );
 
-        $this->supabase->audit(session('supabase_user'), 'teacher.rejected', 'profile', $id, [
-            'name' => $teacherName,
-            'email' => $profile['email'] ?? null,
+        $this->supabase->completePrivilegedAudit($intentId, true, [
             'decision_email_sent' => $decisionEmail['sent'],
             'decision_email_queued' => $decisionEmail['queued'],
         ]);
@@ -282,7 +339,19 @@ class AdminController extends Controller
         }
 
         $admin = session('supabase_user');
+        $reason = trim($validated['reason']);
+        $intentId = $this->supabase->beginPrivilegedAudit($admin, 'user.suspended', 'profile', $id, [
+            'role' => $profile['role'],
+            'reason' => $reason,
+        ]);
+        if ($intentId === null) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'Suspension was blocked because the secure audit trail is unavailable. Check System Health and try again.');
+        }
         if (!$this->supabase->setAuthUserSuspended($id, true)) {
+            $this->supabase->completePrivilegedAudit(
+                $intentId, false, ['stage' => 'authentication_suspend'], 'The authentication suspension failed.'
+            );
             return redirect("/admin/dashboard?section={$section}")
                 ->with('error', 'The authentication service could not suspend that account. No profile changes were made.');
         }
@@ -290,11 +359,16 @@ class AdminController extends Controller
         $updated = $this->supabase->adminUpdate('profiles', [
             'suspended_at' => now()->toIso8601String(),
             'suspended_by' => $admin['id'],
-            'suspension_reason' => trim($validated['reason']),
+            'suspension_reason' => $reason,
         ], ['id' => $id, 'role' => $profile['role']]);
 
         if (!isset($updated[0]['id'])) {
-            $this->supabase->setAuthUserSuspended($id, false);
+            $rolledBack = $this->supabase->setAuthUserSuspended($id, false);
+            $this->supabase->completePrivilegedAudit(
+                $intentId, false,
+                ['stage' => 'profile_suspend', 'authentication_rollback' => $rolledBack],
+                'The profile suspension update failed.'
+            );
             return redirect("/admin/dashboard?section={$section}")
                 ->with('error', 'The account could not be suspended.');
         }
@@ -304,9 +378,7 @@ class AdminController extends Controller
             'account_suspended',
             createdAfter: $notificationWindowStart,
         );
-        $this->supabase->audit($admin, 'user.suspended', 'profile', $id, [
-            'role' => $profile['role'],
-            'reason' => trim($validated['reason']),
+        $this->supabase->completePrivilegedAudit($intentId, true, [
             'status_email_sent' => $statusEmail['sent'],
             'status_email_queued' => $statusEmail['queued'],
         ]);
@@ -334,7 +406,18 @@ class AdminController extends Controller
                 ->with('error', 'That account is not suspended.');
         }
 
+        $admin = session('supabase_user');
+        $intentId = $this->supabase->beginPrivilegedAudit($admin, 'user.restored', 'profile', $id, [
+            'role' => $profile['role'],
+        ]);
+        if ($intentId === null) {
+            return redirect("/admin/dashboard?section={$section}")
+                ->with('error', 'Restoration was blocked because the secure audit trail is unavailable. Check System Health and try again.');
+        }
         if (!$this->supabase->setAuthUserSuspended($id, false)) {
+            $this->supabase->completePrivilegedAudit(
+                $intentId, false, ['stage' => 'authentication_restore'], 'The authentication restoration failed.'
+            );
             return redirect("/admin/dashboard?section={$section}")
                 ->with('error', 'The authentication service could not restore that account. It remains suspended.');
         }
@@ -346,7 +429,12 @@ class AdminController extends Controller
         ], ['id' => $id, 'role' => $profile['role']]);
 
         if (!isset($updated[0]['id'])) {
-            $this->supabase->setAuthUserSuspended($id, true);
+            $rolledBack = $this->supabase->setAuthUserSuspended($id, true);
+            $this->supabase->completePrivilegedAudit(
+                $intentId, false,
+                ['stage' => 'profile_restore', 'authentication_rollback' => $rolledBack],
+                'The profile restoration update failed.'
+            );
             return redirect("/admin/dashboard?section={$section}")
                 ->with('error', 'The account could not be restored.');
         }
@@ -356,8 +444,7 @@ class AdminController extends Controller
             'account_restored',
             createdAfter: $notificationWindowStart,
         );
-        $this->supabase->audit(session('supabase_user'), 'user.restored', 'profile', $id, [
-            'role' => $profile['role'],
+        $this->supabase->completePrivilegedAudit($intentId, true, [
             'status_email_sent' => $statusEmail['sent'],
             'status_email_queued' => $statusEmail['queued'],
         ]);
@@ -857,6 +944,41 @@ class AdminController extends Controller
         return $profile && in_array($profile['role'] ?? '', ['student', 'teacher'], true)
             ? $profile
             : null;
+    }
+
+    private function auditFilters(Request $request): array
+    {
+        $category = (string) $request->query('audit_category', 'security');
+        $actorRole = (string) $request->query('audit_actor_role', '');
+        $outcome = (string) $request->query('audit_outcome', '');
+        $action = strtolower(trim(mb_substr((string) $request->query('audit_action', ''), 0, 100)));
+        if ($action !== '' && preg_match('/^[a-z0-9._-]+$/', $action) !== 1) $action = '';
+
+        return [
+            'search' => $this->safeSearchTerm($request->query('audit_search', ''), 80),
+            'category' => in_array($category, ['security', 'activity'], true) ? $category : '',
+            'actor_role' => in_array($actorRole, ['admin', 'teacher', 'student', 'system'], true) ? $actorRole : '',
+            'action' => $action,
+            'outcome' => in_array($outcome, ['pending', 'succeeded', 'failed'], true) ? $outcome : '',
+            'from' => $this->validAuditDate($request->query('audit_from', '')),
+            'to' => $this->validAuditDate($request->query('audit_to', '')),
+        ];
+    }
+
+    private function validAuditDate(mixed $value): string
+    {
+        $value = trim((string) $value);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) return '';
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, new \DateTimeZone('UTC'));
+        return $date && $date->format('Y-m-d') === $value ? $value : '';
+    }
+
+    private function auditDate(string $value, bool $exclusiveEnd = false): ?string
+    {
+        if ($value === '') return null;
+        $date = new \DateTimeImmutable($value.' 00:00:00', new \DateTimeZone('UTC'));
+        if ($exclusiveEnd) $date = $date->modify('+1 day');
+        return $date->format(DATE_ATOM);
     }
 
     private function registrySearch(mixed $value): string

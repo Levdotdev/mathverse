@@ -1,0 +1,36 @@
+<?php
+
+namespace Tests\Unit;
+
+use PHPUnit\Framework\TestCase;
+
+class PlatformSecurityMigrationTest extends TestCase
+{
+    public function test_privileged_audit_is_transactional_and_server_only(): void
+    {
+        $sql = $this->migration('2026_09_12_platform_insights_and_durable_audit.sql');
+        $this->assertStringContainsString('create table if not exists public.privileged_audit_outbox', $sql);
+        $this->assertStringContainsString('create_privileged_audit_intent', $sql);
+        $this->assertStringContainsString('complete_privileged_audit_intent', $sql);
+        $this->assertStringContainsString("'security', 'high', 'pending'", $sql);
+        $this->assertStringContainsString('update public.audit_logs', $sql);
+        $this->assertStringContainsString("and outcome = 'pending'", $sql);
+        $this->assertStringContainsString('for update', strtolower($sql));
+        $this->assertStringContainsString('revoke all on public.privileged_audit_outbox from public, anon, authenticated, service_role', $sql);
+    }
+
+    public function test_audit_search_and_analytics_are_bounded(): void
+    {
+        $sql = $this->migration('2026_09_12_platform_insights_and_durable_audit.sql');
+        $this->assertStringContainsString("when action = 'page.viewed' then 'activity'", $sql);
+        $this->assertStringContainsString('limit greatest(1, least(coalesce(p_limit, 30), 100))', $sql);
+        $this->assertStringContainsString('where ranked.position <= safe_limit', $sql);
+        $this->assertStringContainsString('teacher_learning_hub_analytics', $sql);
+        $this->assertStringContainsString('limit 200', $sql);
+    }
+
+    private function migration(string $name): string
+    {
+        return (string) file_get_contents(dirname(__DIR__, 2).'/database/supabase/'.$name);
+    }
+}

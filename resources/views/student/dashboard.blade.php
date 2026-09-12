@@ -209,10 +209,10 @@
                     </tr>
                 </thead>
                 <tbody class="text-sm font-rajdhani">
-                    @foreach($leaderboard as $i => $p)
-                        @php $isMe = $p['id'] === $profile['id']; @endphp
+                    @forelse($leaderboard as $p)
+                        @php $isMe = (bool) ($p['is_current'] ?? false); @endphp
                         <tr class="border-b border-white/5 {{ $isMe ? 'bg-cyan-400/5' : '' }}">
-                            <td class="py-4 font-mono {{ $isMe ? 'text-cyan-400' : '' }}">#{{ $i + 1 }}</td>
+                            <td class="py-4 font-mono {{ $isMe ? 'text-cyan-400' : '' }}">#{{ $p['rank'] }}</td>
                             <td class="py-4 {{ $isMe ? 'font-bold' : '' }}">
                                 {{ $p['display_name'] }}
                                 {{ $isMe ? '(You)' : '' }}
@@ -223,7 +223,9 @@
                                 <i class="fas fa-trophy text-yellow-500 ml-1"></i>
                             </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr><td colspan="4" class="py-8 text-center text-slate-500">Ranking data will appear after the platform update is installed.</td></tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>

@@ -48,6 +48,10 @@
    class="nav-link w-full {{ $activePage === 'audit' ? 'active' : '' }}">
     <i class="fas fa-clipboard-list mr-3 w-5 text-red-400"></i> Audit Log
 </a>
+<a href="/admin/system-health"
+   class="nav-link w-full {{ $activePage === 'system-health' ? 'active' : '' }}">
+    <i class="fas fa-heart-pulse mr-3 w-5 text-green-400"></i> System Health
+</a>
 <a href="/admin/dashboard?section=reports" id="btn-reports"
    class="nav-link w-full {{ $activePage === 'reports' ? 'active' : '' }}">
     <i class="fas fa-file-download mr-3 w-5 text-green-400"></i> Reports

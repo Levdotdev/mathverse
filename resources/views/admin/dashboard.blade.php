@@ -296,34 +296,57 @@
 {{-- AUDIT LOG --}}
 <section id="sec-audit" class="content-section hidden">
     <div class="portal-frame !p-6 md:!p-8">
-        <div class="flex items-center justify-between gap-4 mb-6">
-            <div><h2 class="text-xl font-orbitron font-bold uppercase">Accountability <span class="text-red-400">Audit Log</span></h2><p class="text-[10px] text-slate-500 mt-2">Append-only history of logins, page views, profile changes, quiz edits, and administrative actions.</p></div>
+        <div class="flex items-center justify-between gap-4 mb-5">
+            <div><h2 class="text-xl font-orbitron font-bold uppercase">Accountability <span class="text-red-400">Audit Log</span></h2><p class="text-[10px] text-slate-500 mt-2">Security events are separated from high-volume navigation activity. Privileged records move from pending to their final outcome atomically.</p></div>
             <span class="text-[10px] text-slate-500 uppercase">{{ number_format($auditTotal) }} events</span>
         </div>
+        @if(!$auditSearchReady)
+            <div class="mb-5 rounded border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-xs text-yellow-200"><i class="fas fa-triangle-exclamation mr-2"></i>Advanced audit search is unavailable until the platform insights migration is installed. Showing the legacy event list.</div>
+        @endif
+        <form method="GET" action="/admin/dashboard" class="audit-filter-grid mb-6" data-seamless-form>
+            <input type="hidden" name="section" value="audit">
+            <label><span>Name, email, target, or details</span><input type="search" name="audit_search" value="{{ $auditFilters['search'] }}" maxlength="80" placeholder="Search audit records" class="input-mobile-ultra !py-2 !pl-3"></label>
+            <label><span>Event stream</span><select name="audit_category" class="input-mobile-ultra !py-2 !pl-3 bg-slate-900"><option value="">All streams</option><option value="security" @selected($auditFilters['category'] === 'security')>Security</option><option value="activity" @selected($auditFilters['category'] === 'activity')>Page activity</option></select></label>
+            <label><span>Actor role</span><select name="audit_actor_role" class="input-mobile-ultra !py-2 !pl-3 bg-slate-900"><option value="">All roles</option>@foreach(['admin' => 'Admin', 'teacher' => 'Teacher', 'student' => 'Student', 'system' => 'System'] as $value => $label)<option value="{{ $value }}" @selected($auditFilters['actor_role'] === $value)>{{ $label }}</option>@endforeach</select></label>
+            <label><span>Outcome</span><select name="audit_outcome" class="input-mobile-ultra !py-2 !pl-3 bg-slate-900"><option value="">All outcomes</option>@foreach(['pending', 'succeeded', 'failed'] as $value)<option value="{{ $value }}" @selected($auditFilters['outcome'] === $value)>{{ ucfirst($value) }}</option>@endforeach</select></label>
+            <label><span>Exact action</span><input type="text" name="audit_action" value="{{ $auditFilters['action'] }}" maxlength="100" placeholder="user.suspended" class="input-mobile-ultra !py-2 !pl-3"></label>
+            <label><span>From</span><input type="date" name="audit_from" value="{{ $auditFilters['from'] }}" class="input-mobile-ultra !py-2 !pl-3"></label>
+            <label><span>To</span><input type="date" name="audit_to" value="{{ $auditFilters['to'] }}" class="input-mobile-ultra !py-2 !pl-3"></label>
+            <div class="flex gap-2 items-end"><button type="submit" class="btn-rect-primary !py-2 !px-4 !w-auto">Filter</button><a href="/admin/dashboard?section=audit&audit_category=security" class="btn-rect-secondary !py-2 !px-4 !w-auto">Reset</a></div>
+        </form>
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[850px] text-left">
-                <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Date</th><th class="pb-4">Actor</th><th class="pb-4">Action</th><th class="pb-4">Target</th><th class="pb-4">Details</th></tr></thead>
+            <table class="w-full min-w-[980px] text-left">
+                <thead class="text-[10px] text-slate-500 uppercase border-b border-white/10"><tr><th class="pb-4">Date</th><th class="pb-4">Actor</th><th class="pb-4">Action</th><th class="pb-4">Signal</th><th class="pb-4">Target</th><th class="pb-4">Details</th></tr></thead>
                 <tbody class="text-sm">
                     @forelse($auditLogs as $log)
                         @php $metadata = is_string($log['metadata'] ?? null) ? (json_decode($log['metadata'], true) ?: []) : ($log['metadata'] ?? []); @endphp
                         <tr class="border-b border-white/5 align-top">
                             <td class="py-4 text-slate-500 text-xs whitespace-nowrap">{{ \Carbon\Carbon::parse($log['created_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</td>
                             <td class="py-4"><span class="font-bold">{{ $log['actor_name'] }}</span><p class="text-[9px] text-slate-500 uppercase">{{ $log['actor_role'] ?? 'system' }}</p></td>
-                            <td class="py-4 text-red-300 font-mono text-xs">{{ $log['action'] }}</td>
+                            <td class="py-4 text-red-300 font-mono text-xs">{{ $log['action'] }}<p class="text-[9px] text-slate-600 uppercase mt-1">{{ $log['event_category'] ?? 'security' }}</p></td>
+                            <td class="py-4"><span class="audit-signal" data-outcome="{{ $log['outcome'] ?? 'succeeded' }}">{{ $log['outcome'] ?? 'succeeded' }}</span><p class="text-[9px] uppercase mt-1 text-slate-500">{{ $log['severity'] ?? 'info' }}</p></td>
                             <td class="py-4 text-slate-400 text-xs">{{ $log['target_type'] ?? '—' }}<p class="font-mono text-[9px] text-slate-600">{{ $log['target_id'] ?? '' }}</p></td>
                             <td class="py-4 text-xs text-slate-400 max-w-sm">{{ !empty($metadata) ? collect($metadata)->map(fn($value, $key) => $key . ': ' . (is_scalar($value) || $value === null ? ($value ?? 'null') : json_encode($value)))->implode(' · ') : '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="py-10 text-center text-slate-500 text-xs uppercase">No audit events recorded yet.</td></tr>
+                        <tr><td colspan="6" class="py-10 text-center text-slate-500 text-xs uppercase">No audit events match these filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        @php
+            $auditQuery = array_filter([
+                'section' => 'audit', 'audit_search' => $auditFilters['search'],
+                'audit_category' => $auditFilters['category'], 'audit_actor_role' => $auditFilters['actor_role'],
+                'audit_action' => $auditFilters['action'], 'audit_outcome' => $auditFilters['outcome'],
+                'audit_from' => $auditFilters['from'], 'audit_to' => $auditFilters['to'],
+            ], fn($value) => $value !== '');
+        @endphp
         @if($auditPages > 1)
             <nav class="flex items-center justify-center gap-4 mt-6" aria-label="Audit log pages">
-                @if($auditPage > 1)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?section=audit&audit_page={{ $auditPage - 1 }}">Previous</a>@endif
+                @if($auditPage > 1)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?{{ http_build_query($auditQuery + ['audit_page' => $auditPage - 1]) }}">Previous</a>@endif
                 <span class="text-[10px] text-slate-500 uppercase">Page {{ $auditPage }} of {{ $auditPages }}</span>
-                @if($auditPage < $auditPages)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?section=audit&audit_page={{ $auditPage + 1 }}">Next</a>@endif
+                @if($auditPage < $auditPages)<a class="btn-rect-secondary !py-2 !px-4 !w-auto" href="/admin/dashboard?{{ http_build_query($auditQuery + ['audit_page' => $auditPage + 1]) }}">Next</a>@endif
             </nav>
         @endif
     </div>

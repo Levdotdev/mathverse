@@ -208,6 +208,62 @@ body.sidebar-open {
     }
 }
 
+/* Teacher Learning Hub analytics, audit filters, and System Health. */
+.analytics-kicker { color: #64748b; font-size: .56rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+.analytics-value { display: block; margin-top: .4rem; font-family: 'Orbitron', sans-serif; font-size: clamp(1.15rem, 3vw, 1.65rem); }
+.analytics-value + small,
+.analytics-topic-row p,
+.analytics-compact-row p { display: block; margin-top: .25rem; color: #64748b; font-size: .62rem; }
+.analytics-topic-row,
+.analytics-compact-row { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .8rem; border: 1px solid rgba(255,255,255,.07); border-radius: .65rem; background: rgba(255,255,255,.02); font-size: .76rem; }
+.analytics-topic-icon { display: inline-flex; width: 2.25rem; height: 2.25rem; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: .55rem; color: #fda4af; background: rgba(244,63,94,.09); }
+.analytics-meter { height: .22rem; margin-top: .5rem; overflow: hidden; border-radius: 1rem; background: rgba(255,255,255,.08); }
+.analytics-meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #fb7185, #facc15); }
+.analytics-days { display: flex; min-height: 15rem; align-items: flex-end; gap: .35rem; overflow-x: auto; padding-top: 1rem; }
+.analytics-day { display: flex; min-width: 1.7rem; height: 13rem; flex: 1 0 1.7rem; flex-direction: column; justify-content: flex-end; gap: .45rem; text-align: center; }
+.analytics-day-bar { display: block; min-height: .35rem; border-radius: .3rem .3rem 0 0; background: linear-gradient(180deg, #22d3ee, #7c3aed); }
+.analytics-day small { color: #64748b; font-size: .5rem; white-space: nowrap; writing-mode: vertical-rl; transform: rotate(180deg); }
+.analytics-empty { padding: 2rem 1rem; color: #64748b; font-size: .75rem; text-align: center; }
+.analytics-table { min-width: 860px; font-size: .72rem; }
+.analytics-table th { padding: 0 .75rem .8rem; border-bottom: 1px solid rgba(255,255,255,.1); color: #64748b; font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; }
+.analytics-table td { padding: .8rem .75rem; border-bottom: 1px solid rgba(255,255,255,.05); color: #cbd5e1; }
+.analytics-table td small { display: block; margin-top: .2rem; color: #64748b; font-size: .58rem; }
+
+.audit-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; }
+.audit-filter-grid label > span { display: block; margin: 0 0 .3rem .1rem; color: #64748b; font-size: .52rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.audit-signal,
+.health-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .45rem; border: 1px solid rgba(34,197,94,.25); border-radius: 999px; color: #86efac; background: rgba(34,197,94,.08); font-size: .52rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.audit-signal[data-outcome='pending'],
+.health-badge[data-status='warning'] { border-color: rgba(250,204,21,.3); color: #fde047; background: rgba(250,204,21,.08); }
+.audit-signal[data-outcome='failed'],
+.health-badge[data-status='critical'] { border-color: rgba(244,63,94,.35); color: #fda4af; background: rgba(244,63,94,.08); }
+.health-overall { display: flex; min-width: 12rem; align-items: center; gap: .8rem; padding: .8rem 1rem; border: 1px solid rgba(34,197,94,.3); border-radius: .8rem; color: #86efac; background: rgba(34,197,94,.07); }
+.health-overall[data-status='warning'] { border-color: rgba(250,204,21,.35); color: #fde047; background: rgba(250,204,21,.07); }
+.health-overall[data-status='critical'] { border-color: rgba(244,63,94,.4); color: #fda4af; background: rgba(244,63,94,.08); }
+.health-overall > i { font-size: 1.5rem; }
+.health-overall span,
+.health-small-stat span { display: block; color: #64748b; font-size: .5rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.health-overall strong { display: block; margin-top: .15rem; font-family: 'Orbitron', sans-serif; }
+.health-card { border-top: 2px solid rgba(34,197,94,.55); }
+.health-card[data-status='warning'] { border-top-color: rgba(250,204,21,.8); }
+.health-card[data-status='critical'] { border-top-color: rgba(244,63,94,.85); }
+.health-icon { display: inline-flex; width: 2.4rem; height: 2.4rem; align-items: center; justify-content: center; border-radius: .6rem; color: #67e8f9; background: rgba(34,211,238,.08); }
+.health-metric { display: block; margin-top: .65rem; color: #e2e8f0; font-family: 'Share Tech Mono', monospace; font-size: 1.25rem; overflow-wrap: anywhere; }
+.health-small-stat { min-width: 0; padding: .65rem .35rem; border: 1px solid rgba(255,255,255,.07); border-radius: .55rem; background: rgba(255,255,255,.02); text-align: center; }
+.health-small-stat strong { display: block; margin-top: .3rem; font-family: 'Share Tech Mono', monospace; }
+.health-code-list { max-height: 20rem; overflow: auto; padding-left: 1.5rem; color: #fda4af; font-size: .68rem; line-height: 1.9; list-style: decimal; }
+.health-failure { display: grid; grid-template-columns: minmax(7rem,.45fr) minmax(0,1fr); gap: .75rem; padding: .7rem; border: 1px solid rgba(244,63,94,.15); border-radius: .55rem; color: #cbd5e1; background: rgba(244,63,94,.035); font-size: .68rem; }
+.health-failure p { color: #64748b; overflow-wrap: anywhere; }
+.health-empty { padding: 2rem 1rem; color: #64748b; font-size: .75rem; text-align: center; }
+.health-detail-list > div { display: flex; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid rgba(255,255,255,.06); font-size: .7rem; }
+.health-detail-list dt { color: #64748b; }
+.health-detail-list dd { color: #cbd5e1; text-align: right; }
+
+@media (max-width: 1023px) { .audit-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) {
+    .audit-filter-grid, .health-failure { grid-template-columns: 1fr; }
+}
+
 @keyframes glowPulse { from { filter: drop-shadow(0 0 5px currentColor); } to { filter: drop-shadow(0 0 15px currentColor); } }
 
 .blur-bg { filter: blur(15px) brightness(0.3); pointer-events: none; transition: filter 0.5s cubic-bezier(0.16, 1, 0.3, 1); }

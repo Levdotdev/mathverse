@@ -10,6 +10,7 @@ use Tests\TestCase;
 class AdminTeacherApprovalFlowTest extends TestCase
 {
     private const TEACHER_ID = '550e8400-e29b-41d4-a716-446655440000';
+    private const AUDIT_ID = '660e8400-e29b-41d4-a716-446655440000';
 
     public function test_approval_sends_its_email_during_the_request(): void
     {
@@ -33,7 +34,8 @@ class AdminTeacherApprovalFlowTest extends TestCase
                     ['id' => self::TEACHER_ID, 'role' => 'pending_teacher']
                 )
                 ->andReturn([['id' => self::TEACHER_ID]]);
-            $mock->shouldReceive('audit')->once()->andReturn(true);
+            $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturn(self::AUDIT_ID);
+            $mock->shouldReceive('completePrivilegedAudit')->once()->andReturn(true);
         });
         $this->mock(NotificationDeliveryService::class, function (MockInterface $mock) use ($profile): void {
             $mock->shouldReceive('isReady')->once()->andReturn(true);
@@ -63,7 +65,8 @@ class AdminTeacherApprovalFlowTest extends TestCase
         $this->mock(SupabaseService::class, function (MockInterface $mock) use ($profile): void {
             $mock->shouldReceive('adminSelect')->once()->andReturn([$profile]);
             $mock->shouldReceive('adminUpdate')->once()->andReturn([['id' => self::TEACHER_ID]]);
-            $mock->shouldReceive('audit')->once()->andReturn(true);
+            $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturn(self::AUDIT_ID);
+            $mock->shouldReceive('completePrivilegedAudit')->once()->andReturn(true);
         });
         $this->mock(NotificationDeliveryService::class, function (MockInterface $mock) use ($profile): void {
             $mock->shouldReceive('isReady')->once()->andReturn(true);
@@ -93,6 +96,7 @@ class AdminTeacherApprovalFlowTest extends TestCase
         $this->mock(SupabaseService::class, function (MockInterface $mock) use ($profile): void {
             $mock->shouldReceive('adminSelect')->once()->andReturn([$profile]);
             $mock->shouldNotReceive('adminUpdate');
+            $mock->shouldNotReceive('beginPrivilegedAudit');
         });
         $this->mock(NotificationDeliveryService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('isReady')->once()->andReturn(true);
@@ -110,6 +114,29 @@ class AdminTeacherApprovalFlowTest extends TestCase
         );
     }
 
+    public function test_approval_is_blocked_before_role_change_when_durable_audit_is_unavailable(): void
+    {
+        $this->withoutMiddleware();
+        $profile = $this->pendingTeacher();
+
+        $this->mock(SupabaseService::class, function (MockInterface $mock) use ($profile): void {
+            $mock->shouldReceive('adminSelect')->once()->andReturn([$profile]);
+            $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturnNull();
+            $mock->shouldNotReceive('adminUpdate');
+            $mock->shouldNotReceive('completePrivilegedAudit');
+        });
+        $this->mock(NotificationDeliveryService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('isReady')->once()->andReturn(true);
+            $mock->shouldReceive('emailConfigurationIssue')->once()->andReturnNull();
+            $mock->shouldNotReceive('deliverTeacherApprovalEmailNow');
+        });
+
+        $response = $this->withSession(['supabase_user' => ['id' => 'admin-id', 'role' => 'admin']])
+            ->post('/admin/approve-teacher/'.self::TEACHER_ID);
+        $response->assertRedirect('/admin/dashboard?section=role-verify');
+        $response->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'secure audit trail'));
+    }
+
     public function test_rejection_sends_its_email_during_the_request(): void
     {
         $this->withoutMiddleware();
@@ -121,7 +148,8 @@ class AdminTeacherApprovalFlowTest extends TestCase
                 ->once()
                 ->with(self::TEACHER_ID)
                 ->andReturn(true);
-            $mock->shouldReceive('audit')->once()->andReturn(true);
+            $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturn(self::AUDIT_ID);
+            $mock->shouldReceive('completePrivilegedAudit')->once()->andReturn(true);
         });
         $this->mock(NotificationDeliveryService::class, function (MockInterface $mock) use ($profile): void {
             $mock->shouldReceive('isReady')->once()->andReturn(true);

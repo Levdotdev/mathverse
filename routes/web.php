@@ -13,6 +13,8 @@ use App\Http\Controllers\AdminPushController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\LearningHubController;
 use App\Http\Controllers\NumberGuessGameController;
+use App\Http\Controllers\TeacherLearningHubController;
+use App\Http\Controllers\SystemHealthController;
 
 $uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
 Route::pattern('id', $uuidPattern);
@@ -75,6 +77,8 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:student'])->group(fu
 // Teacher routes
 Route::middleware(['throttle:authenticated', 'auth.supabase:teacher'])->group(function () {
     Route::get('/teacher/dashboard', [TeacherController::class, 'index']);
+    Route::get('/teacher/learning-hub', [TeacherLearningHubController::class, 'index'])
+        ->middleware('throttle:reports');
 
     Route::get('/teacher/quizzes', [TeacherQuizController::class, 'index']);
     Route::get('/teacher/quiz-library', [TeacherQuizController::class, 'library']);
@@ -116,6 +120,8 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:teacher'])->group(fu
 // Admin routes
 Route::middleware(['throttle:authenticated', 'auth.supabase:admin'])->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'index']);
+    Route::get('/admin/system-health', [SystemHealthController::class, 'index'])
+        ->middleware('throttle:reports');
     Route::delete('/admin/user/{id}', [AdminController::class, 'deleteUser']);
     Route::post('/admin/user/{id}/suspend', [AdminController::class, 'suspendUser']);
     Route::post('/admin/user/{id}/restore', [AdminController::class, 'restoreUser']);

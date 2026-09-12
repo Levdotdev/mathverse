@@ -18,35 +18,27 @@ class StudentController extends Controller
         $profile = $this->supabase->adminSelect('profiles', '*', ['id' => $user['id']])[0] ?? $user;
         $gradeLevel = (int) ($profile['grade_level'] ?? 0);
 
-        // Global ranking is intentionally scoped to the student's current grade.
-        $leaderboard = $this->supabase->adminSelect(
-            'profiles',
-            'id,first_name,last_name,trophies,level,grade_level,leaderboard_alias,show_on_leaderboard',
-            ['role' => 'student', 'grade_level' => $gradeLevel, 'suspended_at' => ['operator' => 'is', 'value' => 'null']]
-        );
-        usort($leaderboard, fn (array $a, array $b): int =>
-            (($b['trophies'] ?? 0) <=> ($a['trophies'] ?? 0))
-            ?: (($b['level'] ?? 1) <=> ($a['level'] ?? 1))
-            ?: strcmp(($a['last_name'] ?? '') . ($a['first_name'] ?? ''), ($b['last_name'] ?? '') . ($b['first_name'] ?? ''))
-        );
-
-        $rank = 'N/A';
-        foreach ($leaderboard as $index => $student) {
-            if ($student['id'] === $user['id']) {
-                $rank = $index + 1;
-                break;
-            }
+        // The database returns only the top ten plus the current student.
+        $rankingResult = $this->supabase->adminRpcResult('student_trophy_leaderboard', [
+            'p_student_id' => $user['id'],
+            'p_limit' => 10,
+        ]);
+        $rankingPayload = $rankingResult['error'] === null && is_array($rankingResult['data'][0] ?? null)
+            ? $rankingResult['data'][0] : [];
+        $rank = isset($rankingPayload['personal_rank']) && is_numeric($rankingPayload['personal_rank'])
+            ? (int) $rankingPayload['personal_rank'] : 'N/A';
+        $leaderboard = [];
+        foreach (($rankingPayload['leaderboard'] ?? []) as $student) {
+            if (!is_array($student) || !isset($student['id']) || !is_numeric($student['rank'] ?? null)) continue;
+            $leaderboard[] = [
+                'id' => (string) $student['id'],
+                'rank' => max(1, (int) $student['rank']),
+                'display_name' => mb_substr(trim((string) ($student['display_name'] ?? 'Student')) ?: 'Student', 0, 64),
+                'level' => max(1, (int) ($student['level'] ?? 1)),
+                'trophies' => max(0, (int) ($student['trophies'] ?? 0)),
+                'is_current' => (bool) ($student['is_current'] ?? false),
+            ];
         }
-        foreach ($leaderboard as &$student) {
-            $firstName = trim((string) ($student['first_name'] ?? '')) ?: 'Student';
-            $lastInitial = mb_substr(trim((string) ($student['last_name'] ?? '')), 0, 1);
-            $student['display_name'] = trim((string) ($student['leaderboard_alias'] ?? ''))
-                ?: ($lastInitial !== '' ? "{$firstName} {$lastInitial}." : $firstName);
-            if (!($student['show_on_leaderboard'] ?? true) && $student['id'] !== $user['id']) {
-                $student['display_name'] = 'Anonymous Student';
-            }
-        }
-        unset($student);
 
         $memberships = $this->supabase->adminSelect(
             'class_members',
