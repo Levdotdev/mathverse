@@ -5,7 +5,7 @@ create table if not exists public.rollback_arcade_achievements_20260912 as selec
 revoke all on public.rollback_arcade_scores_20260912 from public,anon,authenticated,service_role;
 revoke all on public.rollback_arcade_achievements_20260912 from public,anon,authenticated,service_role;
 drop function if exists public.finish_arcade_game(uuid,uuid,text);
-drop function if exists public.submit_arcade_answer(uuid,uuid,text,text);
+drop function if exists public.submit_arcade_answer(uuid,uuid,text,integer,text);
 drop function if exists public.start_arcade_game(uuid,text);
 drop function if exists public.arcade_game_dashboard(uuid,text,integer);
 drop function if exists public.arcade_hub_dashboard(uuid);
@@ -15,6 +15,8 @@ drop function if exists public.arcade_personal_score(uuid,text,boolean);
 drop function if exists public.arcade_record_score(uuid,text,integer,integer,boolean);
 drop function if exists public.arcade_public_session(public.arcade_sessions);
 drop function if exists public.arcade_generate_question(text,integer,integer);
+drop function if exists public.submit_number_guess(uuid,uuid,integer,integer);
+grant execute on function public.submit_number_guess(uuid,uuid,integer) to service_role;
 drop table if exists public.arcade_achievements;
 drop table if exists public.arcade_scores;
 drop table if exists public.arcade_sessions;

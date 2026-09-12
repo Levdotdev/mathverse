@@ -48,11 +48,12 @@ class NumberGuessGameService
         ]);
     }
 
-    public function guess(array $student, string $sessionId, int $guess): array
+    public function guess(array $student, string $sessionId, int $guess, int $expectedGuesses): array
     {
         return $this->action('submit_number_guess', [
             'p_session_id' => $sessionId,
             'p_student_id' => $this->studentId($student),
+            'p_expected_guesses' => $expectedGuesses,
             'p_guess' => $guess,
         ]);
     }
@@ -100,7 +101,7 @@ class NumberGuessGameService
         $finished = (bool) ($outcome['finished'] ?? false);
         $safeOutcome = [
             'direction' => in_array(($outcome['direction'] ?? ''), [
-                'correct', 'low', 'high', 'finished', 'expired', 'restarted',
+                'correct', 'low', 'high', 'stale', 'finished', 'expired', 'restarted',
             ], true) ? $outcome['direction'] : null,
             'correct' => (bool) ($outcome['correct'] ?? false),
             'finished' => $finished,

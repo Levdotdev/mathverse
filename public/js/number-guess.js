@@ -360,9 +360,10 @@ function initializeNumberGuessGame() {
 
         setBusy(true);
         try {
+            const expectedGuesses = Number(session.guesses || 0);
             const result = await requestJson(`/student/games/number-guess/${encodeURIComponent(session.id)}/guess`, {
                 method: 'POST',
-                payload: { guess },
+                payload: { guess, expected_guesses: expectedGuesses },
             });
             session = result.session;
             renderPersonal(result.personal);
@@ -371,6 +372,14 @@ function initializeNumberGuessGame() {
             if (result.outcome.finished) {
                 renderSession();
                 showCompletedGame(result, result.session.status === 'expired');
+                return;
+            }
+
+            if (result.outcome.direction === 'stale') {
+                setFeedback('Game state refreshed. That guess was already recorded in this run.', 'neutral');
+                showToast('Your latest verified game state is ready.');
+                renderSession({ resetInput: true });
+                focusGuess();
                 return;
             }
 

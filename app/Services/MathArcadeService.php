@@ -157,7 +157,7 @@ class MathArcadeService
         ]);
     }
 
-    public function answer(array $student, string $gameKey, string $sessionId, string $answer): array
+    public function answer(array $student, string $gameKey, string $sessionId, int $sequence, string $answer): array
     {
         $this->gameDefinition($gameKey);
         $answer = trim($answer);
@@ -169,6 +169,7 @@ class MathArcadeService
             'p_session_id' => $sessionId,
             'p_student_id' => $this->studentId($student),
             'p_game_key' => $gameKey,
+            'p_sequence' => $sequence,
             'p_answer' => $answer,
         ]);
     }
@@ -218,7 +219,7 @@ class MathArcadeService
         $outcome = is_array($payload['outcome'] ?? null) ? $payload['outcome'] : [];
         $direction = (string) ($outcome['direction'] ?? '');
         $safeOutcome = [
-            'direction' => in_array($direction, ['started', 'correct', 'incorrect', 'finished', 'expired'], true)
+            'direction' => in_array($direction, ['started', 'correct', 'incorrect', 'stale', 'finished', 'expired'], true)
                 ? $direction
                 : null,
             'correct' => (bool) ($outcome['correct'] ?? false),

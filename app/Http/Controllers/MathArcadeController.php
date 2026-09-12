@@ -42,6 +42,7 @@ class MathArcadeController extends Controller
     public function answer(Request $request, string $gameKey, string $sessionId): JsonResponse
     {
         $validated = $request->validate([
+            'sequence' => 'required|integer|between:1,1000001',
             'answer' => 'required|string|max:40',
         ]);
 
@@ -50,6 +51,7 @@ class MathArcadeController extends Controller
                 session('supabase_user'),
                 $gameKey,
                 $sessionId,
+                (int) $validated['sequence'],
                 trim($validated['answer'])
             ));
         } catch (RuntimeException $exception) {

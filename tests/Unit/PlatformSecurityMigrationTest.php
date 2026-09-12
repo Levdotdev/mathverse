@@ -37,6 +37,11 @@ class PlatformSecurityMigrationTest extends TestCase
         $this->assertStringContainsString("p_session.expires_at-clock_timestamp()", $sql);
         $this->assertStringContainsString("p_session.challenge-'answer'-'explanation'", $sql);
         $this->assertStringContainsString('and student_id=p_student_id and game_key=p_game_key for update', $sql);
+        $this->assertStringContainsString('p_sequence<>session_row.sequence', $sql);
+        $this->assertStringContainsString("submitted~'^-?[0-9]+$'", $sql);
+        $this->assertStringContainsString('p_expected_guesses<>session_row.total_guesses', $sql);
+        $this->assertStringContainsString("'direction','stale'", $sql);
+        $this->assertStringContainsString('revoke all on function public.submit_number_guess(uuid,uuid,integer) from public,anon,authenticated,service_role', $sql);
         $this->assertStringContainsString('position<=greatest(3,least(coalesce(p_limit,10),50))', $sql);
         $this->assertStringContainsString('arcade_refresh_achievements', $sql);
         $this->assertStringNotContainsString('learning_profiles', $sql);

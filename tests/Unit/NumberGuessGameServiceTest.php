@@ -81,6 +81,7 @@ class NumberGuessGameServiceTest extends TestCase
             ->with('submit_number_guess', [
                 'p_session_id' => self::SESSION_ID,
                 'p_student_id' => self::STUDENT_ID,
+                'p_expected_guesses' => 2,
                 'p_guess' => 151,
             ])
             ->andReturn([
@@ -95,7 +96,8 @@ class NumberGuessGameServiceTest extends TestCase
         (new NumberGuessGameService($supabase))->guess(
             $this->student(),
             self::SESSION_ID,
-            151
+            151,
+            2
         );
     }
 

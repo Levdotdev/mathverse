@@ -34,13 +34,15 @@ class NumberGuessGameController extends Controller
     {
         $validated = $request->validate([
             'guess' => 'required|integer|between:1,2000000000',
+            'expected_guesses' => 'required|integer|between:0,1000000',
         ]);
 
         try {
             return response()->json($this->game->guess(
                 session('supabase_user'),
                 $sessionId,
-                (int) $validated['guess']
+                (int) $validated['guess'],
+                (int) $validated['expected_guesses']
             ));
         } catch (RuntimeException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);

@@ -327,6 +327,9 @@ ranks remain server-authoritative. A question's answer and explanation are
 removed before its challenge reaches the browser and are revealed only after
 that question is submitted. Question families rotate through eight variants
 before repeating while operands remain randomized for the student's grade.
+Each answer also carries the server question sequence (and each Number Guess
+request carries its seen guess count), so a network retry or second tab cannot
+score the same action twice or apply it to the next hidden challenge.
 
 The arcade has one shared 12-badge achievement system across all five games.
 Its scores, badges, and leaderboards are intentionally separate from Learning

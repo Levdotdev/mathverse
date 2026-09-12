@@ -330,7 +330,7 @@ begin
 end;
 $$;
 
-create or replace function public.submit_arcade_answer(p_session_id uuid,p_student_id uuid,p_game_key text,p_answer text)
+create or replace function public.submit_arcade_answer(p_session_id uuid,p_student_id uuid,p_game_key text,p_sequence integer,p_answer text)
 returns jsonb language plpgsql volatile security definer set search_path = pg_catalog, public
 as $$
 declare
@@ -349,8 +349,18 @@ begin
         perform public.arcade_refresh_achievements(p_student_id);
         return jsonb_build_object('session',public.arcade_public_session(session_row),'personal',public.arcade_personal_score(p_student_id,session_row.game_key,false),'outcome',jsonb_build_object('correct',false,'finished',true,'direction','expired'));
     end if;
+    -- Bind the answer to the exact server-owned question shown in the browser.
+    -- This makes retried or concurrent requests harmless instead of applying a
+    -- previous answer to the next challenge and changing leaderboard scores.
+    if p_sequence is null or p_sequence<>session_row.sequence then
+        return jsonb_build_object('session',public.arcade_public_session(session_row),
+            'personal',public.arcade_personal_score(p_student_id,session_row.game_key,false),
+            'outcome',jsonb_build_object('correct',false,'finished',false,'direction','stale'));
+    end if;
     answered_challenge:=session_row.challenge; expected:=answered_challenge->>'answer';
-    if answered_challenge->>'answer_type'='number' then is_correct:=submitted~'^-?[0-9]+$' and submitted::numeric=expected::numeric;
+    if answered_challenge->>'answer_type'='number' then
+        if submitted~'^-?[0-9]+$' then is_correct:=submitted::numeric=expected::numeric;
+        else is_correct:=false; end if;
     else is_correct:=submitted=expected; end if;
     select coalesce(best_score,0) into previous_best from public.arcade_scores where student_id=p_student_id and game_key=session_row.game_key;
     if not found then previous_best:=0; end if;
@@ -365,6 +375,53 @@ begin
     return jsonb_build_object('session',public.arcade_public_session(session_row),
         'personal',public.arcade_personal_score(p_student_id,session_row.game_key,session_row.score>previous_best),
         'outcome',jsonb_build_object('correct',is_correct,'finished',false,'direction',case when is_correct then 'correct' else 'incorrect' end,'correct_answer',expected,'explanation',answered_challenge->>'explanation'));
+end;
+$$;
+
+-- Number Guess predates the shared arcade. Keep its original implementation as
+-- a private helper while exposing a versioned entry point that neutralizes
+-- replayed guesses after a response is lost or another tab advances the run.
+create or replace function public.submit_number_guess(
+    p_session_id uuid,
+    p_student_id uuid,
+    p_expected_guesses integer,
+    p_guess integer
+)
+returns jsonb language plpgsql volatile security definer set search_path = pg_catalog, public
+as $$
+declare
+    session_row public.number_guess_sessions%rowtype;
+    score_row public.number_guess_scores%rowtype;
+    game_now timestamptz;
+begin
+    select * into session_row
+      from public.number_guess_sessions
+     where id=p_session_id and student_id=p_student_id
+     for update;
+    if not found then raise exception 'Game session not found'; end if;
+    game_now:=clock_timestamp();
+
+    if session_row.status='active'
+       and session_row.expires_at>game_now
+       and (p_expected_guesses is null or p_expected_guesses<>session_row.total_guesses) then
+        select * into score_row from public.number_guess_scores where student_id=p_student_id;
+        return jsonb_build_object(
+            'server_now',game_now,
+            'session',jsonb_build_object(
+                'id',session_row.id,'status',session_row.status,'score',session_row.score,
+                'guesses',session_row.total_guesses,'range_min',1,'range_max',session_row.range_max,
+                'started_at',session_row.started_at,'ends_at',session_row.expires_at,
+                'remaining_ms',greatest(0,floor(extract(epoch from (session_row.expires_at-game_now))*1000)::bigint)
+            ),
+            'personal',jsonb_build_object(
+                'best_score',coalesce(score_row.best_score,0),'best_guesses',score_row.best_guesses,
+                'games_played',coalesce(score_row.games_played,0),'new_best',false
+            ),
+            'outcome',jsonb_build_object('direction','stale','correct',false,'finished',false)
+        );
+    end if;
+
+    return public.submit_number_guess(p_session_id,p_student_id,p_guess);
 end;
 $$;
 
@@ -395,13 +452,16 @@ revoke all on function public.arcade_refresh_achievements(uuid) from public,anon
 revoke all on function public.arcade_hub_dashboard(uuid) from public,anon,authenticated;
 revoke all on function public.arcade_game_dashboard(uuid,text,integer) from public,anon,authenticated;
 revoke all on function public.start_arcade_game(uuid,text) from public,anon,authenticated;
-revoke all on function public.submit_arcade_answer(uuid,uuid,text,text) from public,anon,authenticated;
+revoke all on function public.submit_arcade_answer(uuid,uuid,text,integer,text) from public,anon,authenticated;
 revoke all on function public.finish_arcade_game(uuid,uuid,text) from public,anon,authenticated;
+revoke all on function public.submit_number_guess(uuid,uuid,integer) from public,anon,authenticated,service_role;
+revoke all on function public.submit_number_guess(uuid,uuid,integer,integer) from public,anon,authenticated,service_role;
 grant execute on function public.arcade_hub_dashboard(uuid) to service_role;
 grant execute on function public.arcade_game_dashboard(uuid,text,integer) to service_role;
 grant execute on function public.start_arcade_game(uuid,text) to service_role;
-grant execute on function public.submit_arcade_answer(uuid,uuid,text,text) to service_role;
+grant execute on function public.submit_arcade_answer(uuid,uuid,text,integer,text) to service_role;
 grant execute on function public.finish_arcade_game(uuid,uuid,text) to service_role;
+grant execute on function public.submit_number_guess(uuid,uuid,integer,integer) to service_role;
 
 insert into public.mathverse_schema_migrations(migration_key) values('2026_09_12_shared_math_arcade.sql') on conflict(migration_key) do nothing;
 notify pgrst, 'reload schema';

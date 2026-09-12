@@ -78,12 +78,13 @@ class NumberGuessGameFlowTest extends TestCase
         $game = $this->mock(NumberGuessGameService::class);
         $game->shouldReceive('guess')
             ->once()
-            ->with($this->student, self::SESSION_ID, 42)
+            ->with($this->student, self::SESSION_ID, 42, 2)
             ->andReturn($result);
 
         $response = $this->withSession(['supabase_user' => $this->student])
             ->postJson('/student/games/number-guess/'.self::SESSION_ID.'/guess', [
                 'guess' => 42,
+                'expected_guesses' => 2,
             ]);
 
         $response->assertOk()
@@ -100,9 +101,21 @@ class NumberGuessGameFlowTest extends TestCase
         $response = $this->withSession(['supabase_user' => $this->student])
             ->postJson('/student/games/number-guess/'.self::SESSION_ID.'/guess', [
                 'guess' => 0,
+                'expected_guesses' => 0,
             ]);
 
         $response->assertUnprocessable()->assertJsonValidationErrors('guess');
+    }
+
+    public function test_guess_must_include_the_seen_game_version(): void
+    {
+        $game = $this->mock(NumberGuessGameService::class);
+        $game->shouldNotReceive('guess');
+
+        $this->withSession(['supabase_user' => $this->student])
+            ->postJson('/student/games/number-guess/'.self::SESSION_ID.'/guess', ['guess' => 42])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('expected_guesses');
     }
 
     public function test_student_can_finish_only_their_server_scoped_session(): void

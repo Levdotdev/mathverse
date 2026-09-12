@@ -58,6 +58,7 @@ class MathArcadeServiceTest extends TestCase
                 'p_session_id' => self::SESSION_ID,
                 'p_student_id' => self::STUDENT_ID,
                 'p_game_key' => 'mental-arithmetic',
+                'p_sequence' => 1,
                 'p_answer' => '35',
             ])
             ->andReturn($payload);
@@ -66,6 +67,7 @@ class MathArcadeServiceTest extends TestCase
             $this->student(),
             'mental-arithmetic',
             self::SESSION_ID,
+            1,
             '35'
         );
 

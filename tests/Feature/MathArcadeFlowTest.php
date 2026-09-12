@@ -72,7 +72,7 @@ class MathArcadeFlowTest extends TestCase
             ->andReturn($this->actionResult());
         $arcade->shouldReceive('answer')
             ->once()
-            ->with($this->student, 'mental-arithmetic', self::SESSION_ID, '36')
+            ->with($this->student, 'mental-arithmetic', self::SESSION_ID, 1, '36')
             ->andReturn(array_replace_recursive($this->actionResult(), [
                 'session' => ['score' => 1, 'answers' => 1, 'sequence' => 2],
                 'outcome' => [
@@ -91,7 +91,10 @@ class MathArcadeFlowTest extends TestCase
             ->assertJsonMissingPath('session.challenge.answer');
 
         $this->withSession(['supabase_user' => $this->student])
-            ->postJson('/student/games/mental-arithmetic/'.self::SESSION_ID.'/answer', ['answer' => '36'])
+            ->postJson('/student/games/mental-arithmetic/'.self::SESSION_ID.'/answer', [
+                'sequence' => 1,
+                'answer' => '36',
+            ])
             ->assertOk()
             ->assertJsonPath('session.score', 1)
             ->assertJsonPath('outcome.correct', true)
@@ -108,6 +111,17 @@ class MathArcadeFlowTest extends TestCase
             ->postJson('/student/games/pattern-pulse/'.self::SESSION_ID.'/answer', ['answer' => ''])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('answer');
+    }
+
+    public function test_answer_must_include_the_question_sequence(): void
+    {
+        $arcade = $this->mock(MathArcadeService::class);
+        $arcade->shouldNotReceive('answer');
+
+        $this->withSession(['supabase_user' => $this->student])
+            ->postJson('/student/games/pattern-pulse/'.self::SESSION_ID.'/answer', ['answer' => '42'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sequence');
     }
 
     public function test_student_can_end_only_the_server_scoped_game_route(): void

@@ -401,9 +401,10 @@ function initializeMathArcadeGame() {
 
         setBusy(true);
         try {
+            const sequence = Number(session.sequence);
             const result = await requestJson(`/student/games/${encodeURIComponent(gameKey)}/${encodeURIComponent(session.id)}/answer`, {
                 method: 'POST',
-                payload: { answer },
+                payload: { sequence, answer },
             });
             session = result.session;
             renderPersonal(result.personal);
@@ -417,6 +418,12 @@ function initializeMathArcadeGame() {
 
             setDeadline(session.remaining_ms);
             renderSession({ resetAnswer: true });
+            if (result.outcome.direction === 'stale') {
+                setFeedback('Game state refreshed. That question was already answered in this run.', 'neutral');
+                showToast('Your latest verified question is ready.');
+                focusAnswer();
+                return;
+            }
             const explanation = result.outcome.explanation ? ` ${result.outcome.explanation}` : '';
             if (result.outcome.correct) {
                 setFeedback(`Correct!${explanation}`, 'correct');
