@@ -29,7 +29,8 @@ class AdminController extends Controller
         $teacherPage = max(1, (int) $request->query('teacher_page', 1));
         $perPage = 25;
 
-        $studentFilters = ['role' => 'student', 'order' => $this->registryOrder($studentSort)];
+        $studentFilters = ['role' => 'student', 'order' => $this->registryOrder($studentSort),
+            'deactivated_at' => ['operator' => 'is', 'value' => 'null']];
         if ($selectedGrade !== 0) {
             $studentFilters['grade_level'] = $selectedGrade;
         }
@@ -37,7 +38,8 @@ class AdminController extends Controller
             $studentFilters['or'] = $this->registryOrFilter($studentSearch);
         }
 
-        $teacherFilters = ['role' => 'teacher', 'order' => $this->registryOrder($teacherSort)];
+        $teacherFilters = ['role' => 'teacher', 'order' => $this->registryOrder($teacherSort),
+            'deactivated_at' => ['operator' => 'is', 'value' => 'null']];
         if ($teacherSearch !== '') {
             $teacherFilters['or'] = $this->registryOrFilter($teacherSearch);
         }
@@ -69,7 +71,8 @@ class AdminController extends Controller
         $totalUsers = $totalStudents + $totalTeachers + $totalPending;
         $totalQuizzes = $this->supabase->adminCount('quizzes');
         $pendingTeachers = $this->supabase->adminSelect(
-            'profiles', '*', ['role' => 'pending_teacher', 'order' => 'created_at.asc']
+            'profiles', '*', ['role' => 'pending_teacher', 'order' => 'created_at.asc',
+                'deactivated_at' => ['operator' => 'is', 'value' => 'null']]
         );
         $pendingReportCount = $this->supabase->adminCount('quiz_reports', ['status' => 'pending']);
 
@@ -138,55 +141,14 @@ class AdminController extends Controller
 
     public function deleteUser(string $id)
     {
-        $profile = $this->supabase->adminSelect(
-            'profiles', 'role,first_name,last_name,email', ['id' => $id]
-        )[0] ?? null;
-        if (!$profile || !in_array($profile['role'], ['student', 'teacher'], true)) {
-            return redirect('/admin/dashboard')->with('error', 'Only student and teacher accounts can be deleted here.');
-        }
-        $section = $profile['role'] === 'student' ? 'students' : 'teachers';
-        $auditMetadata = [
-            'role' => $profile['role'],
-            'name' => trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')),
-            'email' => $profile['email'] ?? null,
-        ];
-        $intentId = $this->supabase->beginPrivilegedAudit(
-            session('supabase_user'), 'user.deleted', 'profile', $id, $auditMetadata
-        );
-        if ($intentId === null) {
-            return redirect("/admin/dashboard?section={$section}")
-                ->with('error', 'Deletion was blocked because the secure audit trail is unavailable. Check System Health and try again.');
-        }
-
-        // Delete from auth.users — this cascades to profiles automatically.
-        try {
-            $deleted = $this->supabase->deleteAuthUser($id);
-        } catch (\Throwable $exception) {
-            Log::warning('Administrator user deletion failed.', [
-                'target_user_id' => $id,
-                'exception' => $exception::class,
-            ]);
-            $deleted = false;
-        }
-
-        if (!$deleted) {
-            $this->supabase->completePrivilegedAudit(
-                $intentId, false, ['stage' => 'authentication_delete'], 'The account deletion failed.'
-            );
-            return redirect("/admin/dashboard?section={$section}")
-                ->with('error', 'The user could not be deleted. Please try again.');
-        }
-
-        $this->supabase->completePrivilegedAudit($intentId, true, ['deleted' => true]);
-
-        return redirect("/admin/dashboard?section={$section}")
-            ->with('success', 'User deleted.');
+        return app(RecoveryController::class)->deactivate($id);
     }
 
     public function approveTeacher(string $id)
     {
         $profile = $this->supabase->adminSelect(
-            'profiles', 'id,role,first_name,last_name,email', ['id' => $id]
+            'profiles', 'id,role,first_name,last_name,email', ['id' => $id,
+                'deactivated_at' => ['operator' => 'is', 'value' => 'null']]
         )[0] ?? null;
         if (!$profile || ($profile['role'] ?? '') !== 'pending_teacher') {
             return redirect('/admin/dashboard?section=role-verify')
@@ -214,7 +176,8 @@ class AdminController extends Controller
         }
 
         $updated = $this->supabase->adminUpdate(
-            'profiles', ['role' => 'teacher'], ['id' => $id, 'role' => 'pending_teacher']
+            'profiles', ['role' => 'teacher'], ['id' => $id, 'role' => 'pending_teacher',
+                'deactivated_at' => ['operator' => 'is', 'value' => 'null']]
         );
         if (!isset($updated[0]['id'])) {
             $this->supabase->completePrivilegedAudit(
@@ -274,7 +237,10 @@ class AdminController extends Controller
         }
 
         try {
-            $deleted = $this->supabase->deleteAuthUser($id);
+            $result = $this->supabase->adminRpcResult('set_account_deactivated', [
+                'p_actor_id' => session('supabase_user.id'), 'p_id' => $id, 'p_restore' => false,
+            ]);
+            $deleted = $result['error'] === null && ($result['data'][0]['id'] ?? null) === $id;
         } catch (\Throwable $exception) {
             Log::warning('Pending teacher deletion failed.', [
                 'target_user_id' => $id,
@@ -285,7 +251,7 @@ class AdminController extends Controller
 
         if (!$deleted) {
             $this->supabase->completePrivilegedAudit(
-                $intentId, false, ['stage' => 'authentication_delete'], 'The pending account deletion failed.'
+                $intentId, false, ['stage' => 'account_deactivation'], 'The pending account deactivation failed.'
             );
             return redirect('/admin/dashboard?section=role-verify')
                 ->with('error', 'Failed to reject application.');
@@ -940,11 +906,11 @@ class AdminController extends Controller
     {
         $profile = $this->supabase->adminSelect(
             'profiles',
-            'id,role,first_name,last_name,email,suspended_at,suspension_reason',
+            'id,role,first_name,last_name,email,suspended_at,suspension_reason,deactivated_at',
             ['id' => $id]
         )[0] ?? null;
 
-        return $profile && in_array($profile['role'] ?? '', ['student', 'teacher'], true)
+        return $profile && empty($profile['deactivated_at']) && in_array($profile['role'] ?? '', ['student', 'teacher'], true)
             ? $profile
             : null;
     }

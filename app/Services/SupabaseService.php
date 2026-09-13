@@ -406,12 +406,9 @@ class SupabaseService
     {
         $this->assertResourceIdentifier($table, 'table');
         $this->assertSelectExpression($query);
-        $params = $this->buildAdminSelectParams($query, $filters);
+        $params = $this->buildAdminSelectParams($query, $this->activeRecordFilters($table, $filters));
 
-        $response = $this->request()->withHeaders([
-            'apikey'        => $this->serviceKey,
-            'Authorization' => "Bearer {$this->serviceKey}",
-        ])->get("{$this->url}/rest/v1/{$table}", $params);
+        $response = $this->adminReadResponse($table, $params, $filters);
 
         if (!$response->successful()) {
             $message = $this->databaseErrorMessage($response);
@@ -443,15 +440,11 @@ class SupabaseService
     ): array {
         $this->assertResourceIdentifier($table, 'table');
         $this->assertSelectExpression($query);
-        $params = $this->buildAdminSelectParams($query, $filters);
+        $params = $this->buildAdminSelectParams($query, $this->activeRecordFilters($table, $filters));
         $params['limit'] = max(1, min($limit, 100));
         $params['offset'] = max(0, $offset);
 
-        $response = $this->request()->withHeaders([
-            'apikey'        => $this->serviceKey,
-            'Authorization' => "Bearer {$this->serviceKey}",
-            'Prefer'        => 'count=exact',
-        ])->get("{$this->url}/rest/v1/{$table}", $params);
+        $response = $this->adminReadResponse($table, $params, $filters, true);
 
         $total = 0;
         $contentRange = (string) $response->header('Content-Range');
@@ -464,6 +457,7 @@ class SupabaseService
         return [
             'data'  => $rows,
             'total' => $total,
+            'error' => $response->successful() ? null : "Database pagination on {$table} failed with status {$response->status()}.",
         ];
     }
 
@@ -540,14 +534,10 @@ class SupabaseService
     public function adminCountResult(string $table, array $filters = []): array
     {
         $this->assertResourceIdentifier($table, 'table');
-        $params = $this->buildAdminSelectParams('id', $filters);
+        $params = $this->buildAdminSelectParams('id', $this->activeRecordFilters($table, $filters));
         $params['limit'] = 1;
 
-        $response = $this->request()->withHeaders([
-            'apikey'        => $this->serviceKey,
-            'Authorization' => "Bearer {$this->serviceKey}",
-            'Prefer'        => 'count=exact',
-        ])->get("{$this->url}/rest/v1/{$table}", $params);
+        $response = $this->adminReadResponse($table, $params, $filters, true);
 
         if (!$response->successful()) {
             $message = $this->databaseErrorMessage($response);
@@ -598,6 +588,37 @@ class SupabaseService
         }
 
         return $params;
+    }
+
+    /** Service-role reads bypass RLS: ordinary pages must not list Trash.
+     * Recovery pages deliberately provide an explicit deleted_at filter.
+     */
+    private function activeRecordFilters(string $table, array $filters): array
+    {
+        if (in_array($table, ['classes', 'quizzes'], true) && !array_key_exists('deleted_at', $filters)) {
+            $filters['deleted_at'] = ['operator' => 'is', 'value' => 'null'];
+        }
+        return $filters;
+    }
+
+    private function adminReadResponse(string $table, array $params, array $filters, bool $count = false)
+    {
+        $headers = ['apikey' => $this->serviceKey, 'Authorization' => "Bearer {$this->serviceKey}"];
+        if ($count) {
+            $headers['Prefer'] = 'count=exact';
+        }
+        $response = $this->request()->withHeaders($headers)->get("{$this->url}/rest/v1/{$table}", $params);
+        // Rolling-deploy compatibility ONLY for a genuinely absent trash
+        // column. Never retry writes, permission failures, outages or explicit
+        // Trash reads without their restriction. Missing migration = no trash
+        // flags exist; the new mutation RPCs still fail closed until applied.
+        if (in_array($table, ['classes', 'quizzes'], true) && !array_key_exists('deleted_at', $filters)
+            && ($response->json('code') ?? '') === '42703'
+            && str_contains((string) $response->json('message'), 'deleted_at')) {
+            unset($params['deleted_at']);
+            $response = $this->request()->withHeaders($headers)->get("{$this->url}/rest/v1/{$table}", $params);
+        }
+        return $response;
     }
 
     public function adminUpdate(string $table, array $data, array $filters): array

@@ -9,6 +9,49 @@ use Tests\TestCase;
 
 class SupabaseMutationScopeTest extends TestCase
 {
+    public function test_ordinary_service_role_reads_and_counts_exclude_trash_but_explicit_trash_filters_work(): void
+    {
+        config(['services.supabase.url' => 'https://project.supabase.co']);
+        Http::fake(['project.supabase.co/*' => Http::response([], 200, ['Content-Range' => '0-0/0'])]);
+        $service = app(SupabaseService::class);
+        $service->adminSelect('classes', 'id');
+        $service->adminSelectPage('quizzes', 'id');
+        $service->adminCount('quizzes');
+        $service->adminSelectPage('classes', 'id', ['deleted_at' => ['operator' => 'not.is', 'value' => 'null']]);
+        $requests = Http::recorded();
+        foreach ([0, 1, 2] as $index) {
+            $this->assertSame('is.null', $requests[$index][0]['deleted_at']);
+        }
+        $this->assertSame('not.is.null', $requests[3][0]['deleted_at']);
+    }
+
+    public function test_unmigrated_read_compatibility_is_read_only_and_never_weakens_explicit_trash_filters(): void
+    {
+        config(['services.supabase.url' => 'https://project.supabase.co']);
+        Http::fakeSequence()->push(['code' => '42703', 'message' => 'column classes.deleted_at does not exist'], 400)
+            ->push([['id' => 'existing-class']], 200)
+            ->push(['code' => '42703', 'message' => 'column classes.deleted_at does not exist'], 400);
+        $rows = app(SupabaseService::class)->adminSelect('classes', 'id', ['teacher_id' => 'owner']);
+        $this->assertSame('existing-class', $rows[0]['id']);
+        $request = Http::recorded()[1][0];
+        $this->assertSame('eq.owner', $request['teacher_id']);
+        $this->assertArrayNotHasKey('deleted_at', $request->data());
+
+        $result = app(SupabaseService::class)->adminSelectResult('classes', 'id', ['deleted_at' => ['operator' => 'not.is', 'value' => 'null']]);
+        $this->assertNotNull($result['error']);
+        Http::assertSentCount(3);
+        $this->assertSame('not.is.null', Http::recorded()[2][0]['deleted_at']);
+    }
+
+    public function test_service_role_permission_failures_do_not_retry_or_remove_the_trash_filter(): void
+    {
+        config(['services.supabase.url' => 'https://project.supabase.co']);
+        Http::fake(['project.supabase.co/*' => Http::response(['code' => '42501', 'message' => 'Permission denied'], 403)]);
+        $result = app(SupabaseService::class)->adminSelectResult('classes', 'id');
+        $this->assertNotNull($result['error']);
+        Http::assertSentCount(1);
+    }
+
     public function test_production_rejects_a_plaintext_supabase_endpoint(): void
     {
         $this->app->detectEnvironment(fn (): string => 'production');

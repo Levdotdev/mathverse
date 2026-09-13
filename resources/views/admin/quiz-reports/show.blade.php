@@ -156,9 +156,9 @@
     <div id="reportDeleteQuizModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="report-delete-title">
         <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
             <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
-            <h3 id="report-delete-title" class="font-orbitron font-bold uppercase">Delete Reported Quiz?</h3>
+            <h3 id="report-delete-title" class="font-orbitron font-bold uppercase">Move Reported Quiz to Trash?</h3>
             <p class="text-xs text-slate-300 my-4">“{{ $report['quiz_topic_display'] }}” will be removed from the shared library.</p>
-            <p class="text-[10px] text-slate-500 mb-8">Report history is preserved. Existing class assignments and results remain available.</p>
+            <p class="text-[10px] text-slate-500 mb-8">Report history, questions, versions and class results are preserved. Only an administrator can restore this removal.</p>
             <form method="POST" action="/admin/quizzes/{{ $report['quiz_id'] }}">
                 @csrf
                 @method('DELETE')

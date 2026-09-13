@@ -185,13 +185,13 @@
     <div id="deleteQuizModal" class="modal-overlay hidden">
         <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
             <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
-            <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Delete Quiz?</h3>
+            <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Move Quiz to Trash?</h3>
             <p id="delete-quiz-topic" class="text-xs text-slate-400 mb-2"></p>
-            <p class="text-[10px] text-slate-500 mb-8 uppercase">Existing class sessions and results will remain available.</p>
+            <p class="text-[10px] text-slate-500 mb-8">Questions, versions, assignments and results are preserved. Restore this quiz from Trash and Recovery.</p>
             <form id="deleteQuizForm" method="POST">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Delete Quiz</button>
+                <button type="submit" class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Move to Trash</button>
             </form>
             <button type="button" data-action="closeModal" data-action-args='["deleteQuizModal"]' class="modal-cancel mt-3">Cancel</button>
         </div>

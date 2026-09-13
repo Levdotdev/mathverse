@@ -350,14 +350,16 @@ class TeacherClassController extends Controller
                 ->with('error', 'Class deletion was not confirmed. No class data was removed.');
         }
 
-        $deleted = $this->supabase->adminRpcResult('delete_teacher_class', [
-            'p_teacher_id' => $user['id'],
-            'p_class_id' => $id,
+        $deleted = $this->supabase->adminRpcResult('set_recovery_item', [
+            'p_actor_id' => $user['id'],
+            'p_kind' => 'class',
+            'p_id' => $id,
+            'p_restore' => false,
         ]);
-        $deletedId = $deleted['data'][0]['deleted_class_id'] ?? null;
+        $deletedId = $deleted['data'][0]['id'] ?? null;
         if ($deleted['error'] !== null || $deletedId !== $id) {
             $error = strtolower((string) ($deleted['error'] ?? ''));
-            $message = str_contains($error, 'delete_teacher_class')
+            $message = str_contains($error, 'set_recovery_item')
                 || str_contains($error, 'schema cache')
                     ? 'Class deletion is unavailable. Run the latest database update, then try again.'
                     : 'The class could not be deleted. No changes were saved.';
@@ -366,11 +368,7 @@ class TeacherClassController extends Controller
                 ->with('error', $message);
         }
 
-        $this->supabase->audit($user, 'class.deleted', 'class', $id, [
-            'class_name' => $class['class_name'] ?? null,
-        ]);
-
-        return redirect('/teacher/dashboard?section=classes')->with('success', 'Class deleted.');
+        return redirect('/teacher/trash')->with('success', 'Class moved to Trash. Students, assignments and results are preserved.');
     }
 
     public function removeStudent(string $classId, string $studentId)

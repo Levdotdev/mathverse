@@ -210,7 +210,7 @@
                                 @else
                                     <button type="button" data-action="confirmSuspend" data-action-args="{{ json_encode([$p['id'], $studentName, 'students'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
                                 @endif
-                                <button type="button" data-action="confirmDelete" data-action-args="{{ json_encode([$p['id'], $studentName], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+                                <button type="button" data-action="confirmDelete" data-action-args="{{ json_encode([$p['id'], $studentName], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-user-slash mr-1"></i> Deactivate</button>
                             </td>
                         </tr>
                     @empty
@@ -273,7 +273,7 @@
                                 @else
                                     <button type="button" data-action="confirmSuspend" data-action-args="{{ json_encode([$p['id'], $teacherName, 'teachers'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-yellow-400 hover:text-white text-[10px] font-bold uppercase mr-4"><i class="fas fa-pause-circle mr-1"></i> Suspend</button>
                                 @endif
-                                <button type="button" data-action="confirmDelete" data-action-args="{{ json_encode([$p['id'], $teacherName], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+                                <button type="button" data-action="confirmDelete" data-action-args="{{ json_encode([$p['id'], $teacherName], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}" class="text-red-500 hover:text-white text-[10px] font-bold uppercase"><i class="fas fa-user-slash mr-1"></i> Deactivate</button>
                             </td>
                         </tr>
                     @empty
@@ -573,12 +573,12 @@
 <div id="deleteUserModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-xs text-center border-red-500/50">
         <i class="fas fa-user-minus text-4xl text-red-600 mb-4"></i>
-        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Delete User?</h3>
+        <h3 class="font-orbitron font-bold mb-2 uppercase text-white">Deactivate User?</h3>
         <p id="delete-user-name" class="text-xs text-slate-400 mb-2"></p>
-        <p class="text-[10px] text-slate-500 mb-8 uppercase">This removes the account permanently.</p>
+        <p class="text-[10px] text-slate-500 mb-8">Access will be blocked, but all records are preserved. Reactivate from Trash and Recovery. Permanent deletion is a separate action after seven days.</p>
         <div class="flex flex-col gap-2">
             <form id="deleteUserForm" method="POST">@csrf @method('DELETE')
-                <button class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Purge User Data</button>
+                <button class="btn-rect-primary !bg-red-600 !text-white uppercase text-xs">Deactivate Account</button>
             </form>
             <button type="button" data-action="closeModal" data-action-args='["deleteUserModal"]' class="modal-cancel mt-3">Cancel</button>
         </div>

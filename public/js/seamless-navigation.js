@@ -167,7 +167,7 @@
         if (!force && existingRequest && !existingRequest.signal?.aborted) return existingRequest.promise;
 
         const request = (async () => {
-            const { response, responseType, html } = await requestDocument(url.href, {
+            const { response, responseType, html, payload } = await requestDocument(url.href, {
                 signal,
                 credentials: 'same-origin',
                 redirect: 'follow',
@@ -180,7 +180,11 @@
                 },
             });
             if (!response.ok || !responseType.includes('text/html')) {
-                throw new Error(`Page request failed with status ${response.status}.`);
+                const reference = response.headers.get('X-MathVerse-Reference');
+                const error = new Error(payload.message || 'That page could not be loaded. Please try again.');
+                if (reference && /^MV-[A-F0-9]{16}$/.test(reference) && !error.message.includes(reference)) error.message += ` Reference: ${reference}`;
+                error.hasReference = Boolean(reference && /^MV-[A-F0-9]{16}$/.test(reference));
+                throw error;
             }
 
             const finalUrl = response.url || url.href;
@@ -474,7 +478,7 @@
                 window.location.assign(error.url);
                 return false;
             }
-            showToast(error instanceof RequestTimeout ? error.message : 'That page could not be loaded. Please try again.', true);
+            showToast(error instanceof RequestTimeout || error.hasReference ? error.message : 'That page could not be loaded. Please try again.', true);
             return false;
         } finally {
             if (sequence === navigationSequence) {
@@ -533,7 +537,9 @@
                 body: formData,
             }, formRequestTimeoutMs);
             if (!response.ok || !responseType.includes('text/html')) {
-                throw new Error(payload.message || 'The action could not be completed.');
+                const reference = response.headers.get('X-MathVerse-Reference');
+                const message = payload.message || 'The action could not be completed.';
+                throw new Error(reference && /^MV-[A-F0-9]{16}$/.test(reference) && !message.includes(reference) ? `${message} Reference: ${reference}` : message);
             }
 
             const finalUrl = response.url || action.href;

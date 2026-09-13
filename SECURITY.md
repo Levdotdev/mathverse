@@ -33,7 +33,7 @@ service key.
 - Run `composer install --no-dev --classmap-authoritative` and `npm ci && npm
   run build` from the committed lock files.
 - Apply every SQL migration in `database/supabase` in date order, ending with
-  `2026_09_12_shared_math_arcade.sql`. The September migrations retain
+  `2026_09_13_recovery_and_incident_alerts.sql`. The September migrations retain
   the service-role-only function grant established by the hardening migration,
   route assignment/availability alerts to Web Push, and enable the protected
   immediate quiz-receipt callback.
@@ -47,8 +47,9 @@ service key.
   Normal logout also requests global refresh-session revocation before the
   encrypted Laravel session is destroyed.
 - Keep recovery tokens in the URL fragment exactly as documented in the
-  committed email template. The reset page intentionally rejects query-string
-  tokens because request URLs can be retained by proxies and access logs.
+  committed email template. Legacy query-string tokens are accepted and scrubbed
+  after capture, but new links must use fragments because request URLs can be
+  retained by proxies and access logs. Redact recovery parameters from those logs.
   Validation retries retain the token only in the encrypted server session,
   and a successful recovery invalidates that entire browser session.
 - Confirm Row Level Security is enabled on every Supabase API table and review
@@ -64,9 +65,10 @@ service key.
   only an exact random row capability, can send only a stored
   `quiz_result_recorded` email, returns no delivery state, and is throttled.
   Never expose or log those callback tokens.
-- Keep teacher class deletion on the server-only `delete_teacher_class`
-  transaction so ownership is rechecked and dependent records cannot be only
-  partly removed.
+- Keep class/quiz deletion on the server-only `set_recovery_item` transaction.
+  Original rows are retained and final audits commit with the mutation; do not
+  restore physical-delete grants. The legacy `delete_teacher_class` function is
+  also recoverable. Deactivate accounts before any separately confirmed purge.
 - Set `WEB_PUSH_ALLOWED_HOSTS` to the same minimal browser-push provider list in
   Laravel and the `send-admin-push` Edge Function.
 - Use a verified sending domain for Auth and Laravel mail, publish SPF, DKIM,
@@ -104,6 +106,14 @@ Privileged administrator actions must continue to use the durable audit-intent
 lifecycle. Never replace it with a deferred best-effort log. Treat a stale
 pending intent as an incident: preserve the row, determine whether the action
 completed, and finalize or reconcile it with an explicit recorded outcome.
+Recovery mutations commit their final audit in the same transaction instead.
+The only authenticated-callable recovery helper is `recovery_account_active`,
+a boolean RLS predicate; mutation, aggregation and incident RPCs remain server-only.
+
+Configure **Independent incident monitor** and an independent alert destination
+to detect scheduler stops and application/email outages. See
+[`docs/recovery-and-alerts.md`](docs/recovery-and-alerts.md) for private token
+setup, thresholds, acknowledgement, retry behaviour and safe staging checks.
 
 Monitor failed logins, password recovery requests, permission failures,
 suspensions, administrator actions, notification-delivery failures, and unusual

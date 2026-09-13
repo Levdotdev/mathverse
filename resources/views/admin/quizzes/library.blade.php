@@ -151,9 +151,9 @@
 <div id="deleteQuizModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
         <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
-        <h3 class="font-orbitron font-bold uppercase">Delete Shared Quiz?</h3>
+        <h3 class="font-orbitron font-bold uppercase">Move Shared Quiz to Trash?</h3>
         <p id="delete-quiz-topic" class="text-xs text-slate-400 my-4"></p>
-        <p class="text-[10px] text-slate-500 mb-8">Existing class assignments and results remain available.</p>
+        <p class="text-[10px] text-slate-500 mb-8">Questions, versions, assignments and results are preserved. Only an administrator can restore this removal.</p>
         <form id="deleteQuizForm" method="POST">
             @csrf
             @method('DELETE')

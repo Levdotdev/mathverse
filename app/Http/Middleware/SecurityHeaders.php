@@ -11,7 +11,8 @@ class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $nonce = base64_encode(random_bytes(18));
+        // Exception responses reuse the nonce with which they were rendered.
+        $nonce = $request->attributes->get('csp_nonce') ?: base64_encode(random_bytes(18));
         $request->attributes->set('csp_nonce', $nonce);
         Vite::useCspNonce($nonce);
 

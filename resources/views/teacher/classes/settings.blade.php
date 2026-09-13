@@ -141,9 +141,9 @@
 
         <div class="portal-frame !p-6 border-l-4 border-red-500">
             <h2 class="font-orbitron font-bold text-red-400 uppercase">Danger Zone</h2>
-            <p class="text-xs text-slate-500 mt-3 mb-5">Deleting this class removes its members, assignments, and class results.</p>
+            <p class="text-xs text-slate-500 mt-3 mb-5">Move this class to Trash. Its members, assignments and results are preserved for restoration.</p>
             <button type="button" data-action="openModal" data-action-args='["deleteClassModal"]' class="btn-rect-secondary !py-3 !border-red-500/40 text-red-400">
-                <i class="fas fa-trash-alt mr-2"></i> Delete Class
+                <i class="fas fa-trash-alt mr-2"></i> Move to Trash
             </button>
         </div>
     </aside>
@@ -168,13 +168,13 @@
 <div id="deleteClassModal" class="modal-overlay hidden">
     <div class="portal-frame !p-10 w-full max-w-sm text-center border-red-500/50">
         <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
-        <h3 class="font-orbitron font-bold uppercase">Delete Class?</h3>
-        <p class="text-xs text-slate-400 mt-3 mb-8">This permanently removes {{ $class['class_name'] }} and its class data.</p>
+        <h3 class="font-orbitron font-bold uppercase">Move Class to Trash?</h3>
+        <p class="text-xs text-slate-400 mt-3 mb-8">{{ $class['class_name'] }} will be hidden and open quizzes will end. Its roster and history remain saved. Restore it from Trash and Recovery.</p>
         <form method="POST" action="/teacher/classes/{{ $class['id'] }}" data-native-navigation>
             @csrf
             @method('DELETE')
             <input type="hidden" name="delete_class_id" value="{{ $class['id'] }}">
-            <button class="btn-rect-primary !bg-red-600 !text-white">Delete Class</button>
+            <button class="btn-rect-primary !bg-red-600 !text-white">Move to Trash</button>
         </form>
         <button type="button" data-action="closeModal" data-action-args='["deleteClassModal"]' class="modal-cancel mt-3">Cancel</button>
     </div>

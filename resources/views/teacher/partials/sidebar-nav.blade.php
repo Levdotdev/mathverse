@@ -33,3 +33,4 @@
    class="nav-link w-full {{ $activePage === 'learning-analytics' ? 'active' : '' }}">
     <i class="fas fa-rocket mr-3 w-5 text-green-400"></i> Learning Hub Insights
 </a>
+<a href="/teacher/trash" class="nav-link w-full {{ $activePage === 'trash' ? 'active' : '' }}"><i class="fas fa-trash-restore mr-3 w-5 text-amber-400"></i> Trash and Recovery</a>

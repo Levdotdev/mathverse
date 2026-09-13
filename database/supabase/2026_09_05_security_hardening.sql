@@ -435,6 +435,31 @@ do $hardening$
 declare
     function_record record;
     mathverse_functions constant text[] := array[
+        'acknowledge_system_incident',
+        'arcade_game_dashboard',
+        'arcade_hub_dashboard',
+        'cancel_account_purge',
+        'complete_privileged_audit_intent',
+        'create_privileged_audit_intent',
+        'finish_arcade_game',
+        'finish_incident_notification',
+        'incident_signal_counts',
+        'notify_incident_admins',
+        'prepare_account_purge',
+        'prune_incident_events',
+        'recovery_account_active',
+        'recovery_assignment_guard',
+        'recovery_guard',
+        'recovery_session_state_guard',
+        'recovery_quiz_content_guard',
+        'search_audit_logs',
+        'set_account_deactivated',
+        'set_recovery_item',
+        'start_arcade_game',
+        'student_trophy_leaderboard',
+        'submit_arcade_answer',
+        'sync_incident_signal',
+        'teacher_learning_hub_analytics',
         'add_member_to_open_quiz_sessions',
         'advance_quiz_session_schedule',
         'assign_shared_quiz_to_classes',
@@ -514,10 +539,11 @@ begin
             function_record.identity_arguments
         );
         execute format(
-            'grant execute on function %I.%I(%s) to service_role',
+            'grant execute on function %I.%I(%s) to %I',
             function_record.schema_name,
             function_record.function_name,
-            function_record.identity_arguments
+            function_record.identity_arguments,
+            case when function_record.function_name = 'recovery_account_active' then 'authenticated' else 'service_role' end
         );
     end loop;
 end

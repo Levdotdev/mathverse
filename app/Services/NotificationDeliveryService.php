@@ -13,6 +13,7 @@ class NotificationDeliveryService
     private const DELIVERY_COLUMNS = 'id,notification_id,user_id,channel,event_type,recipient_email,recipient_name,title,message,action_url,data,delivery_key,status,attempts';
 
     private const IMMEDIATE_EMAIL_EVENTS = [
+        'incident_alert',
         'teacher_application_received',
         'teacher_approved',
         'teacher_denied',

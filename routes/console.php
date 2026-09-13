@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use App\Services\NotificationDeliveryService;
 use App\Services\SystemHealthService;
+use App\Services\IncidentAlertService;
+use App\Services\SupabaseService;
 use Symfony\Component\Console\Command\Command;
 
 Artisan::command('inspire', function () {
@@ -40,3 +42,22 @@ Schedule::command('system:heartbeat')
 Schedule::command('notifications:deliver --limit=50')
     ->everyMinute()
     ->withoutOverlapping(10);
+
+Artisan::command('incidents:check', function () {
+    $stats = app(IncidentAlertService::class)->check();
+    $this->info("Checked {$stats['checked']}; active {$stats['active']}; notified {$stats['notified']}; failures {$stats['failed']}.");
+    return !$stats['enabled'] || $stats['failed'] > 0 ? Command::FAILURE : Command::SUCCESS;
+})->purpose('Check operational/security signals and immediately notify administrators');
+
+Artisan::command('incidents:prune', function () {
+    $result = app(SupabaseService::class)->adminRpcResult('prune_incident_events');
+    if ($result['error'] !== null) {
+        $this->error('Incident event retention could not be applied.');
+        return Command::FAILURE;
+    }
+    $this->info('Expired diagnostic events pruned. Security audits and incident records were not deleted.');
+    return Command::SUCCESS;
+})->purpose('Remove diagnostic events older than 30 days, preserving security audits');
+
+Schedule::command('incidents:check')->everyMinute()->withoutOverlapping(5);
+Schedule::command('incidents:prune')->daily()->withoutOverlapping(30);

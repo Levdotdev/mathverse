@@ -565,35 +565,20 @@ class AdminQuizController extends Controller
             return redirect($destination)->with('error', 'A private quiz can only be deleted by its creator.');
         }
 
-        $pendingReportIds = array_column($this->supabase->adminSelect(
-            'quiz_reports', 'id', ['quiz_id' => $id, 'status' => 'pending']
-        ), 'id');
-
-        if (!$this->supabase->adminDelete('quizzes', ['id' => $id])) {
-            return redirect($destination)->with('error', 'The quiz could not be deleted.');
-        }
-
-        foreach ($pendingReportIds as $pendingReportId) {
-            $this->completeReport(null, $pendingReportId, 'reviewed', $admin);
-        }
-
-        $this->supabase->audit($admin, 'quiz.deleted', 'quiz', $id, [
-            'topic' => $quiz['topic'] ?? null,
-            'creator_id' => $quiz['teacher_id'] ?? null,
-            'visibility' => $quiz['visibility'] ?? null,
-            'reports_resolved' => count($pendingReportIds),
+        $result = $this->supabase->adminRpcResult('set_recovery_item', [
+            'p_actor_id' => $admin['id'], 'p_kind' => 'quiz', 'p_id' => $id, 'p_restore' => false,
         ]);
-
-        $message = $isOwnQuiz
-            ? 'Your quiz was deleted. Existing class assignments were preserved.'
-            : 'Quiz removed from the shared library. Existing class assignments were preserved.';
+        if ($result['error'] !== null || ($result['data'][0]['id'] ?? null) !== $id) {
+            return redirect($destination)->with('error', 'The quiz could not be moved to Trash. Check the latest database update.');
+        }
+        $message = 'Quiz moved to Trash. Questions, versions, assignments and results are preserved.';
 
         if ($returnToReports) {
             return redirect($this->nextPendingReportDestination())
                 ->with('success', $message . ' Its active reports were reviewed.');
         }
 
-        return redirect($destination)->with('success', $message);
+        return redirect('/admin/trash?type=quiz')->with('success', $message);
     }
 
     private function validateQuiz(Request $request): array

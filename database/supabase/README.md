@@ -2,6 +2,20 @@
 
 Run SQL files manually in the Supabase SQL Editor after backing up the database.
 
+## Trash, account recovery and incident alerts
+
+Apply `2026_09_13_recovery_and_incident_alerts.sql` after every earlier forward
+migration and **before deploying its matching application changes**. It retains
+deleted classes/quizzes in place, adds account deactivation and durable incident
+state, protects old JWTs and blocks physical class/quiz deletes. It can be rerun
+without resetting Trash. Do not remove its columns or guards to roll back an
+application release; that would make old physical-delete code unsafe. Use a
+reviewed forward correction instead.
+
+See [`../../docs/recovery-and-alerts.md`](../../docs/recovery-and-alerts.md) for
+Cloud configuration, the independent observer's GitHub secrets, retention and
+safe staging tests. Mailbox receipt and actual deployed RLS still need live checks.
+
 ## Reusable quizzes and class pages
 
 1. Back up the Supabase project.

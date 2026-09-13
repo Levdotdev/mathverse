@@ -16,6 +16,8 @@ use App\Http\Controllers\NumberGuessGameController;
 use App\Http\Controllers\MathArcadeController;
 use App\Http\Controllers\TeacherLearningHubController;
 use App\Http\Controllers\SystemHealthController;
+use App\Http\Controllers\RecoveryController;
+use App\Http\Controllers\IncidentController;
 
 $uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
 Route::pattern('id', $uuidPattern);
@@ -89,6 +91,8 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:student'])->group(fu
 // Teacher routes
 Route::middleware(['throttle:authenticated', 'auth.supabase:teacher'])->group(function () {
     Route::get('/teacher/dashboard', [TeacherController::class, 'index']);
+    Route::get('/teacher/trash', [RecoveryController::class, 'index']);
+    Route::post('/teacher/trash/{kind}/{id}/restore', [RecoveryController::class, 'restoreItem'])->where('kind', 'class|quiz')->middleware('throttle:account-security');
     Route::get('/teacher/learning-hub', [TeacherLearningHubController::class, 'index'])
         ->middleware('throttle:reports');
 
@@ -132,6 +136,12 @@ Route::middleware(['throttle:authenticated', 'auth.supabase:teacher'])->group(fu
 // Admin routes
 Route::middleware(['throttle:authenticated', 'auth.supabase:admin'])->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'index']);
+    Route::get('/admin/trash', [RecoveryController::class, 'index']);
+    Route::get('/admin/incidents', [IncidentController::class, 'index']);
+    Route::post('/admin/incidents/{id}/acknowledge', [IncidentController::class, 'acknowledge'])->middleware('throttle:account-security');
+    Route::post('/admin/trash/account/{id}/restore', [RecoveryController::class, 'reactivate'])->middleware('throttle:account-security');
+    Route::post('/admin/trash/{kind}/{id}/restore', [RecoveryController::class, 'restoreItem'])->where('kind', 'class|quiz')->middleware('throttle:account-security');
+    Route::delete('/admin/trash/account/{id}', [RecoveryController::class, 'permanentlyDelete'])->middleware('throttle:account-security');
     Route::get('/admin/system-health', [SystemHealthController::class, 'index'])
         ->middleware('throttle:reports');
     Route::delete('/admin/user/{id}', [AdminController::class, 'deleteUser']);

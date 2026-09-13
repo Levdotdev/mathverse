@@ -49,22 +49,22 @@ class HorizontalAuthorizationTest extends TestCase
             ]]);
         $supabase->shouldReceive('adminRpcResult')
             ->once()
-            ->with('delete_teacher_class', [
-                'p_teacher_id' => self::ACTOR_ID,
-                'p_class_id' => self::TARGET_ID,
+            ->with('set_recovery_item', [
+                'p_actor_id' => self::ACTOR_ID, 'p_kind' => 'class',
+                'p_id' => self::TARGET_ID, 'p_restore' => false,
             ])
             ->andReturn([
-                'data' => [['deleted_class_id' => self::TARGET_ID]],
+                'data' => [['id' => self::TARGET_ID]],
                 'error' => null,
                 'status' => 200,
             ]);
-        $supabase->shouldReceive('audit')->once();
+        $supabase->shouldNotReceive('audit'); // the mutation and audit commit together in SQL
 
         $response = $this->withSession(['supabase_user' => $this->teacher()])
             ->delete('/teacher/classes/' . self::TARGET_ID, ['delete_class_id' => self::TARGET_ID]);
 
-        $response->assertRedirect('/teacher/dashboard?section=classes');
-        $response->assertSessionHas('success', 'Class deleted.');
+        $response->assertRedirect('/teacher/trash');
+        $response->assertSessionHas('success', 'Class moved to Trash. Students, assignments and results are preserved.');
     }
 
     public function test_misdirected_child_deletes_cannot_delete_a_class(): void
@@ -166,14 +166,14 @@ class HorizontalAuthorizationTest extends TestCase
                 'topic' => 'Fractions',
                 'visibility' => 'private',
             ]]);
-        $supabase->shouldReceive('delete')
+        $supabase->shouldNotReceive('delete');
+        $supabase->shouldReceive('adminRpcResult')
             ->once()
-            ->with('quizzes', [
-                'id' => self::TARGET_ID,
-                'teacher_id' => self::ACTOR_ID,
-            ], 'access-token')
-            ->andReturnTrue();
-        $supabase->shouldReceive('audit')->once();
+            ->with('set_recovery_item', [
+                'p_actor_id' => self::ACTOR_ID, 'p_kind' => 'quiz',
+                'p_id' => self::TARGET_ID, 'p_restore' => false,
+            ])->andReturn(['error' => null, 'data' => [['id' => self::TARGET_ID]]]);
+        $supabase->shouldNotReceive('audit');
 
         $response = $this->withSession([
             'supabase_user' => $this->teacher(),
@@ -181,7 +181,7 @@ class HorizontalAuthorizationTest extends TestCase
         ])
             ->delete('/teacher/quizzes/' . self::TARGET_ID);
 
-        $response->assertRedirect('/teacher/quizzes');
+        $response->assertRedirect('/teacher/trash');
         $response->assertSessionHas('success');
     }
 

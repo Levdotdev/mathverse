@@ -26,6 +26,7 @@ class SystemHealthService
             'overall' => $overall,
             'issue_count' => count(array_filter($statuses, fn (string $status): bool => $status !== 'healthy')),
             'commit' => $this->deploymentCommit(),
+            'independent_monitor' => $this->independentMonitor(),
         ] + $checks;
     }
 
@@ -177,6 +178,21 @@ class SystemHealthService
         $commit = $this->deploymentCommit();
         return ['status' => $commit === 'not provided' ? 'warning' : 'healthy', 'commit' => $commit,
             'message' => $commit === 'not provided' ? 'The deployed commit identifier is not configured.' : 'The deployed commit identifier is available for incident matching.'];
+    }
+
+    private function independentMonitor(): array
+    {
+        try {
+            $result = $this->supabase->adminSelectResult('system_heartbeats', 'component,status,checked_at', [
+                'component' => 'independent_incident_monitor', 'limit' => 1,
+            ]);
+            $row = $result['error'] === null ? ($result['data'][0] ?? null) : null;
+            return is_array($row) && ($row['component'] ?? null) === 'independent_incident_monitor'
+                ? ['last_seen_at' => $row['checked_at'] ?? null, 'status' => $row['status'] ?? 'unknown']
+                : ['last_seen_at' => null, 'status' => 'not recorded'];
+        } catch (\Throwable) {
+            return ['last_seen_at' => null, 'status' => 'unavailable'];
+        }
     }
 
     private function expectedMigrations(): array

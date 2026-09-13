@@ -7,6 +7,11 @@ notifications, account workflows, and an autonomous adaptive Learning Hub.
 Deployment and database instructions live in
 [`database/supabase/README.md`](database/supabase/README.md). Review
 [`SECURITY.md`](SECURITY.md) before any production deployment.
+Trash/account recovery and proactive incident monitoring setup are documented
+in [`docs/recovery-and-alerts.md`](docs/recovery-and-alerts.md). Apply
+`2026_09_13_recovery_and_incident_alerts.sql` **before deploying these changes**;
+scheduler-stop alerts need the independent monitor configured, not just a
+Laravel schedule. Registration photo uploads handle both signup response formats.
 
 ## Local setup
 

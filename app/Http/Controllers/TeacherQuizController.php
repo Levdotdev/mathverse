@@ -710,26 +710,20 @@ class TeacherQuizController extends Controller
     public function destroy(string $id)
     {
         $user = session('supabase_user');
-        $token = SupabaseAccessToken::from(request());
         $quiz = $this->ownedQuiz($id, $user['id']);
         if (!$quiz) {
             return redirect('/teacher/quizzes')->with('error', 'You can only delete quizzes you created.');
         }
 
-        if (!$this->supabase->delete('quizzes', [
-            'id' => $id,
-            'teacher_id' => $user['id'],
-        ], $token)) {
-            return redirect('/teacher/quizzes')->with('error', 'The quiz could not be deleted.');
+        $result = $this->supabase->adminRpcResult('set_recovery_item', [
+            'p_actor_id' => $user['id'], 'p_kind' => 'quiz', 'p_id' => $id, 'p_restore' => false,
+        ]);
+        if ($result['error'] !== null || ($result['data'][0]['id'] ?? null) !== $id) {
+            return redirect('/teacher/quizzes')->with('error', 'The quiz could not be moved to Trash. Check the latest database update.');
         }
 
-        $this->supabase->audit($user, 'quiz.deleted', 'quiz', $id, [
-            'topic' => $quiz['topic'] ?? null,
-            'visibility' => $quiz['visibility'] ?? null,
-        ]);
-
-        return redirect('/teacher/quizzes')
-            ->with('success', 'Quiz deleted. Existing class sessions and results were preserved.');
+        return redirect('/teacher/trash')
+            ->with('success', 'Quiz moved to Trash. Questions, versions, assignments and results are preserved.');
     }
 
     public function show(string $id)

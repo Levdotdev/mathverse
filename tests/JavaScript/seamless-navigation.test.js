@@ -145,11 +145,12 @@ function fixture(role = 'teacher') {
             assert.ok(timer, `A ${delay}ms request deadline must exist`);
             timer.callback();
         },
-        response(index, { html = 'dashboard', status = 200, text } = {}) {
+        response(index, { html = 'dashboard', status = 200, text, reference, payload } = {}) {
             requests[index].resolve({
                 ok: status < 400, status, url: requests[index].url,
-                headers: { get: () => 'text/html' },
+                headers: { get: name => name === 'X-MathVerse-Reference' ? (reference || null) : (payload ? 'application/json' : 'text/html') },
                 text: text || (async () => html),
+                json: async () => payload,
             });
         },
         submit(form, submitter) {
@@ -164,6 +165,32 @@ function fixture(role = 'teacher') {
 async function flush() {
     for (let i = 0; i < 20; i++) await Promise.resolve();
 }
+
+test('page failures surface a safe server reference and release navigation', async () => {
+    const f = fixture();
+    const pending = f.window.MathVerseNavigation.navigate('/teacher/classes');
+    f.response(0, {status:500,reference:'MV-0123456789ABCDEF',payload:{message:'Could not load page.'}});
+    assert.equal(await pending,false);
+    assert.match(f.toasts[0].message,/Reference: MV-0123456789ABCDEF/);
+    assert.equal(f.body.classList.contains('mathverse-navigating'),false);
+});
+test('failed form submissions surface a server reference without resubmitting', async () => {
+    const f = fixture();
+    const form = new f.Form();
+    f.submit(form,new f.Element());
+    f.response(0,{status:500,reference:'MV-0123456789ABCDEF',payload:{message:'Could not complete action.'}});
+    await flush();
+    assert.match(f.toasts[0].message,/Reference: MV-0123456789ABCDEF/);
+    assert.equal(f.requests.length,1);
+    assert.equal(form.dataset.mathverseSubmitting,'false');
+});
+test('untrusted response headers are not exposed as error references', async () => {
+    const f = fixture();
+    const pending = f.window.MathVerseNavigation.navigate('/teacher/classes');
+    f.response(0,{status:500,reference:'not-a-valid-reference'});
+    assert.equal(await pending,false);
+    assert.ok(!f.toasts[0].message.includes('not-a-valid-reference'));
+});
 
 test('a stalled page times out, releases loading, and permits another navigation', async () => {
     const f = fixture();

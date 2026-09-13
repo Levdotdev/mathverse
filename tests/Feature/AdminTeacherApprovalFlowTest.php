@@ -23,7 +23,7 @@ class AdminTeacherApprovalFlowTest extends TestCase
                 ->with(
                     'profiles',
                     'id,role,first_name,last_name,email',
-                    ['id' => self::TEACHER_ID]
+                    ['id' => self::TEACHER_ID, 'deactivated_at' => ['operator' => 'is', 'value' => 'null']]
                 )
                 ->andReturn([$profile]);
             $mock->shouldReceive('adminUpdate')
@@ -31,7 +31,7 @@ class AdminTeacherApprovalFlowTest extends TestCase
                 ->with(
                     'profiles',
                     ['role' => 'teacher'],
-                    ['id' => self::TEACHER_ID, 'role' => 'pending_teacher']
+                    ['id' => self::TEACHER_ID, 'role' => 'pending_teacher', 'deactivated_at' => ['operator' => 'is', 'value' => 'null']]
                 )
                 ->andReturn([['id' => self::TEACHER_ID]]);
             $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturn(self::AUDIT_ID);
@@ -144,10 +144,11 @@ class AdminTeacherApprovalFlowTest extends TestCase
 
         $this->mock(SupabaseService::class, function (MockInterface $mock) use ($profile): void {
             $mock->shouldReceive('adminSelect')->once()->andReturn([$profile]);
-            $mock->shouldReceive('deleteAuthUser')
+            $mock->shouldNotReceive('deleteAuthUser');
+            $mock->shouldReceive('adminRpcResult')
                 ->once()
-                ->with(self::TEACHER_ID)
-                ->andReturn(true);
+                ->with('set_account_deactivated', ['p_actor_id' => 'admin-id', 'p_id' => self::TEACHER_ID, 'p_restore' => false])
+                ->andReturn(['error' => null, 'data' => [['id' => self::TEACHER_ID]]]);
             $mock->shouldReceive('beginPrivilegedAudit')->once()->andReturn(self::AUDIT_ID);
             $mock->shouldReceive('completePrivilegedAudit')->once()->andReturn(true);
         });

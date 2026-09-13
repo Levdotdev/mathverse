@@ -211,7 +211,16 @@ class AuthController extends Controller
         // Auth returns the created user even when email confirmation means no
         // session is issued yet. Never guess an account by listing users: if
         // the exact identifier is absent, defer avatar setup until sign-in.
-        $createdUserId = $auth['data']['user']['id'] ?? null;
+        // GoTrue returns the User itself when confirmation is required, and
+        // { user, access_token, ... } when signup also creates a session.
+        $createdUser = $auth['data']['user'] ?? $auth['data'] ?? [];
+        $createdUserId = is_array($createdUser) ? ($createdUser['id'] ?? null) : null;
+        // An obfuscated duplicate-signup response is not a newly created user.
+        // Never attach a file or send an application alert for that response.
+        if (is_array($createdUser) && array_key_exists('identities', $createdUser)
+            && $createdUser['identities'] === []) {
+            $createdUserId = null;
+        }
         $userId = is_string($createdUserId) && Str::isUuid($createdUserId)
             ? $createdUserId
             : null;
