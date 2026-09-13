@@ -2,10 +2,7 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Schema;
 
 class SystemHealthService
 {
@@ -18,9 +15,8 @@ class SystemHealthService
         $scheduler = $this->schedulerHealth();
         $deliveries = $this->deliveryHealth();
         $audit = $this->auditHealth();
-        $queue = $this->queueHealth();
         $deployment = $this->deploymentHealth();
-        $checks = compact('database', 'migrations', 'scheduler', 'deliveries', 'audit', 'queue', 'deployment');
+        $checks = compact('database', 'migrations', 'scheduler', 'deliveries', 'audit', 'deployment');
         $statuses = array_column($checks, 'status');
         $overall = in_array('critical', $statuses, true) ? 'critical'
             : (in_array('warning', $statuses, true) ? 'warning' : 'healthy');
@@ -173,62 +169,6 @@ class SystemHealthService
                 'message' => $status === 'healthy' ? 'All privileged audit intents are finalized.' : 'One or more privileged audit intents have not been finalized.'];
         } catch (\Throwable) {
             return ['status' => 'critical', 'pending' => 0, 'failed' => 0, 'stale' => 0, 'message' => 'Durable audit health could not be read.'];
-        }
-    }
-
-    private function queueHealth(): array
-    {
-        $connection = (string) config('queue.default', 'deferred');
-        $driver = (string) config("queue.connections.{$connection}.driver", $connection);
-        $state = [
-            'connection' => $connection, 'driver' => $driver,
-            'queued' => null, 'failed' => null,
-            'requires_worker' => !in_array($driver, ['sync', 'deferred', 'background', 'null'], true),
-        ];
-
-        if (in_array($driver, ['sync', 'deferred', 'background'], true)) {
-            return $state + ['status' => 'healthy', 'message' => match ($driver) {
-                'sync' => 'Jobs run immediately; local queue tables and a worker are not required.',
-                'background' => 'Jobs run in background processes; local queue tables and a worker are not required.',
-                default => 'Optional jobs run after the response; local queue tables and a worker are not required. Email and push retries use the delivery outbox.',
-            }];
-        }
-
-        if ($driver === 'null') {
-            return $state + ['status' => 'critical', 'message' => 'The null queue driver discards jobs. Configure a working queue driver.'];
-        }
-
-        try {
-            if ($driver === 'database') {
-                $queueConnection = config("queue.connections.{$connection}.connection") ?: config('database.default');
-                $queueTable = (string) config("queue.connections.{$connection}.table", 'jobs');
-                if (!Schema::connection((string) $queueConnection)->hasTable($queueTable)) {
-                    return $state + ['status' => 'warning', 'message' => 'The database queue is configured but its jobs table is missing. Configure persistent Laravel SQL storage and migrate it, or use QUEUE_CONNECTION=deferred when no SQL queue is intended.'];
-                }
-                $queued = (int) DB::connection((string) $queueConnection)->table($queueTable)->count();
-            } else {
-                $queued = Queue::connection($connection)->size((string) config("queue.connections.{$connection}.queue", 'default'));
-            }
-            $state['queued'] = $queued;
-            $failed = null;
-            if (in_array(config('queue.failed.driver'), ['database', 'database-uuids'], true)) {
-                $failedTable = (string) config('queue.failed.table', 'failed_jobs');
-                $failedConnection = config('queue.failed.database') ?: config('database.default');
-                if (!Schema::connection((string) $failedConnection)->hasTable($failedTable)) {
-                    return $state + ['status' => 'warning', 'message' => 'The active queue responded, but the configured SQL failed-job table is missing. Failure storage needs configuration.'];
-                }
-                $failed = (int) DB::connection((string) $failedConnection)->table($failedTable)->count();
-            }
-            $state['failed'] = $failed;
-            $status = $failed > 0 ? 'critical' : ($queued > 100 ? 'warning' : 'healthy');
-            return $state + ['status' => $status, 'message' => $failed > 0
-                ? 'The Laravel failed-job table is not empty.'
-                : ($queued > 100 ? 'The active queue has more than 100 waiting jobs.'
-                    : ($failed === null ? 'The active queue responded. Failure records must be checked in its configured log or provider dashboard.' : 'The active queue responded and has no recorded failed jobs.'))];
-        } catch (\Throwable) {
-            return $state + ['status' => 'warning', 'message' => $driver === 'database'
-                ? 'The database queue could not connect to Laravel SQL storage. Configure a persistent SQL database, or set QUEUE_CONNECTION=deferred if this Supabase-backed deployment does not use a SQL queue.'
-                : 'The configured queue or its failure storage could not be inspected. Check the active driver and provider configuration.'];
         }
     }
 

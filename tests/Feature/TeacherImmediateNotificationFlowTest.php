@@ -108,9 +108,15 @@ class TeacherImmediateNotificationFlowTest extends TestCase
         $this->mock(SupabaseService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('adminSelect')
                 ->once()
+                ->with('classes', '*', ['id' => self::CLASS_ID, 'teacher_id' => self::TEACHER_ID])
                 ->andReturn([['id' => self::CLASS_ID, 'teacher_id' => self::TEACHER_ID]]);
-            $mock->shouldReceive('adminDelete')->once()->andReturn(true);
-            $mock->shouldReceive('adminUpdate')->once()->andReturn([]);
+            $mock->shouldReceive('adminDelete')->once()
+                ->with('class_members', ['class_id' => self::CLASS_ID, 'student_id' => self::STUDENT_ID])
+                ->andReturn(true);
+            $mock->shouldReceive('adminUpdate')->once()
+                ->with('profiles', ['class_id' => null], ['id' => self::STUDENT_ID, 'class_id' => self::CLASS_ID])
+                ->andReturn([]);
+            $mock->shouldNotReceive('adminRpcResult');
             $mock->shouldReceive('audit')->once()->andReturn(true);
         });
         $this->mock(NotificationDeliveryService::class, function (MockInterface $mock): void {

@@ -203,16 +203,17 @@ document.addEventListener('change', event => {
 
 function handleAuthConfirmationReturn() {
     const url = new URL(window.location.href);
+    // Dedicated auth pages own token capture and cleanup, including older
+    // templates that placed the credential in the query string.
+    if (['/reset-password', '/auth/confirm'].includes(url.pathname)) return;
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
-    const action = url.searchParams.get('auth_action') || hashParams.get('type');
+    const action = url.searchParams.get('auth_action') || hashParams.get('type') || url.searchParams.get('type');
     const hasAuthError = url.searchParams.has('error') || hashParams.has('error');
 
     if (action === 'recovery') {
         // Supabase can return either the template token hash or an already
         // verified access token. Move both forms to the reset page without
         // putting the credential in a query string or leaving it on login.
-        if (url.pathname === '/reset-password') return;
-
         const tokenHash = hashParams.get('token_hash') || url.searchParams.get('token_hash');
         const accessToken = hashParams.get('access_token') || url.searchParams.get('access_token');
         if (!hasAuthError && (tokenHash || accessToken)) {
@@ -237,10 +238,6 @@ function handleAuthConfirmationReturn() {
         window.history.replaceState(window.history.state, document.title, url.pathname);
         return;
     }
-
-    // The dedicated confirmation page consumes its fragment in its own
-    // nonce-protected form before any generic callback cleanup runs.
-    if (url.pathname === '/auth/confirm') return;
 
     const messages = {
         signup: 'Email confirmed successfully. You can now sign in.',
@@ -482,6 +479,36 @@ const AVATAR_SIZE_ERROR = 'The selected image must be 2 MB or less.';
 const AVATAR_TYPE_ERROR = 'Choose a JPEG, PNG, or WebP image.';
 const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 let invalidAvatarInput = null;
+const avatarPreviewStates = new WeakMap();
+
+function avatarPreviewState(input) {
+    if (avatarPreviewStates.has(input)) return avatarPreviewStates.get(input);
+    const form = input.closest('form');
+    const preview = form?.querySelector('[data-avatar-preview]');
+    if (!preview) return null;
+    const placeholder = form.querySelector('[data-avatar-placeholder]');
+    const state = {
+        preview, placeholder,
+        src: preview.getAttribute('src'),
+        hidden: preview.hidden || preview.classList.contains('hidden'),
+        placeholderHidden: placeholder?.hidden || placeholder?.classList.contains('hidden') || false,
+    };
+    avatarPreviewStates.set(input, state);
+    return state;
+}
+
+function resetAvatarPreview(input) {
+    const state = avatarPreviewState(input);
+    if (!state) return;
+    if (state.src) state.preview.src = state.src;
+    else state.preview.removeAttribute('src');
+    state.preview.hidden = state.hidden;
+    state.preview.classList.toggle('hidden', state.hidden);
+    if (state.placeholder) {
+        state.placeholder.hidden = state.placeholderHidden;
+        state.placeholder.classList.toggle('hidden', state.placeholderHidden);
+    }
+}
 
 function avatarValidationError(file) {
     if (!file) return '';
@@ -531,7 +558,11 @@ function chooseAnotherAvatar() {
         ?? document.querySelector('input[type="file"][name="avatar"]');
 
     closeModal('imageSizeModal');
-    if (input) input.value = '';
+    if (input) {
+        input.value = '';
+        validateAvatarSize(input);
+        resetAvatarPreview(input);
+    }
     setTimeout(() => input?.click(), 100);
 }
 
@@ -547,7 +578,12 @@ onMathVerseReady(() => {
         const form = input.closest('form');
         if (!form) return;
 
+        avatarPreviewState(input);
         input.addEventListener('change', () => previewAvatar(input));
+        form.addEventListener('reset', () => queueMicrotask(() => {
+            validateAvatarSize(input);
+            resetAvatarPreview(input);
+        }));
 
         form.addEventListener('submit', event => {
             if (!validateAvatarSize(input)) {
@@ -560,18 +596,25 @@ onMathVerseReady(() => {
 
 function previewAvatar(input) {
     const file = input.files?.[0];
-    const preview = document.getElementById('avatar-preview');
-    const placeholder = document.getElementById('avatar-placeholder');
-
-    if (!file || !validateAvatarSize(input) || !preview) return;
+    const state = avatarPreviewState(input);
+    if (!state) return;
+    if (!validateAvatarSize(input) || !file) {
+        resetAvatarPreview(input);
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = e => {
-        document.querySelectorAll('[data-current-user-avatar], #avatar-preview').forEach(image => {
-            image.src = e.target.result;
-            image.classList.remove('hidden');
-        });
-        placeholder?.classList.add('hidden');
+        // A late read from a previous selection/navigation must not replace
+        // the new draft. Never change the saved header/menu avatar here.
+        if (!input.isConnected || input.files?.[0] !== file) return;
+        state.preview.src = e.target.result;
+        state.preview.hidden = false;
+        state.preview.classList.remove('hidden');
+        if (state.placeholder) {
+            state.placeholder.hidden = true;
+            state.placeholder.classList.add('hidden');
+        }
     };
     reader.readAsDataURL(file);
 }

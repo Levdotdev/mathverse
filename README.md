@@ -65,7 +65,9 @@ SCHEDULE_CACHE_DRIVER=file
 
 Explicit Cloud values override repository defaults. If you intentionally use
 a persistent SQL queue, keep it configured and migrate its jobs/failed-jobs
-tables; the health page will continue to report genuine failures. Multiple
+tables and inspect worker failures in Cloud or Laravel's configured failure
+storage. The health page monitors the Supabase delivery outbox, not Laravel's
+optional queue. Multiple
 application replicas need shared cache, rate-limit, and scheduler-lock storage
 (for example Redis), not per-instance files. Do not switch a working Redis
 configuration to files. Sessions also need a working backend: an encrypted
@@ -74,9 +76,22 @@ database; `SESSION_DRIVER=database` still requires its own SQL session table.
 Remove a Cloud worker explicitly pinned to the `database` connection when no
 SQL queue is intended; a deferred-only deployment does not need that worker.
 
-The navigation recovery tests run locally with `npm run test:javascript` and
-in CI. They simulate stuck requests, repeated clicks, and uncertain POST
-outcomes without sending real application actions.
+The browser-side regression tests run locally with `npm run test:javascript`
+and in CI. They cover form actions across roles, submit-button overrides,
+Enter-key submissions, stuck requests, uncertain POST outcomes, legacy reset
+links, and unsaved avatar previews without sending real application actions.
+Public authentication forms use native browser submissions to preserve
+redirects and one-time session feedback.
+
+Teacher class deletion additionally requires the explicit class-deletion
+confirmation field. A misdirected student or assignment removal request cannot
+delete the class, including requests from old open tabs.
+
+The reset page accepts existing `?token_hash=...&type=recovery` links as well as
+the recommended fragment-based links and clears credentials from the address
+bar after capture. Keep new Supabase email templates fragment-based to avoid
+placing credentials in query logs, and request a fresh link if an old one has
+expired or already been used.
 
 ---
 

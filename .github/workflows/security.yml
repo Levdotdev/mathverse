@@ -52,7 +52,7 @@ jobs:
       - name: Build browser assets
         run: npm run build
 
-      - name: Test navigation recovery
+      - name: Test browser-side regressions
         run: npm run test:javascript
 
       - name: Verify portal SQL update in isolated PostgreSQL

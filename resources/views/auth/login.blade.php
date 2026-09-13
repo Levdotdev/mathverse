@@ -113,9 +113,9 @@
                         <label class="input-label">Profile Picture</label>
                         <div class="flex items-center gap-4">
                             {{-- Preview circle --}}
-                            <div class="w-16 h-16 rounded-full border-2 border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shrink-0" id="avatar-preview-wrap">
-                                <i class="fas fa-user text-2xl text-slate-600" id="avatar-placeholder"></i>
-                                <img id="avatar-preview" src="" alt="Preview" class="hidden w-full h-full object-cover">
+                            <div class="w-16 h-16 rounded-full border-2 border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shrink-0" id="avatar-preview-wrap" data-avatar-preview-wrap>
+                                <i class="fas fa-user text-2xl text-slate-600" id="avatar-placeholder" data-avatar-placeholder aria-hidden="true"></i>
+                                <img id="avatar-preview" data-avatar-preview hidden alt="Selected profile picture" class="w-full h-full object-cover">
                             </div>
                             <div class="flex-1">
                                 <label for="avatar-input"

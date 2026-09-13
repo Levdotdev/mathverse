@@ -68,7 +68,7 @@ npx playwright test --project=mobile-chromium
 | Games | Four-card hub; server start, answer, score, finish, and leaderboard path for every active game |
 | Rewards | Shared arcade badges are visible and explicitly separate from Learning Hub XP/trophies |
 | Teacher | Quiz management, shared library, class mastery, weak topics, activity, hints, and improvement |
-| Administrator | Quiz moderation, security audit filters, migration/scheduler/data/email/push/queue/audit health, and deployed commit |
+| Administrator | Quiz moderation, security audit filters, migration/scheduler/data/email/push/audit health, and deployed commit |
 | Web Push | Secure context, browser APIs, configured toggle, and registered MathVerse service worker |
 | Mobile | The six-character class code input and complete `Join` button remain inside a Pixel 5 viewport |
 

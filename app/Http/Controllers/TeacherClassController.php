@@ -335,12 +335,19 @@ class TeacherClassController extends Controller
         return redirect("/teacher/classes/{$id}")->with('success', 'Class restored.');
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
         $user = session('supabase_user');
         $class = $this->ownedClass($id, $user['id']);
         if (!$class) {
             return redirect('/teacher/dashboard?section=classes')->with('error', 'Class not found.');
+        }
+
+        // Protect against old clients accidentally submitting a student or
+        // assignment DELETE to the class page instead of its child route.
+        if ($request->input('delete_class_id') !== $id) {
+            return redirect("/teacher/classes/{$id}/settings")
+                ->with('error', 'Class deletion was not confirmed. No class data was removed.');
         }
 
         $deleted = $this->supabase->adminRpcResult('delete_teacher_class', [

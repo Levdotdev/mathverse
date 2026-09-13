@@ -6,6 +6,9 @@
     const visibleRefreshMs = 300000;
     const pageRequestTimeoutMs = 20000;
     const formRequestTimeoutMs = 30000;
+    // Public auth responses must navigate normally so redirects, validation
+    // feedback, and one-time token/session changes are not consumed by AJAX.
+    const nativeAuthPaths = new Set(['/login', '/register', '/forgot-password', '/update-password', '/auth/confirm', '/logout']);
     const pageCache = new Map();
     const inFlight = new Map();
     const backgroundRefreshes = new Map();
@@ -481,9 +484,18 @@
         }
     }
 
+    function formSubmissionTarget(form, submitter) {
+        // A button's formAction getter defaults to the document URL, not
+        // its owning form's action. Only explicit overrides take priority.
+        return {
+            method: String(submitter?.hasAttribute('formmethod') ? submitter.formMethod : (form.method || 'GET')).toUpperCase(),
+            action: toUrl(submitter?.hasAttribute('formaction') ? submitter.formAction : (form.action || window.location.href)),
+            target: submitter?.hasAttribute('formtarget') ? submitter.formTarget : form.target,
+        };
+    }
+
     async function submitForm(form, submitter) {
-        const method = String(submitter?.formMethod || form.method || 'GET').toUpperCase();
-        const action = toUrl(submitter?.formAction || form.action || window.location.href);
+        const { method, action } = formSubmissionTarget(form, submitter);
         if (!action) return false;
 
         let formData;
@@ -552,15 +564,14 @@
         }
     }
 
-    function eligibleForm(form) {
+    function eligibleForm(form, submitter) {
         if (!(form instanceof HTMLFormElement)
-            || form.hasAttribute('data-native-navigation')
-            || (form.target && form.target !== '_self')
-            || String(form.method).toLowerCase() === 'dialog') return false;
-        const action = toUrl(form.action || window.location.href);
+            || form.hasAttribute('data-native-navigation')) return false;
+        const { action, method, target } = formSubmissionTarget(form, submitter);
+        if ((target && target !== '_self') || method === 'DIALOG') return false;
         return Boolean(action
             && action.origin === window.location.origin
-            && action.pathname !== '/logout'
+            && !nativeAuthPaths.has(action.pathname)
             && !isDownloadUrl(action));
     }
 
@@ -583,7 +594,7 @@
     });
 
     document.addEventListener('submit', event => {
-        if (event.defaultPrevented || !eligibleForm(event.target)) return;
+        if (event.defaultPrevented || !eligibleForm(event.target, event.submitter)) return;
         event.preventDefault();
         const form = event.target;
         if (form.dataset.mathverseSubmitting === 'true') return;

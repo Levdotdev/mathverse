@@ -214,13 +214,15 @@ class SecuritySourceTest extends TestCase
         $resetView = (string) file_get_contents($this->projectPath(
             'resources/views/auth/reset.blade.php'
         ));
+        $resetScript = (string) file_get_contents($this->projectPath('public/js/password-reset.js'));
 
-        $this->assertStringContainsString("fragmentParams.get('token_hash')", $resetView);
-        $this->assertStringContainsString("cleanUrl.hash = ''", $resetView);
+        $this->assertStringContainsString('js/password-reset.js', $resetView);
+        $this->assertStringContainsString("fragmentParams.get('token_hash')", $resetScript);
+        $this->assertStringContainsString("cleanUrl.hash = ''", $resetScript);
         foreach (['token', 'token_hash', 'access_token', 'refresh_token', 'code'] as $parameter) {
             $this->assertStringContainsString(
                 "'{$parameter}'",
-                $resetView,
+                $resetScript,
                 "The reset page does not scrub {$parameter} from its visible URL."
             );
         }
@@ -410,6 +412,7 @@ class SecuritySourceTest extends TestCase
         $resetView = (string) file_get_contents($this->projectPath(
             'resources/views/auth/reset.blade.php'
         ));
+        $resetScript = (string) file_get_contents($this->projectPath('public/js/password-reset.js'));
 
         $this->assertStringContainsString('#token_hash={{ .TokenHash }}', $template);
         $this->assertStringContainsString(
@@ -418,12 +421,12 @@ class SecuritySourceTest extends TestCase
         );
         $this->assertStringNotContainsString('{{ .RedirectTo }}', $template);
         $this->assertStringNotContainsString('?token_hash={{ .TokenHash }}', $template);
-        $this->assertStringContainsString('window.location.hash', $resetView);
-        $this->assertStringContainsString("fragmentParams.get('access_token')", $resetView);
-        $this->assertStringNotContainsString("params.get('token_hash')", $resetView);
+        $this->assertStringContainsString('url.hash', $resetScript);
+        $this->assertStringContainsString("fragmentParams.get('access_token')", $resetScript);
+        $this->assertStringContainsString("url.searchParams.get('token_hash')", $resetScript);
         $this->assertStringNotContainsString("old('token')", $resetView);
         $this->assertStringContainsString('password_recovery_token', $resetView);
-        $this->assertStringContainsString("cleanUrl.hash = '';", $resetView);
+        $this->assertStringContainsString("cleanUrl.hash = '';", $resetScript);
     }
 
     public function test_every_auth_email_link_uses_the_canonical_mathverse_domain(): void
@@ -459,14 +462,15 @@ class SecuritySourceTest extends TestCase
         $this->assertStringContainsString('window.location.replace(recoveryUrl.toString())', $sharedScript);
     }
 
-    public function test_avatar_selection_updates_every_current_user_preview(): void
+    public function test_avatar_selection_only_updates_the_local_form_preview(): void
     {
         $sharedScript = (string) file_get_contents($this->projectPath('public/js/shared.js'));
         $profileMenu = (string) file_get_contents($this->projectPath(
             'resources/views/partials/profile-menu.blade.php'
         ));
 
-        $this->assertStringContainsString('[data-current-user-avatar], #avatar-preview', $sharedScript);
+        $this->assertStringContainsString("form?.querySelector('[data-avatar-preview]')", $sharedScript);
+        $this->assertStringNotContainsString('[data-current-user-avatar], #avatar-preview', $sharedScript);
         $this->assertStringContainsString('data-current-user-avatar', $profileMenu);
     }
 

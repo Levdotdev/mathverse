@@ -29,7 +29,8 @@
                     <i class="fas fa-key text-2xl text-purple-500/40"></i>
                 </div>
 
-                <form id="resetForm" method="POST" action="/update-password" class="space-y-4">
+                <form id="resetForm" method="POST" action="/update-password" class="space-y-4"
+                      data-has-recovery-token="{{ session()->has('password_recovery_token') ? 'true' : 'false' }}">
                     @csrf
 
                     <input type="hidden" id="token" name="token" value="">
@@ -83,37 +84,5 @@
 @endsection
 
 @push('scripts')
-<script nonce="{{ request()->attributes->get('csp_nonce') }}">
-    const fragmentParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const tokenInput = document.getElementById('token');
-    const tokenTypeInput = document.getElementById('token-type');
-    const fragmentTokenHash = fragmentParams.get('token_hash');
-    const fragmentAccessToken = fragmentParams.get('access_token');
-    const fragmentToken = fragmentTokenHash || fragmentAccessToken;
-    const fragmentTokenType = fragmentTokenHash ? 'token_hash' : 'access_token';
-    const hasServerToken = @json(session()->has('password_recovery_token'));
-    const resetForm = document.getElementById('resetForm');
-    if (!fragmentToken && !hasServerToken) {
-        resetForm.querySelector('button[type="submit"]').disabled = true;
-        showToast('This reset link is incomplete. Request a new password reset email.', true);
-    } else {
-        if (fragmentToken) {
-            tokenInput.value = fragmentToken;
-            tokenTypeInput.value = fragmentTokenType;
-        }
-
-        // Keep the one-time recovery token out of browser history, copied
-        // URLs, screenshots, and referrers after it has been captured.
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.hash = '';
-        ['token', 'token_hash', 'access_token', 'refresh_token', 'code'].forEach(parameter => {
-            cleanUrl.searchParams.delete(parameter);
-        });
-        window.history.replaceState(
-            window.history.state,
-            document.title,
-            cleanUrl.pathname + (cleanUrl.searchParams.size ? `?${cleanUrl.searchParams.toString()}` : '')
-        );
-    }
-</script>
+<script nonce="{{ request()->attributes->get('csp_nonce') }}" src="{{ asset('js/password-reset.js') }}?v={{ filemtime(public_path('js/password-reset.js')) }}"></script>
 @endpush

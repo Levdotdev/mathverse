@@ -61,10 +61,73 @@ class HorizontalAuthorizationTest extends TestCase
         $supabase->shouldReceive('audit')->once();
 
         $response = $this->withSession(['supabase_user' => $this->teacher()])
-            ->delete('/teacher/classes/' . self::TARGET_ID);
+            ->delete('/teacher/classes/' . self::TARGET_ID, ['delete_class_id' => self::TARGET_ID]);
 
         $response->assertRedirect('/teacher/dashboard?section=classes');
         $response->assertSessionHas('success', 'Class deleted.');
+    }
+
+    public function test_misdirected_child_deletes_cannot_delete_a_class(): void
+    {
+        $this->withoutMiddleware(SupabaseAuth::class);
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('adminSelect')
+            ->twice()
+            ->with('classes', '*', ['id' => self::TARGET_ID, 'teacher_id' => self::ACTOR_ID])
+            ->andReturn([['id' => self::TARGET_ID, 'teacher_id' => self::ACTOR_ID]]);
+        $supabase->shouldNotReceive('adminRpcResult');
+        $supabase->shouldNotReceive('adminDelete');
+        $supabase->shouldNotReceive('audit');
+
+        foreach ([[], ['delete_class_id' => self::ACTOR_ID]] as $fields) {
+            $this->withSession(['supabase_user' => $this->teacher()])
+                ->post('/teacher/classes/' . self::TARGET_ID, ['_method' => 'DELETE'] + $fields)
+                ->assertRedirect('/teacher/classes/' . self::TARGET_ID . '/settings')
+                ->assertSessionHas('error', 'Class deletion was not confirmed. No class data was removed.');
+        }
+    }
+
+    public function test_assignment_delete_only_calls_the_owned_child_transaction(): void
+    {
+        $this->withoutMiddleware(SupabaseAuth::class);
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('adminSelect')->once()
+            ->with('quiz_sessions', '*', [
+                'id' => self::SESSION_ID, 'class_id' => self::TARGET_ID, 'teacher_id' => self::ACTOR_ID,
+            ])->andReturn([[
+                'id' => self::SESSION_ID, 'class_id' => self::TARGET_ID,
+                'teacher_id' => self::ACTOR_ID, 'status' => 'waiting',
+            ]]);
+        $supabase->shouldReceive('adminRpcResult')->once()
+            ->with('delete_open_quiz_assignment', [
+                'p_teacher_id' => self::ACTOR_ID, 'p_class_id' => self::TARGET_ID,
+                'p_session_id' => self::SESSION_ID,
+            ])->andReturn(['data' => [['was_shared_assignment' => false, 'remaining_usage_count' => 0]], 'error' => null]);
+        $supabase->shouldNotReceive('adminDelete');
+        $supabase->shouldReceive('audit')->once();
+
+        $this->withSession(['supabase_user' => $this->teacher()])
+            ->post('/teacher/classes/' . self::TARGET_ID . '/quizzes/' . self::SESSION_ID, ['_method' => 'DELETE'])
+            ->assertRedirect('/teacher/classes/' . self::TARGET_ID)
+            ->assertSessionHas('success', "Assignment deleted. Your quiz's Class Uses were not changed.");
+    }
+
+    public function test_assignment_delete_cannot_mutate_another_teachers_session(): void
+    {
+        $this->withoutMiddleware(SupabaseAuth::class);
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldReceive('adminSelect')->once()
+            ->with('quiz_sessions', '*', [
+                'id' => self::SESSION_ID, 'class_id' => self::TARGET_ID, 'teacher_id' => self::ACTOR_ID,
+            ])->andReturn([]);
+        $supabase->shouldNotReceive('adminRpcResult');
+        $supabase->shouldNotReceive('adminDelete');
+        $supabase->shouldNotReceive('audit');
+
+        $this->withSession(['supabase_user' => $this->teacher()])
+            ->delete('/teacher/classes/' . self::TARGET_ID . '/quizzes/' . self::SESSION_ID)
+            ->assertRedirect('/teacher/dashboard?section=classes')
+            ->assertSessionHas('error', 'Quiz assignment not found.');
     }
 
     public function test_teacher_quiz_json_requires_ownership(): void

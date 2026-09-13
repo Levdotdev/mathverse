@@ -170,9 +170,10 @@
         <i class="fas fa-trash-alt text-4xl text-red-500 mb-4"></i>
         <h3 class="font-orbitron font-bold uppercase">Delete Class?</h3>
         <p class="text-xs text-slate-400 mt-3 mb-8">This permanently removes {{ $class['class_name'] }} and its class data.</p>
-        <form method="POST" action="/teacher/classes/{{ $class['id'] }}">
+        <form method="POST" action="/teacher/classes/{{ $class['id'] }}" data-native-navigation>
             @csrf
             @method('DELETE')
+            <input type="hidden" name="delete_class_id" value="{{ $class['id'] }}">
             <button class="btn-rect-primary !bg-red-600 !text-white">Delete Class</button>
         </form>
         <button type="button" data-action="closeModal" data-action-args='["deleteClassModal"]' class="modal-cancel mt-3">Cancel</button>

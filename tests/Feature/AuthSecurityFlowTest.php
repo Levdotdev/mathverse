@@ -12,6 +12,21 @@ use Tests\TestCase;
 
 class AuthSecurityFlowTest extends TestCase
 {
+    public function test_legacy_query_reset_links_do_not_expose_or_consume_the_token_on_page_load(): void
+    {
+        $this->withoutVite();
+        $supabase = $this->mock(SupabaseService::class);
+        $supabase->shouldNotReceive('verifyRecoveryToken');
+        $supabase->shouldNotReceive('updateAuthUser');
+
+        $this->get('/reset-password?token_hash=synthetic-recovery-credential&type=recovery')
+            ->assertOk()
+            ->assertSee('js/password-reset.js')
+            ->assertDontSee('synthetic-recovery-credential')
+            ->assertSee('data-has-recovery-token="false"', false)
+            ->assertHeader('Referrer-Policy', 'no-referrer');
+    }
+
     public function test_public_login_page_discards_an_unsupported_legacy_session(): void
     {
         $this->withoutVite();

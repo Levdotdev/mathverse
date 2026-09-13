@@ -8,7 +8,7 @@ const styles = readFileSync(new URL('../../public/css/style.css', import.meta.ur
 
 // Execute the production script with controlled DOM, network, and timers.
 // Requests deliberately ignore abort so the deadline must settle independently.
-function fixture() {
+function fixture(role = 'teacher') {
     const roots = new Map();
     const listeners = new Map();
     const timers = new Map();
@@ -37,8 +37,14 @@ function fixture() {
             };
         }
         setAttribute(name, value) { this.attributes.set(name, value); }
+        getAttribute(name) { return this.attributes.get(name) ?? null; }
         removeAttribute(name) { this.attributes.delete(name); }
         hasAttribute(name) { return this.attributes.has(name); }
+        // Browser formAction is the document URL when the button has no
+        // formaction attribute. It must not override the owning form then.
+        get formAction() { return new URL(this.getAttribute('formaction') || location.href, location.href).href; }
+        get formMethod() { return this.getAttribute('formmethod') || ''; }
+        get formTarget() { return this.getAttribute('formtarget') || ''; }
         replaceWith(element) { this.isConnected = false; roots.set(this.selector, element); }
         matches() { return false; }
     }
@@ -52,7 +58,10 @@ function fixture() {
         }
     }
     class FakeFormData {
-        constructor(form) { this.fields = [...form.fields]; }
+        constructor(form, submitter) {
+            this.fields = [...form.fields];
+            if (submitter?.name) this.append(submitter.name, submitter.value);
+        }
         append(name, value) { this.fields.push([name, value]); }
         forEach(callback) { this.fields.forEach(([name, value]) => callback(value, name)); }
     }
@@ -81,7 +90,7 @@ function fixture() {
         },
     };
     const content = new Element('#dashboard-content');
-    content.dataset.dashboardRole = 'teacher';
+    content.dataset.dashboardRole = role;
     roots.set('#dashboard-content', content);
     roots.set('#dashboard-modals', new Element('#dashboard-modals'));
 
@@ -103,7 +112,7 @@ function fixture() {
             const incoming = new Map();
             if (html !== 'native') {
                 const nextContent = new Element('#dashboard-content');
-                nextContent.dataset.dashboardRole = 'teacher';
+                nextContent.dataset.dashboardRole = role;
                 incoming.set('#dashboard-content', nextContent);
                 incoming.set('#dashboard-modals', new Element('#dashboard-modals'));
             }
@@ -144,7 +153,10 @@ function fixture() {
             });
         },
         submit(form, submitter) {
-            document.dispatchEvent({ type: 'submit', target: form, submitter, preventDefault() {} });
+            const event = { type: 'submit', target: form, submitter, defaultPrevented: false,
+                preventDefault() { this.defaultPrevented = true; } };
+            document.dispatchEvent(event);
+            return event;
         },
     };
 }
@@ -218,6 +230,102 @@ test('a timed-out POST restores the submit button, warns about unknown outcome, 
     assert.equal(f.body.classList.contains('mathverse-navigating'), false);
     assert.equal(f.requests.length, 1);
     assert.match(f.toasts[0].message, /may already have completed/);
+});
+
+const actor = '11111111-1111-4111-8111-111111111111';
+const item = '22222222-2222-4222-8222-222222222222';
+const formTargets = [
+    ['restore a quiz', `/teacher/quizzes/${item}/versions`, `/teacher/quizzes/${item}/versions/1/restore`, 'POST'],
+    ['edit a quiz', `/teacher/quizzes/${item}`, `/teacher/quizzes/${item}`, 'PUT'],
+    ['delete a quiz', '/teacher/quizzes', `/teacher/quizzes/${item}`, 'DELETE'],
+    ['assign a quiz', '/teacher/quizzes', `/teacher/quizzes/${item}/assign`, 'POST'],
+    ['bookmark a quiz', '/teacher/quiz-library', `/teacher/quiz-library/${item}/bookmark`, 'POST'],
+    ['rate a quiz', '/teacher/quiz-library', `/teacher/quiz-library/${item}/rating`, 'POST'],
+    ['report a quiz', '/teacher/quiz-library', `/teacher/quiz-library/${item}/report`, 'POST'],
+    ['delete a library quiz', '/admin/quiz-library', `/admin/quizzes/${item}`, 'DELETE'],
+    ['verify a quiz', '/admin/quiz-library', `/admin/quiz-library/${item}/verify`, 'POST'],
+    ['resolve a report', '/admin/quiz-reports', `/admin/quiz-reports/${item}/resolve`, 'POST'],
+    ['delete a reported quiz', '/admin/quiz-reports', `/admin/quizzes/${item}`, 'DELETE'],
+    ['suspend an account', '/admin/dashboard?section=students', `/admin/user/${item}/suspend`, 'POST'],
+    ['delete an account', '/admin/dashboard?section=teachers', `/admin/user/${item}`, 'DELETE'],
+    ['approve a teacher', '/admin/dashboard?section=role-verify', `/admin/approve-teacher/${item}`, 'POST'],
+    ['reject a teacher', '/admin/dashboard?section=role-verify', `/admin/deny-teacher/${item}`, 'DELETE'],
+    ['remove a student without deleting their class', `/teacher/classes/${actor}`, `/teacher/classes/${actor}/students/${item}`, 'DELETE'],
+    ['delete an assignment without deleting its class', `/teacher/classes/${actor}`, `/teacher/classes/${actor}/quizzes/${item}`, 'DELETE'],
+    ['change a password', '/student/dashboard?section=security', '/change-password', 'POST'],
+    ['change an email', '/teacher/dashboard?section=security', '/change-email', 'POST'],
+    ['save a student profile', '/student/dashboard?section=profile', '/student/profile', 'POST'],
+    ['save a teacher profile', '/teacher/dashboard?section=profile', '/teacher/profile', 'POST'],
+    ['save an administrator profile', '/admin/dashboard?section=profile', '/admin/profile', 'POST'],
+];
+
+for (const [label, page, target, effectiveMethod] of formTargets) {
+    test(`ordinary submit buttons use the form target to ${label}`, async () => {
+        const f = fixture(page.startsWith('/admin') ? 'admin' : (page.startsWith('/student') ? 'student' : 'teacher'));
+        f.window.location.href = `https://mathverse.test${page}`;
+        const form = new f.Form();
+        form.action = `https://mathverse.test${target}`;
+        form.fields = [['_token', 'csrf-fixture']];
+        if (effectiveMethod !== 'POST') form.fields.push(['_method', effectiveMethod]);
+        const button = new f.Element();
+        assert.equal(button.formAction, f.window.location.href);
+        assert.equal(button.hasAttribute('formaction'), false);
+        f.submit(form, button);
+        assert.equal(f.requests[0].url, form.action);
+        assert.equal(f.requests[0].options.method, 'POST');
+        assert.deepEqual(f.requests[0].options.body.fields, form.fields);
+        f.response(0);
+        await flush();
+        assert.equal(button.disabled, false);
+    });
+}
+
+test('explicit submitter action and method overrides still work and include its value', async () => {
+    const f = fixture();
+    const form = new f.Form();
+    const button = new f.Element();
+    button.setAttribute('formaction', '/teacher/quiz-library');
+    button.setAttribute('formmethod', 'GET');
+    button.name = 'bookmarked';
+    button.value = '1';
+    f.submit(form, button);
+    assert.equal(f.requests[0].options.method, undefined);
+    assert.equal(f.requests[0].url, 'https://mathverse.test/teacher/quiz-library?class_name=Orion&bookmarked=1');
+    f.response(0);
+    await flush();
+});
+
+test('Enter-key and programmatic submissions without a submitter use the form action', async () => {
+    const f = fixture();
+    const form = new f.Form();
+    form.action = `https://mathverse.test/teacher/quizzes/${item}/assign`;
+    f.submit(form, null);
+    assert.equal(f.requests[0].url, form.action);
+    assert.equal(f.requests[0].options.method, 'POST');
+    f.response(0);
+    await flush();
+});
+
+test('public auth forms retain native POSTs and their redirect feedback', () => {
+    for (const path of ['/login', '/register', '/forgot-password', '/update-password', '/auth/confirm', '/logout']) {
+        const f = fixture();
+        const form = new f.Form();
+        form.action = `https://mathverse.test${path}`;
+        const event = f.submit(form, new f.Element());
+        assert.equal(event.defaultPrevented, false);
+        assert.equal(f.requests.length, 0);
+    }
+});
+
+test('external or separate-window submitter targets are left to native navigation', () => {
+    for (const [attribute, value] of [['formaction', 'https://external.example/submit'], ['formtarget', '_blank'], ['formmethod', 'dialog']]) {
+        const f = fixture();
+        const form = new f.Form();
+        const button = new f.Element();
+        button.setAttribute(attribute, value);
+        f.submit(form, button);
+        assert.equal(f.requests.length, 0);
+    }
 });
 
 test('navigation away does not abort an in-progress mutation or show a stale error', async () => {

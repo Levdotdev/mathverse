@@ -31,8 +31,9 @@
 <script nonce="{{ request()->attributes->get('csp_nonce') }}">
     (() => {
         const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-        const token = params.get('token_hash');
-        const type = params.get('type');
+        const queryParams = new URLSearchParams(window.location.search);
+        const token = params.get('token_hash') || queryParams.get('token_hash');
+        const type = params.get('type') || queryParams.get('type');
         const form = document.getElementById('confirmation-form');
         const status = document.getElementById('confirmation-status');
         const returnLink = document.getElementById('confirmation-return');
