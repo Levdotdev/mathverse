@@ -551,21 +551,24 @@ class AdminController extends Controller
         $quizzes    = $this->supabase->adminSelect('quizzes', 'id,topic,teacher_id,created_at');
         $profiles   = $this->supabase->adminSelect('profiles', 'id,role,created_at');
 
-        // Registrations per day
+        // Group UTC database instants by the same local day as the chart labels.
+        $registrationCounts = \App\Support\AppDate::countsByDay($profiles);
+        $attemptCounts = \App\Support\AppDate::countsByDay($allResults);
+        $today = \Carbon\CarbonImmutable::now(\App\Support\AppDate::timezone())->startOfDay();
         $registrationsPerDay = [];
         for ($i = 13; $i >= 0; $i--) {
-            $date  = date('Y-m-d', strtotime("-{$i} days"));
-            $label = date('M d',   strtotime("-{$i} days"));
-            $count = count(array_filter($profiles, fn($p) => str_starts_with($p['created_at'] ?? '', $date)));
+            $day = $today->subDays($i);
+            $label = $day->format('M d');
+            $count = $registrationCounts[$day->toDateString()] ?? 0;
             $registrationsPerDay[] = ['date' => $label, 'count' => $count];
         }
 
         // Attempts per day
         $attemptsPerDay = [];
         for ($i = 13; $i >= 0; $i--) {
-            $date  = date('Y-m-d', strtotime("-{$i} days"));
-            $label = date('M d',   strtotime("-{$i} days"));
-            $count = count(array_filter($allResults, fn($r) => str_starts_with($r['created_at'] ?? '', $date)));
+            $day = $today->subDays($i);
+            $label = $day->format('M d');
+            $count = $attemptCounts[$day->toDateString()] ?? 0;
             $attemptsPerDay[] = ['date' => $label, 'count' => $count];
         }
 
@@ -619,7 +622,7 @@ class AdminController extends Controller
             'trophies' => $p['trophies'] ?? 0,
             'level'    => $p['level'] ?? 1,
             'joined'   => isset($p['created_at'])
-                ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y')
+                ? \App\Support\AppDate::format($p['created_at'], 'M d, Y')
                 : 'N/A',
         ], $profiles);
 
@@ -657,7 +660,7 @@ class AdminController extends Controller
                 'grade'      => $p['grade_level'] ? 'Grade ' . $p['grade_level'] : 'N/A',
                 'quizzes'    => $quizCount,
                 'joined'     => isset($p['created_at'])
-                    ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y')
+                    ? \App\Support\AppDate::format($p['created_at'], 'M d, Y')
                     : 'N/A',
             ];
         }, $profiles);
@@ -824,7 +827,7 @@ class AdminController extends Controller
                 'attempts' => count($sessionResults),
                 'avg_accuracy' => $accuracies !== [] ? round(array_sum($accuracies) / count($accuracies), 1) : null,
                 'pass_rate' => $sessionResults !== [] ? round(($passed / count($sessionResults)) * 100, 1) : null,
-                'created' => \Carbon\Carbon::parse($session['created_at'])->format('M d, Y'),
+                'created' => \App\Support\AppDate::format($session['created_at'], 'M d, Y'),
             ];
         }
 
@@ -905,7 +908,7 @@ class AdminController extends Controller
                 'assignments' => $sessionCounts[$class['id']] ?? 0,
                 'attempts' => count($classResults),
                 'avg_accuracy' => $accuracies !== [] ? round(array_sum($accuracies) / count($accuracies), 1) : null,
-                'created' => \Carbon\Carbon::parse($class['created_at'])->format('M d, Y'),
+                'created' => \App\Support\AppDate::format($class['created_at'], 'M d, Y'),
             ];
         }
 
@@ -948,7 +951,10 @@ class AdminController extends Controller
 
     private function auditFilters(Request $request): array
     {
-        $category = (string) $request->query('audit_category', 'security');
+        // Empty strings become null in Laravel middleware. An explicitly empty
+        // category still means all streams; only an absent filter defaults.
+        $category = $request->query->has('audit_category')
+            ? (string) $request->query('audit_category') : 'security';
         $actorRole = (string) $request->query('audit_actor_role', '');
         $outcome = (string) $request->query('audit_outcome', '');
         $action = strtolower(trim(mb_substr((string) $request->query('audit_action', ''), 0, 100)));
@@ -975,10 +981,7 @@ class AdminController extends Controller
 
     private function auditDate(string $value, bool $exclusiveEnd = false): ?string
     {
-        if ($value === '') return null;
-        $date = new \DateTimeImmutable($value.' 00:00:00', new \DateTimeZone('UTC'));
-        if ($exclusiveEnd) $date = $date->modify('+1 day');
-        return $date->format(DATE_ATOM);
+        return \App\Support\AppDate::dayBoundaryUtc($value, $exclusiveEnd);
     }
 
     private function registrySearch(mixed $value): string

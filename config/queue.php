@@ -13,7 +13,9 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    // MathVerse's durable email/push retries live in Supabase's delivery outbox.
+    // Optional Laravel jobs already use the after-response deferred driver.
+    'default' => env('QUEUE_CONNECTION', 'deferred'),
 
     /*
     |--------------------------------------------------------------------------

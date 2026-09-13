@@ -77,7 +77,7 @@ class MathArcadeServiceTest extends TestCase
         $this->assertArrayNotHasKey('explanation', $result['session']['challenge']);
     }
 
-    public function test_hub_has_five_games_and_shared_badges_without_progress_currency(): void
+    public function test_hub_has_four_games_and_shared_badges_without_progress_currency(): void
     {
         $supabase = Mockery::mock(SupabaseService::class);
         $supabase->shouldReceive('adminRpcResult')->once()->andReturn([
@@ -100,8 +100,10 @@ class MathArcadeServiceTest extends TestCase
 
         $hub = (new MathArcadeService($supabase))->hub($this->student());
 
-        $this->assertCount(5, $hub['games']);
-        $this->assertCount(12, $hub['badges']);
+        $this->assertCount(4, $hub['games']);
+        $this->assertCount(11, $hub['badges']);
+        $this->assertNotContains('fraction-comparison', array_column($hub['games'], 'key'));
+        $this->assertNotContains('fraction-photon', array_column($hub['badges'], 'key'));
         $streakBadge = array_values(array_filter(
             $hub['badges'],
             fn (array $badge): bool => $badge['key'] === 'streak-five'
@@ -120,6 +122,14 @@ class MathArcadeServiceTest extends TestCase
         $this->expectExceptionMessage('not available');
 
         (new MathArcadeService($supabase))->start($this->student(), 'made-up-game');
+    }
+
+    public function test_retired_fraction_game_cannot_start_even_with_an_existing_score(): void
+    {
+        $supabase = Mockery::mock(SupabaseService::class);
+        $supabase->shouldNotReceive('adminRpcResult');
+        $this->expectException(RuntimeException::class);
+        (new MathArcadeService($supabase))->start($this->student(), 'fraction-comparison');
     }
 
     public function test_missing_migration_returns_a_safe_unconfigured_hub(): void

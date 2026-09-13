@@ -70,7 +70,7 @@
                         <span class="text-slate-400 bg-white/5 px-2 py-1 rounded">{{ $quiz['question_count'] }} Questions</span>
                         <span class="{{ ($quiz['visibility'] ?? 'shared') === 'shared' ? 'text-blue-300 bg-blue-500/10' : 'text-slate-400 bg-white/5' }} px-2 py-1 rounded">{{ ucfirst($quiz['visibility'] ?? 'shared') }}</span>
                         <span class="text-yellow-300 bg-yellow-500/10 px-2 py-1 rounded">v{{ $quiz['version'] ?? 1 }}</span>
-                        <span class="text-slate-500 px-1 py-1">{{ \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y') }}</span>
+                        <span class="text-slate-500 px-1 py-1">{{ \App\Support\AppDate::format($quiz['created_at'], 'M d, Y') }}</span>
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-2 w-full lg:w-auto">

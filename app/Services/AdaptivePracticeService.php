@@ -86,7 +86,7 @@ class AdaptivePracticeService
             if (empty($attempt['answered_at'])) {
                 continue;
             }
-            $date = CarbonImmutable::parse($attempt['answered_at'])->setTimezone($timezone)->toDateString();
+            $date = CarbonImmutable::parse($attempt['answered_at'], 'UTC')->setTimezone($timezone)->toDateString();
             $practiceDates[$date] = true;
             if ($date === $today) {
                 $dailyAnswered++;

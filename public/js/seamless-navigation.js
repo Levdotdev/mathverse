@@ -4,6 +4,8 @@
     const maxCachedPages = 10;
     const freshForMs = 20000;
     const visibleRefreshMs = 300000;
+    const pageRequestTimeoutMs = 20000;
+    const formRequestTimeoutMs = 30000;
     const pageCache = new Map();
     const inFlight = new Map();
     const backgroundRefreshes = new Map();
@@ -12,11 +14,63 @@
     let renderedUrl = window.location.href;
     let lastVisibleRefreshAt = Date.now();
     let visibleRefreshTimer = null;
+    let activePageNavigation = null;
 
     class NativeNavigationRequired extends Error {
         constructor(url) {
             super('This response requires a full navigation.');
             this.url = url;
+        }
+    }
+
+    class RequestTimeout extends Error {
+        constructor(mutating) {
+            super(mutating
+                ? 'This action is taking too long. It may already have completed; check the current records before submitting it again.'
+                : 'This page took too long to load. Try again or open another page.');
+        }
+    }
+
+    function cancelPageNavigation() {
+        activePageNavigation?.controller.abort();
+        activePageNavigation = null;
+    }
+
+    // Cover the response body as well as the initial fetch. No timed-out
+    // mutation is retried automatically: its server-side outcome may be unknown.
+    async function requestDocument(url, options = {}, timeoutMs = pageRequestTimeoutMs) {
+        const controller = new AbortController();
+        const upstreamSignal = options.signal;
+        const forwardAbort = () => controller.abort(upstreamSignal.reason);
+        upstreamSignal?.addEventListener('abort', forwardAbort, { once: true });
+        if (upstreamSignal?.aborted) forwardAbort();
+
+        let rejectAborted;
+        const aborted = new Promise((resolve, reject) => {
+            rejectAborted = () => reject(controller.signal.reason || new DOMException('Request aborted.', 'AbortError'));
+            controller.signal.addEventListener('abort', rejectAborted, { once: true });
+            if (controller.signal.aborted) rejectAborted();
+        });
+        const timeout = window.setTimeout(() => {
+            controller.abort(new RequestTimeout(String(options.method || 'GET').toUpperCase() !== 'GET'));
+        }, timeoutMs);
+
+        try {
+            return await Promise.race([
+                (async () => {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    const responseType = response.headers.get('Content-Type') || '';
+                    const html = responseType.includes('text/html') ? await response.text() : '';
+                    const payload = responseType.includes('application/json')
+                        ? await response.json().catch(() => ({})) : {};
+                    return { response, responseType, html, payload };
+                })(),
+                aborted,
+            ]);
+        } finally {
+            window.clearTimeout(timeout);
+            upstreamSignal?.removeEventListener('abort', forwardAbort);
+            controller.signal.removeEventListener('abort', rejectAborted);
         }
     }
 
@@ -96,7 +150,7 @@
         return entry;
     }
 
-    async function requestPage(destination, { force = false, refreshChrome = false } = {}) {
+    async function requestPage(destination, { force = false, refreshChrome = false, signal } = {}) {
         const url = toUrl(destination);
         if (!url || !isDashboardUrl(url)) {
             throw new NativeNavigationRequired(url?.href || String(destination));
@@ -106,10 +160,12 @@
         const requestedGeneration = cacheGeneration;
 
         if (!force && pageCache.has(key)) return pageCache.get(key);
-        if (!force && inFlight.has(key)) return inFlight.get(key);
+        const existingRequest = inFlight.get(key);
+        if (!force && existingRequest && !existingRequest.signal?.aborted) return existingRequest.promise;
 
         const request = (async () => {
-            const response = await fetch(url.href, {
+            const { response, responseType, html } = await requestDocument(url.href, {
+                signal,
                 credentials: 'same-origin',
                 redirect: 'follow',
                 cache: 'no-store',
@@ -120,12 +176,10 @@
                     'X-MathVerse-Revalidate': refreshChrome ? '1' : '0',
                 },
             });
-            const responseType = response.headers.get('Content-Type') || '';
             if (!response.ok || !responseType.includes('text/html')) {
                 throw new Error(`Page request failed with status ${response.status}.`);
             }
 
-            const html = await response.text();
             const finalUrl = response.url || url.href;
             parsePage(html, finalUrl);
             const entry = {
@@ -139,11 +193,11 @@
             return requestedGeneration === cacheGeneration ? remember(entry) : entry;
         })();
 
-        if (!force) inFlight.set(key, request);
+        if (!force) inFlight.set(key, { promise: request, signal });
         try {
             return await request;
         } finally {
-            if (!force && inFlight.get(key) === request) inFlight.delete(key);
+            if (!force && inFlight.get(key)?.promise === request) inFlight.delete(key);
         }
     }
 
@@ -198,7 +252,9 @@
 
     function safeToRevalidateVisiblePage() {
         const focused = document.activeElement;
-        return !document.querySelector(`${contentSelector} form[data-mathverse-dirty="true"]`)
+        return !document.body.classList.contains('mathverse-navigating')
+            && !document.querySelector('form[data-mathverse-submitting="true"]')
+            && !document.querySelector(`${contentSelector} form[data-mathverse-dirty="true"]`)
             && !document.querySelector(`${contentSelector} [data-seamless-refresh="manual"]`)
             && !document.querySelector('.modal-overlay:not(.hidden)')
             && !(focused instanceof HTMLElement && focused.matches('input, textarea, select, [contenteditable="true"]'));
@@ -373,21 +429,27 @@
         if (!options.force
             && options.localSection
             && localDashboardSection(url, historyMode)) {
+            cancelPageNavigation();
             navigationSequence++;
             setLoading(false);
             return true;
         }
 
         const sequence = ++navigationSequence;
+        cancelPageNavigation();
+        const controller = new AbortController();
+        activePageNavigation = { sequence, controller };
         const key = cacheKey(url);
         const cached = !options.force ? pageCache.get(key) : null;
         if (historyMode !== 'none') saveScrollPosition();
         setLoading(!cached);
+        toggleSidebar(false);
 
         try {
             const entry = cached || await requestPage(url, {
                 force: Boolean(options.force),
                 refreshChrome: Boolean(options.refreshChrome),
+                signal: controller.signal,
             });
             if (sequence !== navigationSequence) return false;
 
@@ -404,14 +466,18 @@
             }
             return true;
         } catch (error) {
+            if (sequence !== navigationSequence) return false;
             if (error instanceof NativeNavigationRequired) {
                 window.location.assign(error.url);
                 return false;
             }
-            showToast('That page could not be loaded. Please try again.', true);
+            showToast(error instanceof RequestTimeout ? error.message : 'That page could not be loaded. Please try again.', true);
             return false;
         } finally {
-            if (sequence === navigationSequence) setLoading(false);
+            if (sequence === navigationSequence) {
+                setLoading(false);
+                activePageNavigation = null;
+            }
         }
     }
 
@@ -437,12 +503,13 @@
         }
 
         const sequence = ++navigationSequence;
+        cancelPageNavigation();
         saveScrollPosition();
         setLoading(true);
         clearPageCache();
 
         try {
-            const response = await fetch(action.href, {
+            const { response, responseType, html, payload } = await requestDocument(action.href, {
                 method,
                 credentials: 'same-origin',
                 redirect: 'follow',
@@ -452,16 +519,11 @@
                     'X-MathVerse-Chrome': '1',
                 },
                 body: formData,
-            });
-            const responseType = response.headers.get('Content-Type') || '';
+            }, formRequestTimeoutMs);
             if (!response.ok || !responseType.includes('text/html')) {
-                const payload = responseType.includes('application/json')
-                    ? await response.json().catch(() => ({}))
-                    : {};
                 throw new Error(payload.message || 'The action could not be completed.');
             }
 
-            const html = await response.text();
             const finalUrl = response.url || action.href;
             parsePage(html, finalUrl);
             document.dispatchEvent(new CustomEvent('mathverse:data-changed'));
@@ -478,6 +540,7 @@
             applyPage(entry, { historyMode: 'push', syncChrome: true });
             return true;
         } catch (error) {
+            if (sequence !== navigationSequence) return false;
             if (error instanceof NativeNavigationRequired) {
                 window.location.assign(error.url);
                 return false;

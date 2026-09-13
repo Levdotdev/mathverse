@@ -9,9 +9,10 @@ badges, and audit activity between runs.
 
 - Deploy the commit being tested to a valid HTTPS origin.
 - Apply every forward SQL migration through
-  `2026_09_12_shared_math_arcade.sql`.
-- Run `php artisan schedule:run` every minute and an asynchronous queue worker
-  when `QUEUE_CONNECTION` is not `sync`.
+  `2026_09_13_portal_timezone_and_arcade_updates.sql`.
+- Run `php artisan schedule:run` every minute. A queue worker is needed for
+  worker-backed drivers such as `database` or `redis`, not `sync`, `deferred`,
+  or `background`. MathVerse's event-delivery retries use the Supabase outbox.
 - Configure Laravel mail, the Web Push public key and Edge Function, and the
   deployment commit identifier.
 - Create dedicated, approved, non-suspended student, teacher, and administrator
@@ -64,7 +65,7 @@ npx playwright test --project=mobile-chromium
 | Student/classroom | Login, enrolled-class fixture, assigned quiz surface, and class analytics |
 | Notifications/data service | Authenticated notification snapshot returns renderable notification HTML |
 | Learning Hub | Configured dashboard, private initial question, hint flow, answer submission, and result feedback |
-| Games | Five-card hub; server start, answer, score, finish, and leaderboard path for every game |
+| Games | Four-card hub; server start, answer, score, finish, and leaderboard path for every active game |
 | Rewards | Shared arcade badges are visible and explicitly separate from Learning Hub XP/trophies |
 | Teacher | Quiz management, shared library, class mastery, weak topics, activity, hints, and improvement |
 | Administrator | Quiz moderation, security audit filters, migration/scheduler/data/email/push/queue/audit health, and deployed commit |

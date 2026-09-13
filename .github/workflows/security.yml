@@ -52,6 +52,12 @@ jobs:
       - name: Build browser assets
         run: npm run build
 
+      - name: Test navigation recovery
+        run: npm run test:javascript
+
+      - name: Verify portal SQL update in isolated PostgreSQL
+        run: npm run test:sql
+
       - name: Verify committed browser assets
         run: git diff --exit-code -- public/build
 

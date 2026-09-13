@@ -12,7 +12,6 @@ class MathArcadeService
     private const SHARED_GAME_KEYS = [
         'mental-arithmetic',
         'equation-balance',
-        'fraction-comparison',
         'pattern-pulse',
     ];
 
@@ -41,14 +40,6 @@ class MathArcadeService
             'accent' => 'green',
             'url' => '/student/games/equation-balance',
         ],
-        'fraction-comparison' => [
-            'title' => 'Fraction Photon',
-            'eyebrow' => 'Fraction Comparison',
-            'description' => 'Compare varied fractions by reasoning about size, equivalence, and cross-products.',
-            'icon' => 'fa-not-equal',
-            'accent' => 'orange',
-            'url' => '/student/games/fraction-comparison',
-        ],
         'pattern-pulse' => [
             'title' => 'Pattern Pulse',
             'eyebrow' => 'Sequence Reasoning',
@@ -70,7 +61,6 @@ class MathArcadeService
         'number-navigator' => ['title' => 'Number Navigator', 'description' => 'Score 5 in Number Guess.', 'icon' => 'fa-location-crosshairs'],
         'mental-meteor' => ['title' => 'Mental Meteor', 'description' => 'Score 10 in Mental Arithmetic.', 'icon' => 'fa-meteor'],
         'equation-engineer' => ['title' => 'Equation Engineer', 'description' => 'Score 10 in Equation Balance.', 'icon' => 'fa-scale-balanced'],
-        'fraction-photon' => ['title' => 'Fraction Photon', 'description' => 'Score 10 in Fraction Comparison.', 'icon' => 'fa-not-equal'],
         'pattern-pilot' => ['title' => 'Pattern Pilot', 'description' => 'Score 10 in Pattern Pulse.', 'icon' => 'fa-wave-square'],
     ];
 

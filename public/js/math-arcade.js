@@ -23,7 +23,6 @@ function initializeMathArcadeGame() {
     const allowedGames = new Set([
         'mental-arithmetic',
         'equation-balance',
-        'fraction-comparison',
         'pattern-pulse',
     ]);
     if (!allowedGames.has(gameKey)) {

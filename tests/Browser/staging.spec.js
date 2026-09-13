@@ -137,10 +137,11 @@ test('student completes one verified turn in every arcade game', async ({ page }
     await openPage(page, '/student/games');
     const hub = page.getByTestId('arcade-hub');
     await expect(hub).toHaveAttribute('data-configured', 'true');
-    await expect(hub.locator('.arcade-game-card')).toHaveCount(5);
+    await expect(hub.locator('.arcade-game-card')).toHaveCount(4);
+    await expect(hub.locator('[data-game-key="fraction-comparison"]')).toHaveCount(0);
     await expect(hub).toContainText('never award Learning Hub XP or trophies');
 
-    for (const gameKey of ['mental-arithmetic', 'equation-balance', 'fraction-comparison', 'pattern-pulse']) {
+    for (const gameKey of ['mental-arithmetic', 'equation-balance', 'pattern-pulse']) {
         await openPage(page, `/student/games/${gameKey}`);
         const game = page.getByTestId('arcade-game');
         await expect(game).toHaveAttribute('data-game-key', gameKey);
@@ -222,6 +223,16 @@ test('admin moderation, durable audits, delivery health, and deployment identity
     await auditForm.getByRole('button', { name: 'Filter' }).click();
     await page.waitForURL(/audit_search=.*audit_category=security.*audit_outcome=succeeded|audit_outcome=succeeded.*audit_category=security/);
     await expect(page.locator('#sec-audit')).toBeVisible();
+
+    const allStreamsForm = page.locator('#sec-audit form.audit-filter-grid');
+    await allStreamsForm.locator('input[name="audit_search"]').fill('');
+    await allStreamsForm.locator('select[name="audit_category"]').selectOption('all');
+    await allStreamsForm.locator('select[name="audit_outcome"]').selectOption('');
+    await allStreamsForm.getByRole('button', { name: 'Filter' }).click();
+    await page.waitForURL(url => url.searchParams.get('audit_category') === 'all');
+    await expect(page.locator('#sec-audit select[name="audit_category"]')).toHaveValue('all');
+    const nextAuditPage = page.getByRole('navigation', { name: 'Audit pages' }).getByRole('link', { name: 'Next' });
+    if (await nextAuditPage.count()) await expect(nextAuditPage).toHaveAttribute('href', /audit_category=all/);
 
     await openPage(page, '/admin/system-health');
     const health = page.getByTestId('system-health');

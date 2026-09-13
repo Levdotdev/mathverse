@@ -43,7 +43,7 @@
             </p>
         </div>
         <p class="text-[9px] text-slate-600 uppercase shrink-0">
-            {{ \Carbon\Carbon::parse($report['created_at'])->format('M j, Y · g:i A') }}
+            {{ \App\Support\AppDate::format($report['created_at'], 'M j, Y · g:i A') }}
         </p>
     </div>
 </header>
@@ -70,7 +70,7 @@
             <section class="portal-frame !p-6 border-white/10">
                 <p class="text-[9px] text-slate-500 uppercase font-black tracking-widest">Moderation Outcome</p>
                 <p class="text-sm text-white mt-2">Marked {{ $report['status'] }} by {{ $report['reviewer_name'] ?: 'an administrator' }}.</p>
-                <p class="text-[9px] text-slate-600 mt-2 uppercase">{{ \Carbon\Carbon::parse($report['reviewed_at'])->format('M j, Y · g:i A') }}</p>
+                <p class="text-[9px] text-slate-600 mt-2 uppercase">{{ \App\Support\AppDate::format($report['reviewed_at'], 'M j, Y · g:i A') }}</p>
             </section>
         @endif
     </div>

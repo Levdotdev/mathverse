@@ -33,7 +33,10 @@ class TeacherController extends Controller
 
         // Classes owned by this teacher
         $allClasses = $this->supabase->adminSelect('classes', '*', ['teacher_id' => $user['id']]);
-        usort($allClasses, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
+        usort($allClasses, fn ($a, $b): int =>
+            (\App\Support\AppDate::parse($b['created_at'] ?? null)?->getTimestamp() ?? 0)
+            <=> (\App\Support\AppDate::parse($a['created_at'] ?? null)?->getTimestamp() ?? 0)
+        );
 
         $allClassIds = array_column($allClasses, 'id');
         $customizations = empty($allClassIds) ? [] : $this->supabase->adminSelect(
@@ -203,10 +206,12 @@ class TeacherController extends Controller
 
         // Attempts per day (last 14 days)
         $attemptsPerDay = [];
+        $attemptCounts = \App\Support\AppDate::countsByDay($allResults);
+        $today = \Carbon\CarbonImmutable::now(\App\Support\AppDate::timezone())->startOfDay();
         for ($i = 13; $i >= 0; $i--) {
-            $date  = date('Y-m-d', strtotime("-{$i} days"));
-            $label = date('M d',   strtotime("-{$i} days"));
-            $count = count(array_filter($allResults, fn($r) => str_starts_with($r['created_at'], $date)));
+            $day = $today->subDays($i);
+            $label = $day->format('M d');
+            $count = $attemptCounts[$day->toDateString()] ?? 0;
             $attemptsPerDay[] = ['date' => $label, 'count' => $count];
         }
 
@@ -275,7 +280,7 @@ class TeacherController extends Controller
                 'attempts'  => $attempts,
                 'avg_acc'   => $avgAcc,
                 'pass_rate' => $attempts > 0 ? round(($passed / $attempts) * 100, 1) : null,
-                'date'      => \Carbon\Carbon::parse($q['created_at'])->format('M d, Y'),
+                'date'      => \App\Support\AppDate::format($q['created_at'], 'M d, Y'),
             ];
         }
 
@@ -412,7 +417,7 @@ class TeacherController extends Controller
                 'join_code'  => $c['join_code'],
                 'students'   => count($classMembers),
                 'roster'     => implode(' | ', $studentNames),
-                'created'    => \Carbon\Carbon::parse($c['created_at'])->format('M d, Y'),
+                'created'    => \App\Support\AppDate::format($c['created_at'], 'M d, Y'),
             ];
         }
 
@@ -492,12 +497,12 @@ class TeacherController extends Controller
         $eligibilityMap = array_column($eligibility, null, 'student_id');
         $legacyMembers = $members;
         $assignmentCutoff = $quiz['ended_at'] ?? $quiz['due_at'] ?? null;
-        $cutoffTimestamp = $assignmentCutoff ? strtotime($assignmentCutoff) : false;
-        if ($cutoffTimestamp !== false) {
+        $cutoffTimestamp = \App\Support\AppDate::parse($assignmentCutoff)?->getTimestamp();
+        if ($cutoffTimestamp !== null) {
             $legacyMembers = array_values(array_filter(
                 $legacyMembers,
                 fn (array $member): bool => empty($member['joined_at'])
-                    || strtotime($member['joined_at']) <= $cutoffTimestamp
+                    || (\App\Support\AppDate::parse($member['joined_at'])?->getTimestamp() ?? PHP_INT_MAX) <= $cutoffTimestamp
             ));
         }
         $assignedStudentIds = $eligibility !== []
@@ -522,13 +527,13 @@ class TeacherController extends Controller
             $isExcused = !$result
                 && ($studentEligibility['eligibility_status'] ?? '') === 'excused';
             $deadlineOpen = empty($quiz['due_at'])
-                || now()->lt(\Carbon\Carbon::parse($quiz['due_at']));
+                || now()->lt(\Carbon\Carbon::parse($quiz['due_at'], 'UTC'));
             $canStillSubmit = $deadlineOpen && (
                 !($quiz['retake_mode'] ?? false)
                 || (int) ($studentEligibility['allowed_attempts'] ?? 0) > 0
             );
             if (!empty($studentEligibility['retake_due_at'])
-                && now()->gte(\Carbon\Carbon::parse($studentEligibility['retake_due_at']))) {
+                && now()->gte(\Carbon\Carbon::parse($studentEligibility['retake_due_at'], 'UTC'))) {
                 $canStillSubmit = false;
             }
 
@@ -537,7 +542,7 @@ class TeacherController extends Controller
                 $correct = (int) ($result['correct_answers'] ?? 0);
                 $accuracy = $total > 0 ? round(($correct / $total) * 100, 1) : 0;
                 $status = $accuracy >= 75 ? 'Passed' : 'Failed';
-                $date = \Carbon\Carbon::parse($result['created_at'])->format('M d, Y h:i A');
+                $date = \App\Support\AppDate::format($result['created_at'], 'M d, Y h:i A');
             } else {
                 $total = null;
                 $correct = null;
@@ -604,7 +609,7 @@ class TeacherController extends Controller
             'completion_rate' => $eligibleStudents > 0
                 ? round(($totalAttempts / $eligibleStudents) * 100, 1)
                 : 0,
-            'created'         => \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y'),
+            'created'         => \App\Support\AppDate::format($quiz['created_at'], 'M d, Y'),
             'teacher'         => ($user['last_name'] ?? '') . ', ' . ($user['first_name'] ?? ''),
         ];
 
@@ -722,7 +727,7 @@ class TeacherController extends Controller
                 'quizzes'  => $attempts,
                 'avg_acc'  => $avgAcc,
                 'joined'   => isset($m['joined_at'])
-                    ? \Carbon\Carbon::parse($m['joined_at'])->format('M d, Y')
+                    ? \App\Support\AppDate::format($m['joined_at'], 'M d, Y')
                     : 'N/A',
             ];
         }
@@ -746,7 +751,7 @@ class TeacherController extends Controller
             'avg_accuracy'   => $classAccuracies !== []
                 ? round(array_sum($classAccuracies) / count($classAccuracies), 1)
                 : 0,
-            'created'        => \Carbon\Carbon::parse($class['created_at'])->format('M d, Y'),
+            'created'        => \App\Support\AppDate::format($class['created_at'], 'M d, Y'),
             'teacher'        => ($user['last_name'] ?? '') . ', ' . ($user['first_name'] ?? ''),
         ];
 

@@ -29,6 +29,8 @@ in date order. Never expose `SUPABASE_SERVICE_KEY` in browser code.
 composer audit --locked
 npm audit --audit-level=high
 npm run build
+npm run test:javascript
+npm run test:sql
 php artisan test
 npm run test:browser
 ```
@@ -38,6 +40,43 @@ dedicated student, teacher, and administrator accounts. See
 [`docs/staging-browser.md`](docs/staging-browser.md) for fixture requirements,
 the seven required environment variables, and the coverage matrix. GitHub's
 `staging-browser.yml` workflow runs the same journeys every day and on demand.
+
+## September 13 portal update
+
+Apply `database/supabase/2026_09_13_portal_timezone_and_arcade_updates.sql`
+after the earlier migrations and before deploying this update. It groups
+Learning Hub analytics by Philippine calendar day and retires Fraction Photon
+without deleting its stored scores, sessions, or already-earned badges. Arcade
+Master now requires scores in all four remaining games.
+
+Keep Supabase's database timezone at UTC. MathVerse converts timestamps and
+audit date-filter boundaries to/from `Asia/Manila`; do not manually shift
+stored registration dates.
+
+For a single-instance, Supabase-over-HTTP Cloud environment without a separate
+Laravel SQL database, verify these Cloud environment variables and redeploy:
+
+```dotenv
+QUEUE_CONNECTION=deferred
+CACHE_STORE=file
+CACHE_LIMITER=file
+SCHEDULE_CACHE_DRIVER=file
+```
+
+Explicit Cloud values override repository defaults. If you intentionally use
+a persistent SQL queue, keep it configured and migrate its jobs/failed-jobs
+tables; the health page will continue to report genuine failures. Multiple
+application replicas need shared cache, rate-limit, and scheduler-lock storage
+(for example Redis), not per-instance files. Do not switch a working Redis
+configuration to files. Sessions also need a working backend: an encrypted
+cookie driver or shared Redis is appropriate when there is no Laravel SQL
+database; `SESSION_DRIVER=database` still requires its own SQL session table.
+Remove a Cloud worker explicitly pinned to the `database` connection when no
+SQL queue is intended; a deferred-only deployment does not need that worker.
+
+The navigation recovery tests run locally with `npm run test:javascript` and
+in CI. They simulate stuck requests, repeated clicks, and uncertain POST
+outcomes without sending real application actions.
 
 ---
 

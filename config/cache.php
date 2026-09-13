@@ -15,7 +15,9 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    // Supabase is accessed over HTTP; it does not provision Laravel cache tables.
+    // Use shared Redis instead when deploying multiple replicas or workers.
+    'default' => env('CACHE_STORE', 'file'),
 
     /*
     |--------------------------------------------------------------------------

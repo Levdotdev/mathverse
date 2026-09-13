@@ -107,7 +107,7 @@
         @forelse($openSessions as $session)
             @php
                 $isActive = ($session['status'] ?? 'waiting') === 'active';
-                $isScheduled = !$isActive && !empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at']));
+                $isScheduled = !$isActive && !empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at'], 'UTC'));
                 $isRetake = (bool) ($session['retake_mode'] ?? false);
                 $statusLabel = $isRetake ? 'Retake Window' : ($isActive ? 'Active' : ($isScheduled ? 'Scheduled' : 'Assigned'));
             @endphp
@@ -123,10 +123,10 @@
                         <h3 class="font-bold text-lg text-white truncate">{{ $session['topic'] }}</h3>
                         <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] text-slate-400">
                             @if(!empty($session['available_at']))
-                                <span><i class="far fa-calendar-check mr-1 text-purple-400"></i>Starts {{ \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
+                                <span><i class="far fa-calendar-check mr-1 text-purple-400"></i>Starts {{ \App\Support\AppDate::format($session['available_at'], 'M j, Y g:i A') }}</span>
                             @endif
                             @if(!empty($session['due_at']))
-                                <span><i class="far fa-clock mr-1 text-red-400"></i>Due {{ \Carbon\Carbon::parse($session['due_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
+                                <span><i class="far fa-clock mr-1 text-red-400"></i>Due {{ \App\Support\AppDate::format($session['due_at'], 'M j, Y g:i A') }}</span>
                             @endif
                         </div>
                         <div class="flex items-center gap-2 mt-3">
@@ -148,7 +148,7 @@
                             </button>
                         @endif
                         @if(!$isRetake)
-                            <button type="button" data-action="openAssignmentSettings" data-action-args="{{ json_encode([$class['id'], $session['id'], $session['topic'], (int) $session['time_limit'], !empty($session['available_at']) ? \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('Y-m-d\\TH:i') : '', !empty($session['due_at']) ? \Carbon\Carbon::parse($session['due_at'])->timezone(config('app.timezone'))->format('Y-m-d\\TH:i') : '', $isActive], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
+                            <button type="button" data-action="openAssignmentSettings" data-action-args="{{ json_encode([$class['id'], $session['id'], $session['topic'], (int) $session['time_limit'], !empty($session['available_at']) ? \App\Support\AppDate::format($session['available_at'], 'Y-m-d\\TH:i') : '', !empty($session['due_at']) ? \App\Support\AppDate::format($session['due_at'], 'Y-m-d\\TH:i') : '', $isActive], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
                                     class="btn-rect-secondary !py-2 !px-3 !text-[9px] !border-purple-500/30 text-purple-400">
                                 <i class="fas fa-sliders-h mr-1"></i> Edit
                             </button>
@@ -195,7 +195,7 @@
                         · {{ $session['analytics']['average'] }}% attempted average
                     </p>
                     @if(!empty($session['ended_at']))
-                        <p class="text-[9px] text-slate-600 mt-1">Ended {{ \Carbon\Carbon::parse($session['ended_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</p>
+                        <p class="text-[9px] text-slate-600 mt-1">Ended {{ \App\Support\AppDate::format($session['ended_at'], 'M j, Y g:i A') }}</p>
                     @endif
                 </div>
                 <div class="grid grid-cols-2 gap-2 w-full lg:w-auto">

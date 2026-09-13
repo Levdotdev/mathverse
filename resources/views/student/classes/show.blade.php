@@ -56,7 +56,7 @@
             @php
                 $isActive = ($session['status'] ?? 'waiting') === 'active';
                 $alreadyTaken = !empty($session['result']);
-                $isScheduled = !empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at']));
+                $isScheduled = !empty($session['available_at']) && now()->lt(\Carbon\Carbon::parse($session['available_at'], 'UTC'));
                 $canAttempt = $isActive && !$isScheduled && ($session['remaining_attempts'] ?? 0) > 0;
             @endphp
             <article class="portal-frame !p-6 border-l-4 {{ $isActive ? 'border-green-500' : 'border-yellow-500' }}">
@@ -68,10 +68,10 @@
                         <h3 class="font-bold text-xl text-white mt-4">{{ $session['topic'] }}</h3>
                         <p class="text-[10px] text-slate-500 mt-1">{{ $session['time_limit'] }} seconds per question</p>
                         @if(!empty($session['available_at']))
-                            <p class="text-[9px] text-slate-500 mt-2">Available {{ \Carbon\Carbon::parse($session['available_at'])->timezone(config('app.timezone'))->format('M d, Y h:i A') }}</p>
+                            <p class="text-[9px] text-slate-500 mt-2">Available {{ \App\Support\AppDate::format($session['available_at'], 'M d, Y h:i A') }}</p>
                         @endif
                         @if(!empty($session['effective_due_at']))
-                            <p class="text-[9px] text-orange-400 mt-1">{{ !empty($session['eligibility']['retake_due_at']) ? 'Your retake is due' : 'Due' }} {{ \Carbon\Carbon::parse($session['effective_due_at'])->timezone(config('app.timezone'))->format('M d, Y h:i A') }}</p>
+                            <p class="text-[9px] text-orange-400 mt-1">{{ !empty($session['eligibility']['retake_due_at']) ? 'Your retake is due' : 'Due' }} {{ \App\Support\AppDate::format($session['effective_due_at'], 'M d, Y h:i A') }}</p>
                         @endif
                     </div>
                     <i class="fas fa-vr-cardboard text-2xl {{ $isActive ? 'text-green-400' : 'text-yellow-400' }} opacity-70"></i>
@@ -187,7 +187,7 @@
                     <div class="text-left sm:text-right">
                         <p class="font-bold text-cyan-400">{{ $result['correct_answers'] }} / {{ $result['total_questions'] }}</p>
                         <p class="text-sm font-black {{ $accuracyColor }}">{{ $accuracy >= 75 ? 'Passed' : 'Failed' }} · {{ $accuracy }}%</p>
-                        <p class="text-[9px] text-slate-600 mt-1">{{ \Carbon\Carbon::parse($result['created_at'])->format('M d, Y') }}</p>
+                        <p class="text-[9px] text-slate-600 mt-1">{{ \App\Support\AppDate::format($result['created_at'], 'M d, Y') }}</p>
                     </div>
                 @else
                     <p class="text-xs text-red-400 uppercase font-bold">Missed</p>

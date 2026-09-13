@@ -27,7 +27,7 @@ class MathArcadeFlowTest extends TestCase
         $this->withoutMiddleware(SupabaseAuth::class);
     }
 
-    public function test_student_arcade_hub_lists_five_games_and_separate_rewards(): void
+    public function test_student_arcade_hub_lists_four_games_and_separate_rewards(): void
     {
         $arcade = $this->mock(MathArcadeService::class);
         $arcade->shouldReceive('hub')->once()->with($this->student)->andReturn($this->hubState());
@@ -38,10 +38,10 @@ class MathArcadeFlowTest extends TestCase
             ->assertSee('data-testid="arcade-hub"', false)
             ->assertSeeText('Mental Meteor')
             ->assertSeeText('Equation Engineer')
-            ->assertSeeText('Fraction Photon')
+            ->assertDontSeeText('Fraction Photon')
             ->assertSeeText('Pattern Pulse')
             ->assertSeeText('never award Learning Hub XP or trophies');
-        $this->assertSame(5, substr_count($response->getContent(), 'arcade-game-card'));
+        $this->assertSame(4, substr_count($response->getContent(), 'arcade-game-card'));
     }
 
     public function test_game_page_never_embeds_the_current_answer(): void
@@ -59,8 +59,22 @@ class MathArcadeFlowTest extends TestCase
             ->assertSee('data-testid="arcade-game"', false)
             ->assertSeeText('Question 1')
             ->assertSeeText('(18 + 27) − 9')
-            ->assertDontSee('correct_answer')
+            ->assertDontSee('"correct_answer":', false)
             ->assertDontSee('"answer":"36"', false);
+    }
+
+    public function test_retired_fraction_game_routes_are_unavailable_before_service_access(): void
+    {
+        $arcade = $this->mock(MathArcadeService::class);
+        foreach (['game', 'start', 'answer', 'finish', 'leaderboard'] as $method) {
+            $arcade->shouldNotReceive($method);
+        }
+        $this->withSession(['supabase_user' => $this->student]);
+        $this->get('/student/games/fraction-comparison')->assertNotFound();
+        $this->get('/student/games/fraction-comparison/leaderboard')->assertNotFound();
+        $this->postJson('/student/games/fraction-comparison/start')->assertNotFound();
+        $this->postJson('/student/games/fraction-comparison/'.self::SESSION_ID.'/answer')->assertNotFound();
+        $this->postJson('/student/games/fraction-comparison/'.self::SESSION_ID.'/finish')->assertNotFound();
     }
 
     public function test_student_can_start_and_answer_a_server_owned_run(): void
@@ -151,7 +165,6 @@ class MathArcadeFlowTest extends TestCase
             ['number-guess', 'Number Guess', 'cyan'],
             ['mental-arithmetic', 'Mental Meteor', 'purple'],
             ['equation-balance', 'Equation Engineer', 'green'],
-            ['fraction-comparison', 'Fraction Photon', 'orange'],
             ['pattern-pulse', 'Pattern Pulse', 'pink'],
         ] as [$key, $title, $accent]) {
             $games[] = [

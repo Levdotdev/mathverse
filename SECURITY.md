@@ -86,6 +86,8 @@ Run these before deployment and after dependency updates:
 composer audit --locked
 npm audit --audit-level=high
 npm run build
+npm run test:javascript
+npm run test:sql
 php artisan test
 npm run test:browser
 ```
@@ -94,7 +96,7 @@ The GitHub workflow repeats these checks for pushes, pull requests, and weekly
 scheduled runs. A separate staging workflow exercises dedicated student,
 teacher, and administrator accounts every day and on demand. It verifies
 browser runtime errors, notifications, Web Push prerequisites, quizzes,
-Learning Hub practice and analytics, all five games, audit filters, delivery
+Learning Hub practice and analytics, all four active games, audit filters, delivery
 health, deployed identity, and the mobile Join layout. Dependabot opens update
 pull requests for Composer, npm, and workflow dependencies.
 

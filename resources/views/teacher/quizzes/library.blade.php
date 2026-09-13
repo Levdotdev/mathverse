@@ -100,7 +100,7 @@
                                 <span class="text-slate-500">v{{ (int) ($quiz['version'] ?? 1) }}</span>
                             </div>
                             <p class="text-[9px] text-slate-600 mt-2 uppercase tracking-widest">
-                                Updated {{ \Carbon\Carbon::parse($quiz['updated_at'] ?? $quiz['created_at'])->format('M d, Y') }}
+                                Updated {{ \App\Support\AppDate::format($quiz['updated_at'] ?? $quiz['created_at'], 'M d, Y') }}
                             </p>
                         </div>
                         <div class="flex gap-2 shrink-0">

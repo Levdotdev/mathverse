@@ -45,7 +45,7 @@
                     <span>Grade {{ $version['grade_level'] }}</span>
                     <span>{{ count($snapshotQuestions) }} questions</span>
                     <span>{{ ucfirst($version['visibility'] ?? 'shared') }}</span>
-                    <span>{{ \Carbon\Carbon::parse($version['created_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</span>
+                    <span>{{ \App\Support\AppDate::format($version['created_at'], 'M j, Y g:i A') }}</span>
                     <i class="fas fa-chevron-down group-open:rotate-180 transition-transform"></i>
                 </div>
             </summary>

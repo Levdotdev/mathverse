@@ -81,9 +81,9 @@
                     @endif
                     <p class="text-xs text-slate-300 mt-3 leading-relaxed">{{ $report['details'] ?: 'No additional details provided.' }}</p>
                     <p class="text-[9px] text-slate-600 mt-3 uppercase">
-                        Submitted {{ \Carbon\Carbon::parse($report['created_at'])->format('M j, Y · g:i A') }}
+                        Submitted {{ \App\Support\AppDate::format($report['created_at'], 'M j, Y · g:i A') }}
                         @if(!empty($report['reviewed_at']))
-                            · Handled {{ \Carbon\Carbon::parse($report['reviewed_at'])->format('M j, Y · g:i A') }}
+                            · Handled {{ \App\Support\AppDate::format($report['reviewed_at'], 'M j, Y · g:i A') }}
                             @if($report['reviewer_name']) by {{ $report['reviewer_name'] }} @endif
                         @endif
                     </p>

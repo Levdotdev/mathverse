@@ -463,7 +463,7 @@ class TeacherClassController extends Controller
             $result = $countedResults[$studentId] ?? null;
             $attemptsUsed = $attemptCounts[$studentId] ?? 0;
             $retakeExpired = !empty($item['retake_due_at'])
-                && now()->gte(\Carbon\Carbon::parse($item['retake_due_at']));
+                && now()->gte(\Carbon\Carbon::parse($item['retake_due_at'], 'UTC'));
             $item['result'] = $result;
             $item['attempts_used'] = $attemptsUsed;
             $item['remaining_attempts'] = $retakeExpired
@@ -635,7 +635,7 @@ class TeacherClassController extends Controller
         if (($session['status'] ?? 'waiting') !== 'waiting') {
             return response()->json(['message' => 'Only an assigned quiz can be started.'], 422);
         }
-        if (!empty($session['due_at']) && now()->gte(\Carbon\Carbon::parse($session['due_at']))) {
+        if (!empty($session['due_at']) && now()->gte(\Carbon\Carbon::parse($session['due_at'], 'UTC'))) {
             return response()->json(['message' => 'This quiz assignment is already past due.'], 422);
         }
 
@@ -659,7 +659,7 @@ class TeacherClassController extends Controller
             'class_id' => $classId,
             'topic' => $session['topic'] ?? null,
             'started_early' => !empty($session['available_at'])
-                && now()->lt(\Carbon\Carbon::parse($session['available_at'])),
+                && now()->lt(\Carbon\Carbon::parse($session['available_at'], 'UTC')),
         ]);
 
         return response()->json(['success' => true]);

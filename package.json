@@ -5,9 +5,12 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test:browser": "playwright test"
+        "test:browser": "playwright test",
+        "test:javascript": "node --test tests/JavaScript/*.test.js",
+        "test:sql": "node --test tests/Sql/*.test.js"
     },
     "devDependencies": {
+        "@electric-sql/pglite": "0.5.8",
         "@playwright/test": "^1.55.0",
         "@tailwindcss/vite": "^4.0.0",
         "concurrently": "^9.0.1",

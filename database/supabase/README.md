@@ -331,7 +331,8 @@ Each answer also carries the server question sequence (and each Number Guess
 request carries its seen guess count), so a network retry or second tab cannot
 score the same action twice or apply it to the next hidden challenge.
 
-The arcade has one shared 12-badge achievement system across all five games.
+This initial migration installs a shared 12-badge achievement system across
+five games; the September 13 update below reduces the active catalog to four.
 Its scores, badges, and leaderboards are intentionally separate from Learning
 Hub mastery, XP, levels, points, and trophies. The leaderboard returns only the
 configured top ranks plus the current student rather than downloading an entire
@@ -341,6 +342,31 @@ Use `2026_09_12_shared_math_arcade_rollback.sql` only after rolling back the
 matching application code. It archives arcade scores and badges, removes active
 sessions and server functions, and does not alter Learning Hub progress or the
 existing Number Guess leaderboard.
+
+## Philippine-day analytics and Fraction Photon retirement
+
+After Shared Math Arcade, run
+`2026_09_13_portal_timezone_and_arcade_updates.sql` before deploying the portal
+update. It replaces the teacher analytics function with explicit `Asia/Manila`
+calendar-day grouping and a period starting at local midnight. Database
+timestamps remain UTC; no existing registration or practice timestamp is
+rewritten. Ownership checks and service-role-only execution remain enforced.
+
+Fraction Photon is no longer an active game. The remaining hub contains Number
+Guess, Mental Meteor, Equation Engineer, and Pattern Pulse with 11 visible
+badges. Arcade Master requires a score in all four. Retired-game sessions,
+scores, and previously earned badges stay stored; new cross-game progress
+counts only active games. The SQL update can be reapplied safely and registers
+itself for System Health.
+
+Laravel queue/cache tables are separate from this Supabase HTTP schema. A Cloud
+environment without a configured Laravel SQL database should use
+`QUEUE_CONNECTION=deferred` and working cache/rate-limit/scheduler-lock stores
+(`file` on one instance, shared Redis across replicas). Explicit Cloud values
+must be updated and redeployed; changing repository defaults does not replace
+them. Do not create an ephemeral SQLite file just to suppress queue warnings.
+See the root README for the deployment checklist and run `npm run test:sql`
+for an isolated PostgreSQL verification of the update.
 
 ### Configure application email delivery
 

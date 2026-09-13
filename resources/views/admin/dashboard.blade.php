@@ -151,7 +151,7 @@
         </div>
         <div class="space-y-3 font-mono text-[10px] text-slate-400">
             @forelse(array_slice($auditLogs, 0, 5) as $log)
-                <p><span class="text-red-400">[{{ strtoupper($log['action']) }}]</span> {{ $log['actor_name'] }} · {{ \Carbon\Carbon::parse($log['created_at'])->diffForHumans() }}</p>
+                <p><span class="text-red-400">[{{ strtoupper($log['action']) }}]</span> {{ $log['actor_name'] }} · {{ \App\Support\AppDate::relative($log['created_at']) }}</p>
             @empty
                 <p>No sensitive actions have been recorded yet.</p>
             @endforelse
@@ -265,7 +265,7 @@
                         <tr class="border-b border-white/5 hover:bg-white/5 {{ !empty($p['suspended_at']) ? 'opacity-70 bg-red-500/5' : '' }}">
                             <td class="py-4 font-mono text-blue-400">{{ $p['email'] ?? substr($p['id'],0,8) }}</td>
                             <td class="py-4">{{ $p['last_name'] ?? '—' }}, {{ $p['first_name'] ?? '—' }}</td>
-                            <td class="py-4 text-slate-400">{{ isset($p['created_at']) ? \Carbon\Carbon::parse($p['created_at'])->format('M d, Y') : 'N/A' }}</td>
+                            <td class="py-4 text-slate-400">{{ isset($p['created_at']) ? \App\Support\AppDate::format($p['created_at'], 'M d, Y') : 'N/A' }}</td>
                             <td class="py-4"><span class="text-[9px] uppercase font-bold {{ !empty($p['suspended_at']) ? 'text-red-400' : 'text-green-400' }}">{{ !empty($p['suspended_at']) ? 'Suspended' : 'Active' }}</span>@if(!empty($p['suspension_reason']))<p class="text-[9px] text-slate-500 mt-1 max-w-[220px] truncate" title="{{ $p['suspension_reason'] }}">{{ $p['suspension_reason'] }}</p>@endif</td>
                             <td class="py-4 text-right">
                                 @if(!empty($p['suspended_at']))
@@ -306,7 +306,7 @@
         <form method="GET" action="/admin/dashboard" class="audit-filter-grid mb-6" data-seamless-form>
             <input type="hidden" name="section" value="audit">
             <label><span>Name, email, target, or details</span><input type="search" name="audit_search" value="{{ $auditFilters['search'] }}" maxlength="80" placeholder="Search audit records" class="input-mobile-ultra !py-2 !pl-3"></label>
-            <label><span>Event stream</span><select name="audit_category" class="input-mobile-ultra !py-2 !pl-3 bg-slate-900"><option value="">All streams</option><option value="security" @selected($auditFilters['category'] === 'security')>Security</option><option value="activity" @selected($auditFilters['category'] === 'activity')>Page activity</option></select></label>
+            <label><span>Event stream</span><select name="audit_category" class="input-mobile-ultra !py-2 !pl-3 bg-slate-900"><option value="all" @selected($auditFilters['category'] === '')>All streams</option><option value="security" @selected($auditFilters['category'] === 'security')>Security</option><option value="activity" @selected($auditFilters['category'] === 'activity')>Page activity</option></select></label>
             <label><span>Actor role</span><select name="audit_actor_role" class="input-mobile-ultra !py-2 !pl-3 bg-slate-900"><option value="">All roles</option>@foreach(['admin' => 'Admin', 'teacher' => 'Teacher', 'student' => 'Student', 'system' => 'System'] as $value => $label)<option value="{{ $value }}" @selected($auditFilters['actor_role'] === $value)>{{ $label }}</option>@endforeach</select></label>
             <label><span>Outcome</span><select name="audit_outcome" class="input-mobile-ultra !py-2 !pl-3 bg-slate-900"><option value="">All outcomes</option>@foreach(['pending', 'succeeded', 'failed'] as $value)<option value="{{ $value }}" @selected($auditFilters['outcome'] === $value)>{{ ucfirst($value) }}</option>@endforeach</select></label>
             <label><span>Exact action</span><input type="text" name="audit_action" value="{{ $auditFilters['action'] }}" maxlength="100" placeholder="user.suspended" class="input-mobile-ultra !py-2 !pl-3"></label>
@@ -321,7 +321,7 @@
                     @forelse($auditLogs as $log)
                         @php $metadata = is_string($log['metadata'] ?? null) ? (json_decode($log['metadata'], true) ?: []) : ($log['metadata'] ?? []); @endphp
                         <tr class="border-b border-white/5 align-top">
-                            <td class="py-4 text-slate-500 text-xs whitespace-nowrap">{{ \Carbon\Carbon::parse($log['created_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A') }}</td>
+                            <td class="py-4 text-slate-500 text-xs whitespace-nowrap">{{ \App\Support\AppDate::format($log['created_at'], 'M j, Y g:i A') }}</td>
                             <td class="py-4"><span class="font-bold">{{ $log['actor_name'] }}</span><p class="text-[9px] text-slate-500 uppercase">{{ $log['actor_role'] ?? 'system' }}</p></td>
                             <td class="py-4 text-red-300 font-mono text-xs">{{ $log['action'] }}<p class="text-[9px] text-slate-600 uppercase mt-1">{{ $log['event_category'] ?? 'security' }}</p></td>
                             <td class="py-4"><span class="audit-signal" data-outcome="{{ $log['outcome'] ?? 'succeeded' }}">{{ $log['outcome'] ?? 'succeeded' }}</span><p class="text-[9px] uppercase mt-1 text-slate-500">{{ $log['severity'] ?? 'info' }}</p></td>
@@ -337,7 +337,7 @@
         @php
             $auditQuery = array_filter([
                 'section' => 'audit', 'audit_search' => $auditFilters['search'],
-                'audit_category' => $auditFilters['category'], 'audit_actor_role' => $auditFilters['actor_role'],
+                'audit_category' => $auditFilters['category'] ?: 'all', 'audit_actor_role' => $auditFilters['actor_role'],
                 'audit_action' => $auditFilters['action'], 'audit_outcome' => $auditFilters['outcome'],
                 'audit_from' => $auditFilters['from'], 'audit_to' => $auditFilters['to'],
             ], fn($value) => $value !== '');

@@ -102,7 +102,7 @@ class StudentController extends Controller
                         ($attemptCounts[$session['id']] ?? 0) >= (int) ($eligibility['allowed_attempts'] ?? 0)
                         || (
                             !empty($eligibility['retake_due_at'])
-                            && now()->gte(\Carbon\Carbon::parse($eligibility['retake_due_at']))
+                            && now()->gte(\Carbon\Carbon::parse($eligibility['retake_due_at'], 'UTC'))
                         )
                     );
             }
@@ -132,7 +132,10 @@ class StudentController extends Controller
             $result['quiz_sessions'] = $session;
             $quizHistory[] = $result;
         }
-        usort($quizHistory, fn (array $a, array $b): int => strtotime($b['created_at']) <=> strtotime($a['created_at']));
+        usort($quizHistory, fn (array $a, array $b): int =>
+            (\App\Support\AppDate::parse($b['created_at'] ?? null)?->getTimestamp() ?? 0)
+            <=> (\App\Support\AppDate::parse($a['created_at'] ?? null)?->getTimestamp() ?? 0)
+        );
 
         $missedQuizzes = [];
         foreach ($endedSessions as $session) {
@@ -250,7 +253,7 @@ class StudentController extends Controller
                 $accuracy = $total > 0 ? round(($correct / $total) * 100, 1) : 0;
                 $status = $accuracy >= 75 ? 'Passed' : 'Failed';
                 $score = "{$correct} / {$total}";
-                $date = \Carbon\Carbon::parse($result['created_at'])->format('M d, Y h:i A');
+                $date = \App\Support\AppDate::format($result['created_at'], 'M d, Y h:i A');
             } else {
                 $accuracy = null;
                 $status = $isExcused ? 'Excused' : 'Missed';

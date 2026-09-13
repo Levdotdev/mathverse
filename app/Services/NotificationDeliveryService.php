@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Mail\MathVerseEventMail;
 use App\Support\SafePath;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -692,13 +691,7 @@ class NotificationDeliveryService
 
     private function formatDateTime(string $value): string
     {
-        try {
-            return Carbon::parse($value)
-                ->timezone((string) config('app.timezone'))
-                ->format('M d, Y · h:i A T');
-        } catch (\Throwable) {
-            return $value;
-        }
+        return \App\Support\AppDate::format($value, 'M d, Y · h:i A T', $value);
     }
 
     private function markSent(array $delivery, string $workerId): void

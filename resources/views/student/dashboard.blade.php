@@ -48,7 +48,7 @@
                 <div>
                     <p class="text-[9px] uppercase font-bold tracking-[0.3em] text-pink-400">MathVerse Arcade</p>
                     <h3 class="font-orbitron font-bold text-lg mt-1">Enter the Math Arcade</h3>
-                    <p class="text-xs text-slate-500 mt-1">Five reasoning games, shared badges, and separate grade-level leaderboards.</p>
+                    <p class="text-xs text-slate-500 mt-1">Four reasoning games, shared badges, and separate grade-level leaderboards.</p>
                 </div>
             </div>
             <span class="text-pink-300 text-sm shrink-0" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>
@@ -91,7 +91,7 @@
                     <div>
                         <p class="font-bold text-sm text-white">{{ $topic }}</p>
                         <p class="text-[10px] text-slate-500 font-mono">
-                            Date: {{ \Carbon\Carbon::parse($record['created_at'])->format('M d, Y') }}
+                            Date: {{ \App\Support\AppDate::format($record['created_at'], 'M d, Y') }}
                         </p>
                     </div>
                     <div class="flex items-center gap-4 sm:text-right">
@@ -117,7 +117,7 @@
         <div class="space-y-3">
             @forelse($missedQuizzes as $missed)
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
-                    <div><p class="font-bold text-sm">{{ $missed['topic'] }}</p><p class="text-[10px] text-slate-500">{{ $missed['class_name'] }} · Ended {{ \Carbon\Carbon::parse($missed['ended_at'] ?? $missed['created_at'])->timezone(config('app.timezone'))->format('M d, Y') }}</p></div>
+                    <div><p class="font-bold text-sm">{{ $missed['topic'] }}</p><p class="text-[10px] text-slate-500">{{ $missed['class_name'] }} · Ended {{ \App\Support\AppDate::format($missed['ended_at'] ?? $missed['created_at'], 'M d, Y') }}</p></div>
                     <a href="/student/classes/{{ $missed['class_id'] }}/quizzes/{{ $missed['id'] }}/review" class="btn-rect-secondary !py-2 !px-3 !w-auto text-[9px]">Review Answers</a>
                 </div>
             @empty

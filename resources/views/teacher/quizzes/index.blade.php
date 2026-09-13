@@ -83,7 +83,7 @@
                                 <i class="fas {{ ($quiz['visibility'] ?? 'shared') === 'shared' ? 'fa-users' : 'fa-lock' }} mr-1"></i>{{ ucfirst($quiz['visibility'] ?? 'shared') }}
                             </span>
                             <span class="text-yellow-300 bg-yellow-500/10 px-2 py-1 rounded">v{{ $quiz['version'] ?? 1 }}</span>
-                            <span class="text-slate-500 px-1 py-1">{{ \Carbon\Carbon::parse($quiz['created_at'])->format('M d, Y') }}</span>
+                            <span class="text-slate-500 px-1 py-1">{{ \App\Support\AppDate::format($quiz['created_at'], 'M d, Y') }}</span>
                         </div>
                     </div>
                 </div>

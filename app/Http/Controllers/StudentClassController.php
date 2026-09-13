@@ -157,7 +157,7 @@ class StudentClassController extends Controller
                 ?? $session['due_at']
                 ?? null;
             $isPastStudentDue = !empty($session['effective_due_at'])
-                && now()->gte(\Carbon\Carbon::parse($session['effective_due_at']));
+                && now()->gte(\Carbon\Carbon::parse($session['effective_due_at'], 'UTC'));
             $session['remaining_attempts'] = $isPastStudentDue
                 ? 0
                 : max(

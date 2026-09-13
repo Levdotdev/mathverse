@@ -24,7 +24,7 @@ Route::pattern('studentId', $uuidPattern);
 Route::pattern('sessionId', $uuidPattern);
 Route::pattern('reportId', $uuidPattern);
 Route::pattern('questionId', $uuidPattern);
-Route::pattern('gameKey', '(?:mental-arithmetic|equation-balance|fraction-comparison|pattern-pulse)');
+Route::pattern('gameKey', '(?:mental-arithmetic|equation-balance|pattern-pulse)');
 Route::pattern('version', '[1-9][0-9]{0,8}');
 
 // Auth routes

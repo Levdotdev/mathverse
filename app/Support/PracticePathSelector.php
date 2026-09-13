@@ -36,7 +36,7 @@ class PracticePathSelector
         $due = array_values(array_filter($catalog, function (array $item) use ($mastery, $now): bool {
             $nextReview = $mastery[$item['key']]['next_review_at'] ?? null;
 
-            return $nextReview !== null && CarbonImmutable::parse($nextReview)->lte($now);
+            return $nextReview !== null && CarbonImmutable::parse($nextReview, 'UTC')->lte($now);
         }));
         if ($due !== []) {
             usort($due, fn (array $a, array $b): int =>

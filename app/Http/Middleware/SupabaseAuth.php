@@ -257,8 +257,8 @@ class SupabaseAuth
         }
 
         try {
-            return CarbonImmutable::parse($authenticatedAt)
-                ->lt(CarbonImmutable::parse($invalidBefore));
+            return CarbonImmutable::parse($authenticatedAt, 'UTC')
+                ->lt(CarbonImmutable::parse($invalidBefore, 'UTC'));
         } catch (\Throwable) {
             return true;
         }

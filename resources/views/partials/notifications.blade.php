@@ -79,7 +79,7 @@
                             </span>
                             <span class="block break-words text-[10px] text-slate-400 leading-4 mt-1">{{ $notification['message'] }}</span>
                             <span class="block text-[9px] text-slate-600 mt-2">
-                                {{ \Carbon\Carbon::parse($notification['created_at'])->timezone(config('app.timezone'))->diffForHumans() }}
+                                {{ \App\Support\AppDate::relative($notification['created_at']) }}
                             </span>
                         </span>
                     </button>
