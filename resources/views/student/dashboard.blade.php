@@ -35,7 +35,7 @@
                 <div>
                     <p class="text-[9px] uppercase font-bold tracking-[0.3em] text-purple-400">Autonomous Practice</p>
                     <h3 class="font-orbitron font-bold text-lg mt-1">Continue Your MathVerse Adventure</h3>
-                    <p class="text-xs text-slate-500 mt-1">Adaptive problems, automatic hints, mastery, XP, and daily quests.</p>
+                    <p class="text-xs text-slate-500 mt-1">Adaptive problems, automatic hints, mastery, and XP.</p>
                 </div>
             </div>
             <span class="text-purple-300 text-sm shrink-0" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>

@@ -38,7 +38,7 @@
                 </div>
 
                 {{-- Laravel form: POST to /login --}}
-                <form method="POST" action="/login" class="space-y-5">
+                <form method="POST" action="/login" class="space-y-5" autocomplete="off">
                     @csrf
                     <div class="form-group">
                         <label class="input-label">Email Address</label>
@@ -46,7 +46,7 @@
                             <i class="fas fa-envelope input-icon"></i>
                             <input type="email" name="email" required
                                    value="{{ old('email') }}"
-                                   class="input-mobile-ultra" placeholder="Enter email">
+                                   class="input-mobile-ultra" placeholder="Enter email" autocomplete="off">
                         </div>
                     </div>
 
@@ -55,7 +55,7 @@
                         <div class="relative">
                             <i class="fas fa-lock input-icon"></i>
                             <input type="password" id="lPass" name="password" required
-                                   class="input-mobile-ultra pr-12" placeholder="Enter password">
+                                   class="input-mobile-ultra pr-12" placeholder="Enter password" autocomplete="off">
                             <button type="button" data-action="tglPass" data-action-args='["lPass","lIcon"]'
                                     class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-8 flex items-center justify-center text-slate-500">
                                 <i id="lIcon" class="fas fa-eye-slash"></i>

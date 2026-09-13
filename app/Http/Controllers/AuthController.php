@@ -332,7 +332,7 @@ class AuthController extends Controller
 
         if ($account['data'] === []) {
             return back()->withInput($request->only('email'))->withErrors([
-                'email' => 'No MathVerse account is registered with that email address.',
+                'email' => 'Reset email sent if that email address is registered to a MathVerse account.',
             ]);
         }
 

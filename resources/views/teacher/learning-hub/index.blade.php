@@ -60,6 +60,22 @@
             </div>
         </section>
 
+        <section class="portal-frame !p-5 md:!p-6" aria-labelledby="recent-practice-title"><h3 id="recent-practice-title" class="font-orbitron font-bold mb-4">Recent Practice</h3><div class="space-y-3">@forelse($analytics['recent_activity'] as $activity)<article class="analytics-compact-row"><div class="min-w-0"><strong class="truncate block">{{ $activity['student_name'] ?: 'Student' }}</strong><p class="truncate">{{ $activity['topic_title'] }}</p></div><div class="text-right shrink-0"><span class="{{ $activity['is_correct'] ? 'text-green-300' : 'text-red-300' }}">{{ $activity['is_correct'] ? 'Correct' : 'Review' }}</span><p>{{ \App\Support\AppDate::relative($activity['answered_at']) }}</p></div></article>@empty<p class="analytics-empty">No recent practice activity.</p>@endforelse</div></section>
+    </div>
+
+    <section class="portal-frame !p-5 md:!p-6 mb-6" aria-labelledby="student-mastery-title">
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5"><div><p class="analytics-kicker text-purple-300">Up to 200 enrolled learners</p><h3 id="student-mastery-title" class="font-orbitron font-bold mt-1">Student Mastery and Activity</h3></div><p class="text-[10px] text-slate-500">Sorted by most recent practice</p></div>
+        <div class="overflow-x-auto"><table class="w-full text-left analytics-table"><thead><tr><th>Student</th><th>Class</th><th>Mastery</th><th>Accuracy</th><th>Answers</th><th>Hints</th><th>Change</th><th>Last practice</th></tr></thead><tbody>
+            @forelse($analytics['students'] as $student)
+                <tr><td><strong>{{ $student['name'] ?: 'Student' }}</strong><small>Grade {{ $student['grade_level'] }}</small></td><td>{{ $student['classes'] ?: '—' }}</td><td>{{ number_format((float) ($student['mastery'] ?? 0), 1) }}%</td><td>{{ number_format((float) ($student['accuracy'] ?? 0), 1) }}%</td><td>{{ (int) ($student['answers'] ?? 0) }}</td><td>{{ (int) ($student['hints_used'] ?? 0) }} <small>({{ number_format((float) ($student['hint_usage_rate'] ?? 0), 1) }}%)</small></td><td class="{{ (float) ($student['improvement'] ?? 0) >= 0 ? 'text-green-300' : 'text-red-300' }}">{{ (float) ($student['improvement'] ?? 0) > 0 ? '+' : '' }}{{ number_format((float) ($student['improvement'] ?? 0), 1) }}</td><td>{{ !empty($student['last_practiced_at']) ? \App\Support\AppDate::relative($student['last_practiced_at']) : 'Not active' }}</td></tr>
+            @empty
+                <tr><td colspan="8" class="!py-10 text-center text-slate-500">No enrolled student practice data is available for this selection.</td></tr>
+            @endforelse
+        </tbody></table></div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section class="portal-frame !p-5 md:!p-6" aria-labelledby="class-comparison-title"><h3 id="class-comparison-title" class="font-orbitron font-bold mb-4">Class Comparison</h3><div class="space-y-3">@forelse($analytics['classes'] as $class)<article class="analytics-compact-row"><div><strong>{{ $class['class_name'] }}</strong><p>Grade {{ $class['grade_level'] }} · {{ $class['active_students'] }}/{{ $class['students'] }} active</p></div><div class="text-right"><strong>{{ number_format((float) ($class['mastery'] ?? 0), 1) }}%</strong><p>{{ (int) ($class['answers'] ?? 0) }} answers</p></div></article>@empty<p class="analytics-empty">No active classes found.</p>@endforelse</div></section>
         <section class="portal-frame !p-5 md:!p-6" aria-labelledby="daily-activity-title">
             <div class="flex items-center justify-between gap-3 mb-5"><div><p class="analytics-kicker text-cyan-300">Practice volume</p><h3 id="daily-activity-title" class="font-orbitron font-bold mt-1">Daily Activity</h3></div><i class="fas fa-chart-line text-cyan-400"></i></div>
             @php
@@ -78,22 +94,6 @@
                 @endforelse
             </div>
         </section>
-    </div>
-
-    <section class="portal-frame !p-5 md:!p-6 mb-6" aria-labelledby="student-mastery-title">
-        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5"><div><p class="analytics-kicker text-purple-300">Up to 200 enrolled learners</p><h3 id="student-mastery-title" class="font-orbitron font-bold mt-1">Student Mastery and Activity</h3></div><p class="text-[10px] text-slate-500">Sorted by most recent practice</p></div>
-        <div class="overflow-x-auto"><table class="w-full text-left analytics-table"><thead><tr><th>Student</th><th>Class</th><th>Mastery</th><th>Accuracy</th><th>Answers</th><th>Hints</th><th>Change</th><th>Last practice</th></tr></thead><tbody>
-            @forelse($analytics['students'] as $student)
-                <tr><td><strong>{{ $student['name'] ?: 'Student' }}</strong><small>Grade {{ $student['grade_level'] }}</small></td><td>{{ $student['classes'] ?: '—' }}</td><td>{{ number_format((float) ($student['mastery'] ?? 0), 1) }}%</td><td>{{ number_format((float) ($student['accuracy'] ?? 0), 1) }}%</td><td>{{ (int) ($student['answers'] ?? 0) }}</td><td>{{ (int) ($student['hints_used'] ?? 0) }} <small>({{ number_format((float) ($student['hint_usage_rate'] ?? 0), 1) }}%)</small></td><td class="{{ (float) ($student['improvement'] ?? 0) >= 0 ? 'text-green-300' : 'text-red-300' }}">{{ (float) ($student['improvement'] ?? 0) > 0 ? '+' : '' }}{{ number_format((float) ($student['improvement'] ?? 0), 1) }}</td><td>{{ !empty($student['last_practiced_at']) ? \App\Support\AppDate::relative($student['last_practiced_at']) : 'Not active' }}</td></tr>
-            @empty
-                <tr><td colspan="8" class="!py-10 text-center text-slate-500">No enrolled student practice data is available for this selection.</td></tr>
-            @endforelse
-        </tbody></table></div>
-    </section>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section class="portal-frame !p-5 md:!p-6" aria-labelledby="class-comparison-title"><h3 id="class-comparison-title" class="font-orbitron font-bold mb-4">Class Comparison</h3><div class="space-y-3">@forelse($analytics['classes'] as $class)<article class="analytics-compact-row"><div><strong>{{ $class['class_name'] }}</strong><p>Grade {{ $class['grade_level'] }} · {{ $class['active_students'] }}/{{ $class['students'] }} active</p></div><div class="text-right"><strong>{{ number_format((float) ($class['mastery'] ?? 0), 1) }}%</strong><p>{{ (int) ($class['answers'] ?? 0) }} answers</p></div></article>@empty<p class="analytics-empty">No active classes found.</p>@endforelse</div></section>
-        <section class="portal-frame !p-5 md:!p-6" aria-labelledby="recent-practice-title"><h3 id="recent-practice-title" class="font-orbitron font-bold mb-4">Recent Practice</h3><div class="space-y-3">@forelse($analytics['recent_activity'] as $activity)<article class="analytics-compact-row"><div class="min-w-0"><strong class="truncate block">{{ $activity['student_name'] ?: 'Student' }}</strong><p class="truncate">{{ $activity['topic_title'] }}</p></div><div class="text-right shrink-0"><span class="{{ $activity['is_correct'] ? 'text-green-300' : 'text-red-300' }}">{{ $activity['is_correct'] ? 'Correct' : 'Review' }}</span><p>{{ \App\Support\AppDate::relative($activity['answered_at']) }}</p></div></article>@empty<p class="analytics-empty">No recent practice activity.</p>@endforelse</div></section>
     </div>
 </div>
 @endsection

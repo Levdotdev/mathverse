@@ -130,52 +130,11 @@
                 @endif
             </div>
         </article>
-
-        <article class="portal-frame !p-7 border-purple-500/40">
-            <div class="flex items-center justify-between gap-4 mb-5">
-                <div>
-                    <p class="text-[9px] uppercase font-bold tracking-widest text-purple-400">Today's Mission</p>
-                    <h3 class="font-orbitron font-bold text-lg mt-1">Daily Quest</h3>
-                </div>
-                <div class="w-12 h-12 rounded-lg border border-purple-500/30 bg-purple-500/10 flex items-center justify-center text-purple-400">
-                    <i class="fas fa-calendar-check text-xl"></i>
-                </div>
-            </div>
-            <div class="flex justify-between text-xs mb-2">
-                <span class="text-slate-400">Problems completed</span>
-                <span class="font-mono font-bold text-white">{{ min($hub['daily_answered'], $hub['daily_goal']) }}/{{ $hub['daily_goal'] }}</span>
-            </div>
-            <div class="h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                <div class="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all" style="width: {{ $hub['daily_percent'] }}%"></div>
-            </div>
-            <p class="text-xs text-slate-500 mt-4">
-                {{ $hub['daily_percent'] >= 100 ? 'Daily quest complete. You can keep solving for more mastery and XP.' : 'Complete ten adaptive problems. MathVerse chooses every question for you.' }}
-            </p>
-            @if($hub['configured'])
-                <a href="/student/learning-hub/practice?mode=daily" class="btn-rect-secondary block text-center mt-6 !py-3">
-                    {{ $hub['daily_percent'] >= 100 ? 'Keep Practicing' : 'Start Daily Quest' }}
-                </a>
-            @endif
-        </article>
-    </section>
-
-    <section class="mb-8">
-        <div class="flex items-center justify-between gap-4 mb-4">
-            <div>
-                <p class="text-[9px] uppercase tracking-[0.3em] font-bold text-slate-500">Choose your mission</p>
-                <h3 class="font-orbitron font-bold uppercase text-lg mt-1">Practice Modes</h3>
-            </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-rows-2 gap-4">
             <a href="{{ $hub['configured'] ? '/student/learning-hub/practice?mode=adventure' : '#' }}" class="portal-frame !p-6 learning-mode-card border-cyan-500/30 {{ !$hub['configured'] ? 'pointer-events-none opacity-50' : '' }}">
                 <i class="fas fa-infinity text-2xl text-cyan-400"></i>
                 <h4 class="font-orbitron font-bold mt-4">Endless Adventure</h4>
                 <p class="text-xs text-slate-500 mt-2">A continuous adaptive path through every Grade {{ $hub['grade'] }} skill.</p>
-            </a>
-            <a href="{{ $hub['configured'] ? '/student/learning-hub/practice?mode=daily' : '#' }}" class="portal-frame !p-6 learning-mode-card border-purple-500/30 {{ !$hub['configured'] ? 'pointer-events-none opacity-50' : '' }}">
-                <i class="fas fa-bullseye text-2xl text-purple-400"></i>
-                <h4 class="font-orbitron font-bold mt-4">Daily Quest</h4>
-                <p class="text-xs text-slate-500 mt-2">Ten focused questions with an automatic goal and immediate rewards.</p>
             </a>
             <a href="{{ $hub['configured'] ? '/student/learning-hub/practice?mode=review' : '#' }}" class="portal-frame !p-6 learning-mode-card border-orange-500/30 {{ !$hub['configured'] ? 'pointer-events-none opacity-50' : '' }}">
                 <i class="fas fa-screwdriver-wrench text-2xl text-orange-400"></i>
@@ -192,7 +151,7 @@
                 <h3 id="curriculum-map-title" class="font-orbitron font-bold uppercase text-lg mt-1">All Topics</h3>
             </div>
             <p class="text-xs text-slate-500 max-w-xl md:text-right">
-                Choose any topic to practise only that topic. Endless Adventure still moves through the complete Grade {{ $hub['grade'] }} curriculum automatically.
+                Choose any topic to practice only that topic. Endless Adventure still moves through the complete Grade {{ $hub['grade'] }} curriculum automatically.
             </p>
         </div>
 
@@ -226,7 +185,7 @@
                             <a href="{{ $hub['configured'] ? $focusUrl : '#' }}"
                                class="portal-frame learning-topic-card !p-5 {{ !$hub['configured'] ? 'pointer-events-none opacity-50' : '' }}"
                                style="--topic-color: {{ $skill['color'] }}; border-color: {{ $skill['color'] }}55;"
-                               aria-label="{{ $isActiveFocus ? 'Continue' : 'Practise' }} {{ $skill['title'] }} only">
+                               aria-label="{{ $isActiveFocus ? 'Continue' : 'Practice' }} {{ $skill['title'] }} only">
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style="color: {{ $skill['color'] }}; background: {{ $skill['color'] }}18; border: 1px solid {{ $skill['color'] }}44;">
                                         <i class="fas {{ $skill['icon'] }}"></i>

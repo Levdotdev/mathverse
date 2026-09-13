@@ -28,7 +28,7 @@
         <div><p class="text-[9px] uppercase tracking-[0.3em] font-bold text-green-400">Deployment and delivery diagnostics</p><h2 class="font-orbitron font-black text-2xl md:text-3xl mt-2">System <span class="text-red-400">Health</span></h2><p class="text-sm text-slate-400 mt-3 max-w-2xl">Verify database migrations, scheduler activity, messages, browser alerts, delivery retries, durable audits, latency, and the deployed commit.</p></div>
         <div class="health-overall" data-status="{{ $health['overall'] }}"><i class="fas {{ $statusIcon[$health['overall']] }}"></i><div><span>Overall status</span><strong>{{ $statusLabel[$health['overall']] }}</strong></div></div>
     </header>
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-6 text-[10px] text-slate-500"><span><i class="fas fa-code-commit mr-2"></i>Commit <code class="text-slate-300">{{ $health['commit'] }}</code></span><span>Checked {{ \App\Support\AppDate::relative($health['generated_at']) }}</span></div>
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-6 text-[10px] text-slate-500"><span><i class="fas fa-code-commit mr-2"></i>Commit <code class="text-slate-300">{{ $health['commit'] }}</code></span></div>
 
     <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-7" aria-label="Health checks">
         @foreach($healthCards as $card)

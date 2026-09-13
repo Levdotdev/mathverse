@@ -16,8 +16,7 @@
                 <p class="text-[9px] uppercase tracking-[0.3em] font-bold text-pink-400">MathVerse Arcade</p>
                 <h2 class="font-orbitron font-black text-2xl md:text-4xl mt-2">Think Fast. <span class="text-cyan-400">Reason Deeper.</span></h2>
                 <p class="text-sm text-slate-400 mt-3 leading-relaxed">
-                    Four short math games with grade-level challenges, fair server-verified scores, and separate leaderboards.
-                    Questions rotate through different reasoning patterns before a template repeats.
+                    Four short math game challenges with fair server-verified scores. Be the top player in your grade level.
                 </p>
             </div>
             <div class="arcade-grade-chip shrink-0">

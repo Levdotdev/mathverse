@@ -11,7 +11,7 @@ class PracticeCurriculum
     /**
      * Topic-level coverage from the April 17, 2026 Grade 1-6 General
      * Mathematics Three-Term Budget of Work. Closely related weekly
-     * competencies are kept together so a learner can deliberately practise
+     * competencies are kept together so a learner can deliberately practice
      * one curriculum topic without turning the map into a list of outcomes.
      */
     public static function forGrade(int $grade): array
